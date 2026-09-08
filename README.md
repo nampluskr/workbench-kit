@@ -35,6 +35,7 @@
 | [`scenarios.md`](refs/scenarios.md) | 사용자 시나리오 70개와 각각의 정해진 결과 |
 | [`skeleton-proposal.md`](refs/skeleton-proposal.md) | 무엇을 가져오고 무엇을 만들 것인가 — 제안과 그 결과 |
 | [`licenses.md`](refs/licenses.md) | 반입할 것들의 라이선스와 배포할 때 함께 넣을 것 |
+| [`next-session-prompts.md`](refs/next-session-prompts.md) | 다음 세션에서 쓸 프롬프트 |
 | [`vscode-ui-reference.md`](refs/vscode-ui-reference.md) | VS Code UI 요소 용어 사전 |
 | [`ui-vscode-mapping.md`](refs/ui-vscode-mapping.md) | 앞선 프로젝트가 남긴 의도를 VS Code 용어로 옮겨 읽기 |
 | [`vscode-reuse-plan.md`](refs/vscode-reuse-plan.md) | VS Code 요소별 남김 / 가져옴 / 뺌 |
