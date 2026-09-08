@@ -103,7 +103,7 @@ SPEC.md를 가리키게 고쳐줘.
 D:\projects\project-workflow\docs\INIT.md 를 읽고 이 프로젝트를 초기화해줘.
 D:\projects\_ideas\workbench-kit 를 최상위(D:\projects\workbench-kit)로 승격하는 거야.
 
-- git 저장소가 이미 있다. GitHub 원격도 있어 — nampluskr/workbench-kit (비공개)
+- git 저장소와 GitHub 원격이 이미 있다
 - refs/ 가 있으니 docs/refs/ 로 옮겨
 - 착수 모드를 먼저 판별해서 말하고, 검사 결과를 표로 보여준 다음 진행해
 - 빠진 게 있으면 대신 채우지 말고 멈추고 보고해
