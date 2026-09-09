@@ -137,6 +137,36 @@ function createWindow() {
     process.exit(1);
   });
 
+  // Native/title-bar close asks first if any tab is dirty, same as File >
+  // Exit (FR-L6, D-28). Resolves near-instantly to true for an undirtied
+  // session, so this is a no-op for smoke tests and other automated flows.
+  // File > Exit routes through this exact same gate (via closeWindow() ->
+  // 'window:close' -> win.close(), below) rather than confirming separately,
+  // so a dirty tab is asked about exactly once no matter which path
+  // triggered the close (round-2 adversarial finding, Major: asking twice).
+  let allowClose = false;
+  win.on('close', (event) => {
+    if (allowClose) return;
+    event.preventDefault();
+    win.webContents
+      .executeJavaScript('window.__workbenchApp ? window.__workbenchApp.editor.confirmQuit() : true')
+      .then((ok) => {
+        if (ok) {
+          allowClose = true;
+          win.close();
+        }
+      })
+      .catch((err) => {
+        // Round-2 adversarial finding (Critical): this used to close
+        // unconditionally, which meant a real save failure during
+        // confirmQuit() (the save handler's promise rejecting, propagating
+        // through executeJavaScript) closed the window anyway and lost the
+        // unsaved edit. Fail closed instead — an unexpected error here must
+        // never be treated as permission to discard unsaved content.
+        console.error('[Electron] confirmQuit() failed; window stays open:', err);
+      });
+  });
+
   win.loadFile(distIndexPath);
 }
 

@@ -1,0 +1,118 @@
+This is round 3 — the LAST round allowed under docs/ADVERSARIAL-REVIEW.md's 3-attempt
+cap — for Phase 6 of workbench-kit. Round 2 found 2 Critical, 5 Major, 1 Minor. Verify
+each round-2 finding directly against the current code; do not assume it is fixed.
+Still try to break this code.
+
+What changed since round 2, mapped to round-2 findings:
+
+1. Critical — pywebview's destroy()-triggered re-entrant events.closing was vetoed
+   again, looping forever. Fix: src/hosts/pywebview/main.py's request_confirmed_close()
+   now sets window._wb_close_confirmed = True immediately before every window.destroy()
+   call (all three exit points: confirmed, timeout, exception). on_closing() checks that
+   flag first and returns True (does not veto) when set, instead of always calling
+   request_confirmed_close() again and returning False.
+
+2. Critical — Electron's native-close catch() unconditionally closed even when
+   confirmQuit() itself rejected (e.g. a save handler throwing on a real I/O failure),
+   silently discarding unsaved content. Fix: src/hosts/electron/main.cjs's win.on(
+   'close') catch handler no longer sets allowClose/calls win.close(); it only logs the
+   error and leaves the window open (fail closed, never fail open on an error path that
+   exists specifically to prevent data loss).
+
+3. Major — File > Exit asked twice (handleExitRequest() confirmed via confirmQuit(),
+   then closeWindow() reached the native close gate which confirmed again). Fix:
+   src/main.ts's handleExitRequest() is now `public handleExitRequest(): void { closeWindow(); }`
+   — it asks nothing itself. closeWindow() -> the 'window:close' IPC handler (Electron)
+   or window.pywebview.api.close() (pywebview) -> each host's own native close gate is
+   now the SINGLE place confirmQuit() is called, for both the title-bar/native close
+   button and File > Exit.
+
+4. Major — 저장 안 함 followed by resource replacement left params.isDirty: true
+   surviving dockview's partial-params merge on the freshly loaded, actually-clean
+   content, causing a phantom confirmation on the next close. Fix: src/core/editor.ts's
+   openItem() now includes `isDirty: false` in the params object passed to
+   activePanel.update() in both the FR-B3 and FR-B1 in-place-replacement branches.
+
+5. Major — quit acceptance tests didn't exercise the real host close gates; the
+   standalone Electron runner had neither the 'window:close' IPC handler nor the
+   win.on('close') gate main.cjs has. Fix: scripts/phase6-electron-runner.cjs now
+   duplicates that exact gate (same fail-closed catch as item 2). scripts/
+   phase6-suite.js's P6-FR-L6-CANCEL now calls app.handleExitRequest() (which, per
+   item 3, does nothing but closeWindow()) and waits for the round-trip through the
+   real gate before checking the dialog and clicking Cancel, instead of calling
+   confirmQuit() directly. P6-FR-L6-DISCARD is UNCHANGED and still calls
+   editor.confirmQuit() directly — letting the real gate's affirmative path run to
+   completion would tear down the very host process running the test harness.
+   pywebview needed no runner change: its --phase6-test mode installs the real
+   events.closing/on_closing gate unconditionally (not only in non-test runs), so
+   window.pywebview.api.close() already exercised the production path even before
+   this round.
+
+6. Not changed (deliberately, flagged to you rather than resolved unilaterally):
+   - Round-2 finding 4 (an old shell operation can erase newer app-owned progress,
+     since progressActive is a single flag with no per-caller identity): D-32's own
+     text explicitly accepts "껍데기 오류와 앱 메시지가 짧은 간격으로 겹치면 앞엣것이
+     보이지 않고 지나간다" as a known tradeoff of the deliberately-minimal one-line,
+     no-queue, no-ownership design, and its excluded-alternatives list rejects adding
+     richer bookkeeping ("앱과 껍데기가 자리를 다투는 규칙을 새로 만들지 않아도
+     된다"). Please judge independently whether the specific reproduction you found
+     (an unrelated stopProgress() call clearing a different, still-active progress)
+     is inside that accepted tradeoff's scope or is a distinct defect D-32 does not
+     cover — say so either way rather than assuming either answer.
+   - Round-2 finding 7 (FR-K1 real-relaunch check exists only for Electron, not
+     pywebview): not implemented this round. pywebview's in-process
+     clear()+restoreLastSession() simulation is unchanged.
+   - Round-2 finding 8 (FR-M5's source-only scan redefines the literal "산출물"
+     acceptance clause): you already gave a definitive answer in round 2 (yes, this
+     redefines the clause and needs a normative SPEC change, which only a human can
+     make per this project's docs.md rule that SPEC.md is edited by request only).
+     No code change was made in response; this is being carried to the user as-is.
+     Please re-state your verdict rather than treating it as silently resolved.
+   - Round-2 finding 9 (Minor — FR-P2's findAndReplaceForTest() drives the find
+     controller's internal start()/replaceAll() rather than the rendered widget's
+     inputs/button): not implemented this round.
+
+Full regression (npm run typecheck && npm test, all Phase 1-6, both hosts) currently
+passes with 0 failures after all the above changes.
+
+Review these product and test source files (all under the repo root):
+- src/core/editor.ts
+- src/core/dialog.ts
+- src/core/statusmessage.ts
+- src/core/texteditor.ts
+- src/registry/kind-registry.ts
+- src/presets/file-preset.ts
+- src/presets/folder-preset.ts
+- src/providers/filesystem.ts
+- src/main.ts
+- src/style.css
+- src/hosts/pywebview/main.py
+- src/hosts/electron/main.cjs
+- src/hosts/electron/preload.cjs
+- vite.config.ts
+- package.json
+- scripts/phase4-suite.js (only the two `await wait(20)` additions near "활성 칸 탭 모두 닫기")
+- scripts/phase5-suite.js (only the changes: removing `setTabDirty` from the
+  forbidden-methods list, and awaiting P5-FR-I8-SURFACE-HANDLE's now-async openItem call)
+- scripts/verify-dist.mjs (only the change scoping the tab-explorer-templates token
+  scan to src/style.css)
+- scripts/phase6-suite.js
+- scripts/phase6-electron-runner.cjs
+- scripts/verify-phase6.mjs
+
+Validate against these PLAN.md clauses (read docs/current/PLAN.md's "## Phase 6"
+section and its completion conditions verbatim):
+- FR-G2 ~ FR-G4, FR-K1 ~ FR-K3, FR-L1 ~ FR-L7, FR-N6a, FR-N10a, FR-N10b, FR-P1 ~ FR-P7
+  (see docs/current/SPEC.md for each ID's exact requirement/acceptance wording)
+- D-16, D-18, D-20, D-21, D-22, D-26, D-27, D-28, D-32 (see docs/current/DECISIONS.md)
+- X-9, X-11, X-12 (see docs/current/SPEC.md's excluded-items table)
+- INTENT.md section 3 ("the shell does not know resource kinds") and section 7
+- `.claude/rules/common-core.md`
+
+Do not inspect Git status, branches, remotes, or commit history, and do not use shell
+tools beyond reading files. For each finding, report severity (Critical/Major/Minor),
+exact reproduction conditions (file:line where relevant), and the violated PLAN/SPEC/
+DECISIONS clause. Order findings by severity. Do not modify any file. Conclude with an
+explicit verdict on whether Phase 6 has any remaining unresolved Critical — this is the
+last review round available under the 3-round cap, so state plainly what (if anything)
+would still need a human decision rather than further code changes.

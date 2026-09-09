@@ -16,11 +16,11 @@ export function registerFolderPreset(registry: ResourceKindRegistry): void {
   });
 }
 
-export function openFolder(
+export async function openFolder(
   editor: AppEditorSurface,
   path: string,
   title?: string,
   options?: EditorOpenOptions
-): void {
-  editor.openItem(path, title, { ...options, meta: { ...(options?.meta || {}), kind: FOLDER_KIND } });
+): Promise<void> {
+  await editor.openItem(path, title, { ...options, meta: { ...(options?.meta || {}), kind: FOLDER_KIND } });
 }

@@ -1,0 +1,77 @@
+You are an adversarial reviewer for Phase 6 (편집 · 저장 확인 · 알림 · 다시 열기 — editing, save confirmation, notifications, restart state) of workbench-kit. Your job is to break this code, not to confirm it works.
+
+Review ONLY these product and test source files (all under the repo root):
+- src/core/editor.ts
+- src/core/dialog.ts
+- src/core/statusmessage.ts
+- src/core/texteditor.ts
+- src/registry/kind-registry.ts
+- src/presets/file-preset.ts
+- src/providers/filesystem.ts
+- src/main.ts
+- src/style.css
+- src/hosts/pywebview/main.py
+- vite.config.ts
+- package.json
+- scripts/phase4-suite.js (only the two `await wait(20)` additions near "활성 칸 탭 모두 닫기")
+- scripts/phase5-suite.js (only the change removing `setTabDirty` from the forbidden-methods list)
+- scripts/verify-dist.mjs (only the change scoping the tab-explorer-templates token scan to src/style.css)
+- scripts/phase6-suite.js
+- scripts/phase6-electron-runner.cjs
+- scripts/verify-phase6.mjs
+
+Attack these specific points (translated from PLAN.md's Phase 6 attack-focus row):
+Break the claim that edited content never disappears without a confirmation dialog —
+find any path where a dirty tab closes (or the app quits) without asking, or where the
+[취소] (Cancel) button still lets the close/quit proceed. Break the claim that the four
+turned-off features (autocomplete, language service, minimap, multi-cursor) stay off —
+find any operation that revives one of them. Break the claim about what survives a
+restart — find any state that a restart resurrects when it should not (tab/pane layout,
+active tab, tree expansion), or any state it should keep (the last-opened root folder)
+that it silently drops.
+
+Also specifically check:
+- Does `EditorController`'s patch of `panel.api.close` (in `wirePanelClose`) actually
+  intercept every path that can remove a panel — the tab's own close button, Ctrl+W,
+  the File menu, "활성 칸 탭 모두 닫기", and any dockview-internal removal (e.g. drag a
+  tab out of the window, per Phase 4's FR-C8) — or does some removal path bypass it and
+  destroy a dirty view's unsaved state unconfirmed?
+- Does `confirmQuit()` really block the app from closing when the user cancels, all the
+  way through to whatever actually calls `closeWindow()`?
+- `src/core/texteditor.ts` imports only `monaco-editor/editor/editor.api`, one language
+  register, and the find contribution — not `editor.main.js`. Does this create any
+  functional gap in what FR-P1 ~ FR-P4 require, or leave some enabled feature secretly
+  non-functional?
+- `vite.config.ts` sets `rolldownOptions.output.codeSplitting: false` specifically so
+  monaco's own lazy per-language dynamic import() does not fragment dist/ into extra
+  chunk files (which would break Phase 1's frozen 3-file golden-set contract in
+  scripts/verify-dist.mjs). Confirm dist/ is still exactly index.html + one JS + one CSS
+  after a clean build, and that this did not silently disable code-splitting for
+  something else that actually needed it.
+- `src/main.ts`'s `showRecentFoldersPicker()` reuses `ContextMenuController` (the Phase 5
+  right-click-menu device) as a second, always-enabled instance for the File menu's
+  recent-folders list. Does this leak any way for the right-click feature's D-22
+  enabled/disabled toggle to affect (or be affected by) the recent-folders picker, or
+  vice versa?
+- `src/main.ts`'s FR-G3 check (`onActivePanelChange` + `FileSystemTreeProvider.pathExists()`)
+  is scoped to only file/folder-kind panels. Confirm this scoping itself does not leak
+  resource-kind knowledge into `src/core/editor.ts` (it should live entirely in main.ts).
+- Does `EditorController.closePanel`/`closeActiveTab`/`closeAllTabsInGroup` becoming
+  async break any completion condition from Phase 4 (FR-C3, FR-C4, FR-J1, FR-J2, FR-J4,
+  FR-J5, FR-J7) — re-derive what those require and check the async version still holds.
+
+Validate against these PLAN.md clauses (read docs/current/PLAN.md's "## Phase 6"
+section and its completion conditions verbatim):
+- FR-G2 ~ FR-G4, FR-K1 ~ FR-K3, FR-L1 ~ FR-L7, FR-N6a, FR-N10a, FR-N10b, FR-P1 ~ FR-P7
+  (see docs/current/SPEC.md for each ID's exact requirement/acceptance wording)
+- D-16, D-18, D-20, D-21, D-22, D-26, D-27, D-28, D-32 (see docs/current/DECISIONS.md)
+- X-9, X-11, X-12 (see docs/current/SPEC.md's excluded-items table)
+- INTENT.md section 3 ("the shell does not know resource kinds") and section 7 (this
+  version builds only the slots these apps plug into — file-preset.ts's "save" must stay
+  a placeholder, not real file I/O)
+- `.claude/rules/common-core.md`
+
+Do not inspect Git status, branches, remotes, or commit history, and do not use shell
+tools beyond reading files. For each finding, report severity (Critical/Major/Minor),
+exact reproduction conditions (file:line where relevant), and the violated PLAN/SPEC/
+DECISIONS clause. Order findings by severity. Do not modify any file.

@@ -577,6 +577,7 @@ window.__runPhase4TestSuite = async function runPhase4TestSuite() {
     // ------------------------------------------------------------------------
     // In empty pane, closeAllTabsInGroup changes nothing (FR-J4)
     clickMenuRow('view', 'view:close-active-tabs');
+    await wait(20); // closeAllTabsInGroup is async (Phase 6: dirty-confirmation gate on every panel close)
     record('P4-FR-J4', editor.getGroupCount() === 1 && editor.getPanelCount() === 0, '"활성 칸 탭 모두 닫기" on empty pane changes nothing (FR-J4)');
 
     // Multi-tab group close & disposal count test (FR-J2, FR-J5)
@@ -599,6 +600,7 @@ window.__runPhase4TestSuite = async function runPhase4TestSuite() {
 
     // Trigger View menu "활성 칸 탭 모두 닫기" via DOM click
     clickMenuRow('view', 'view:close-active-tabs');
+    await wait(20); // closeAllTabsInGroup is async (Phase 6: dirty-confirmation gate on every panel close)
     record('P4-FR-J2', editor.getGroupCount() === 1, '"활성 칸 탭 모두 닫기" closes multi-tab group and disappears when other group exists (FR-J2)');
     const d1 = editor.getLifecycleStats(mt1.id).disposalCount;
     const d2 = editor.getLifecycleStats(mt2.id).disposalCount;

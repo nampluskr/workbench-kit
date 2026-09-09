@@ -101,10 +101,14 @@ window.__runPhase5TestSuite = async function runPhase5TestSuite() {
     }
     await wait(20);
     const fileEl = activePanelContentEl();
+    // Phase 6 upgrades the file preset to a real monaco-backed view (D-18);
+    // its DOM is monaco's own rendering, not plain text, so this checks for
+    // the wrapper element rather than exact textContent.
+    const fileTextEditorEl = fileEl ? fileEl.querySelector('.text-editor-view') : null;
     record(
       'P5-FR-I2',
-      reachedFile && fileEl !== null && fileEl.textContent === 'File preset view: /preset/file-a.txt',
-      'Selecting the file row in the tree opens the file preset as the active tab (FR-I2)'
+      reachedFile && fileTextEditorEl !== null,
+      'Selecting the file row in the tree opens the file preset (monaco view) as the active tab (FR-I2)'
     );
 
     const reachedFolder = await focusRowById('/preset/folder-a', 5);
@@ -411,7 +415,10 @@ window.__runPhase5TestSuite = async function runPhase5TestSuite() {
     //     test-harness diagnostic hook, not the app-extension surface.
     // ------------------------------------------------------------------------
     const surface = window.__workbenchAppSurface;
-    const forbiddenEditorMethods = ['addNewTab', 'closePanel', 'closeActiveTab', 'closeAllTabsInGroup', 'splitGroup', 'splitActiveGroup', 'getApi', 'clear', 'setTabDirty'];
+    // setTabDirty is NOT in this list: Phase 6 (FR-L1, FR-P7) legitimately
+    // exposes it as a metadata-only flag, not a structural tab/pane
+    // manipulation method — see P5-FR-I8-SURFACE-EDITOR's message.
+    const forbiddenEditorMethods = ['addNewTab', 'closePanel', 'closeActiveTab', 'closeAllTabsInGroup', 'splitGroup', 'splitActiveGroup', 'getApi', 'clear'];
     const editorSurfaceIsNarrow =
       Boolean(surface) && forbiddenEditorMethods.every((m) => typeof surface.editor[m] === 'undefined');
     record(
@@ -424,7 +431,7 @@ window.__runPhase5TestSuite = async function runPhase5TestSuite() {
       typeof surface.menu === 'undefined',
       'window.__workbenchAppSurface has 0 access to menu.setAction/triggerItem, so it cannot override or hijack shell commands (FR-I9, FR-I11, D-31)'
     );
-    const handleOpenBeforeSurface = surface.editor.openItem('/surface-check/x.txt', 'x.txt', { meta: { kind: 'file' } });
+    const handleOpenBeforeSurface = await surface.editor.openItem('/surface-check/x.txt', 'x.txt', { meta: { kind: 'file' } });
     record(
       'P5-FR-I8-SURFACE-HANDLE',
       typeof handleOpenBeforeSurface === 'object' &&

@@ -1,0 +1,152 @@
+This is round 2 (of a 3-round max) for Phase 6 (편집 · 저장 확인 · 알림 · 다시 열기)
+of workbench-kit. Round 1 found 2 Critical, 5 Major, 1 Minor. Do not assume round 1's
+findings are fixed — verify each one directly against the current code, and separately
+look for anything new introduced by these changes. Your job is still to break this
+code, not confirm it works.
+
+Round 1 findings and what was changed in response (verify each claim yourself):
+
+1. Critical — pywebview window close bypassed confirmQuit() entirely.
+   Fix: src/hosts/pywebview/main.py now has request_confirmed_close(window), a module
+   helper that always vetoes events.closing synchronously (returns False) and spawns a
+   background thread that awaits window.__workbenchApp.editor.confirmQuit() via
+   evaluate_js polling, calling window.destroy() only if confirmed. WindowApi.close()
+   and the events.closing handler both route through this helper now instead of
+   calling window.destroy() directly.
+
+2. Critical (Electron equivalent, same root cause) — native window close bypassed
+   confirmQuit(). Fix: src/hosts/electron/main.cjs's createWindow() now has a win.on(
+   'close', ...) handler that always preventDefault()s once, calls confirmQuit() via
+   executeJavaScript, and only actually closes (win.close() with an allowClose latch)
+   if it resolves true.
+
+3. Critical — opening another resource in a dirty active tab destroyed the edited view
+   without confirmation. Fix: added EditorController.confirmReplaceIfDirty(group?) and
+   a synchronous EditorController.isActivePanelDirty(group?) helper. src/main.ts's
+   tree.onOpen/onOpenToSide now check isActivePanelDirty() first and only take the
+   async confirm-then-open path when the target group's active tab is actually dirty
+   (staying fully synchronous in the clean case, which Phase 4's FR-A6/FR-B1~B4/FR-J8
+   assertions require). src/core/editor.ts's AppEditorSurface.openItem/openBeside
+   (createAppEditorSurface) now also call confirmReplaceIfDirty first and return null
+   on cancellation; file-preset.ts/folder-preset.ts's openFile/openFolder helpers and
+   phase5-suite.js's P5-FR-I8-SURFACE-HANDLE assertion were updated to the new async
+   Promise<OpenedPanelHandle | null> signature.
+
+4. Major — Cancel did not abort "활성 칸 탭 모두 닫기". Fix: confirmAndClose (the
+   function wirePanelClose patches panel.api.close to) now returns Promise<boolean>
+   (true = closed, false = cancelled) instead of Promise<void>. closePanel returns that
+   boolean. closeAllTabsInGroup's loop now breaks as soon as closePanel resolves false.
+
+5. Major — app-owned progress could be stopped by shell messages, and stopping old
+   progress erased newer messages. Fix: StatusMessageController.stopProgress() now
+   no-ops if progressActive is already false (i.e., a later showError/showMessage
+   already superseded whatever progress this call intended to stop), instead of
+   unconditionally blanking the line.
+
+6. Major — Close Folder silently deleted the last-opened-folder restart state. Fix:
+   main.ts's closeFolder() no longer calls saveLastOpenedFolder(''); it only clears the
+   tree and status bar, leaving the persisted last-folder untouched.
+
+7. Major — close/quit/restart acceptance tests bypassed the paths they claimed to
+   validate. Fixes:
+   - scripts/phase6-suite.js's dirty-tab close tests (P6-FR-L7, L2, L5, L4, L3) now
+     click the REAL rendered dockview tab close button (.dv-default-tab-action, found
+     via matching .dv-default-tab-content textContent to the panel's title) instead of
+     calling panel.api.close() directly.
+   - P6-FR-L6-CANCEL now calls app.handleExitRequest() (the same call File > Exit and
+     the title-bar/native-close handlers make) instead of editor.confirmQuit()
+     directly, proving closeWindow() is actually gated. P6-FR-L6-DISCARD still calls
+     editor.confirmQuit() directly, deliberately: handleExitRequest() would call
+     closeWindow() on success and tear down the very process running the test harness.
+   - A genuinely separate concern (restart across a REAL process relaunch, not
+     editor.clear()+restoreLastSession() in the same renderer): scripts/
+     phase6-electron-runner.cjs gained a WB_PHASE6_MODE env var ('launch1'/'launch2')
+     and WB_PHASE6_USERDATA_DIR (a shared Electron userData profile dir instead of a
+     fresh random one). launch1 opens a real folder via window.__workbenchApp.
+     openFolder() and exits; launch2 is a FRESH electron process reusing the same
+     profile dir, calls window.__workbenchApp.restoreLastSession(), and checks the
+     sidebar title. scripts/verify-phase6.mjs section 6b runs both launches
+     sequentially and asserts both pass. This is additive to (not a replacement for)
+     the existing single-process suite, which still covers the other assertions.
+   - Not changed: the in-process editor.clear()+restoreLastSession() simulation for
+     P6-FR-K2/K3/N6a remains, since those specifically assert what does NOT get
+     restored (tab/pane layout, tree expansion) and don't need a real relaunch to prove
+     a negative about the current renderer's own state.
+
+8. Major — the three-file dist assertion could validate stale output. Fix: scripts/
+   verify-phase6.mjs now runs `execSync('npm run build', ...)` immediately before
+   listing dist/ and asserting the count is exactly 3, rather than relying on npm
+   test's script-ordering to have built it earlier.
+
+9. Minor — several assertions were weaker than their clauses.
+   - FR-P2: findView now also calls a new TextEditorView.findAndReplaceForTest(
+     searchString, replaceString) (drives the find controller's own start()/
+     replaceAll() directly) and asserts the model content actually changed
+     ('find me here' -> 'find YOU here'), in addition to the existing find-widget-
+     visible check.
+   - Language-service test: added TextEditorView.getMarkerCountForTest() (monaco.
+     editor.getModelMarkers) and a new P6-FR-P5-MARKERS assertion that deliberately
+     invalid JS syntax still produces 0 error markers, addressing FR-P5's literal
+     "오류 표시 0건" clause alongside the existing suggest/hover-absence checks.
+   - FR-M5/verify-dist.mjs's rescoped "Segoe UI" scan (from whole dist/ bundle to
+     src/style.css only) was NOT changed further this round. This is flagged
+     separately below as an open question rather than silently re-approved.
+
+One item is being surfaced to you deliberately rather than resolved unilaterally:
+FR-M5's SPEC wording is "산출물에서... 토큰 값이 검색되는 건수가 0" (0 occurrences of
+tab-explorer-templates' token values, including "Segoe UI", IN THE OUTPUT). D-29's own
+concern is that workbench-kit's OWN visual system must not be derived from
+tab-explorer-templates' choices — not a ban on any third-party library incidentally
+using the same generic string. monaco's own vendored CSS coincidentally contains
+"Segoe UI" as a generic OS-font fallback unrelated to our theme tokens, which is why an
+earlier session scoped the scan to src/style.css (source) instead of the built dist/
+bundle (output). Please assess: does narrowing "산출물" (output) to "our own source
+stylesheet" in verify-dist.mjs constitute redefining a literal SPEC/PLAN acceptance
+clause to make an inconvenient result pass, rather than a legitimate exception? This is
+being asked, not asserted — treat it as an open question for your judgment, and say so
+plainly either way; do not silently treat the existing scoping as settled.
+
+Full regression (npm run typecheck && npm test, all Phase 1-6, both hosts) currently
+passes with 0 failures after all the above changes, including the new real-relaunch
+FR-K1 check.
+
+Review these product and test source files (all under the repo root):
+- src/core/editor.ts
+- src/core/dialog.ts
+- src/core/statusmessage.ts
+- src/core/texteditor.ts
+- src/registry/kind-registry.ts
+- src/presets/file-preset.ts
+- src/presets/folder-preset.ts
+- src/providers/filesystem.ts
+- src/main.ts
+- src/style.css
+- src/hosts/pywebview/main.py
+- src/hosts/electron/main.cjs
+- vite.config.ts
+- package.json
+- scripts/phase4-suite.js (only the two `await wait(20)` additions near "활성 칸 탭 모두 닫기")
+- scripts/phase5-suite.js (only the changes: removing `setTabDirty` from the
+  forbidden-methods list, and awaiting P5-FR-I8-SURFACE-HANDLE's now-async openItem call)
+- scripts/verify-dist.mjs (only the change scoping the tab-explorer-templates token
+  scan to src/style.css)
+- scripts/phase6-suite.js
+- scripts/phase6-electron-runner.cjs
+- scripts/verify-phase6.mjs
+
+Validate against these PLAN.md clauses (read docs/current/PLAN.md's "## Phase 6"
+section and its completion conditions verbatim):
+- FR-G2 ~ FR-G4, FR-K1 ~ FR-K3, FR-L1 ~ FR-L7, FR-N6a, FR-N10a, FR-N10b, FR-P1 ~ FR-P7
+  (see docs/current/SPEC.md for each ID's exact requirement/acceptance wording)
+- D-16, D-18, D-20, D-21, D-22, D-26, D-27, D-28, D-32 (see docs/current/DECISIONS.md)
+- X-9, X-11, X-12 (see docs/current/SPEC.md's excluded-items table)
+- INTENT.md section 3 ("the shell does not know resource kinds") and section 7 (this
+  version builds only the slots these apps plug into — file-preset.ts's "save" must
+  stay a placeholder, not real file I/O)
+- `.claude/rules/common-core.md`
+
+Do not inspect Git status, branches, remotes, or commit history, and do not use shell
+tools beyond reading files. For each finding, report severity (Critical/Major/Minor),
+exact reproduction conditions (file:line where relevant), and the violated PLAN/SPEC/
+DECISIONS clause. Order findings by severity. Do not modify any file. Conclude with an
+explicit verdict on whether Phase 6 has any remaining unresolved Critical.

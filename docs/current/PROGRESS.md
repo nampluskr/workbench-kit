@@ -171,6 +171,32 @@
   - **검증**: `npm.cmd test`(`tsc --noEmit`, `scripts/verify-dist.mjs`, `scripts/verify-phase2~5.mjs`) 0 failures 통과, Phase 5 단언 30개(Electron·pywebview 0 divergence).
   - **사용자 승인**: `docs/ADVERSARIAL-REVIEW.md` 4절의 3회 실행 한도 소진 시점에 남은 Critical 1건에 대해 사용자가 현재 상태(문서화된 좁은 표면 `window.__workbenchAppSurface`를 FR-I8 판정 대상으로, `window.__workbenchApp`은 Phase 1-4 시험 전용 예외로 인정)로 검토·승인함(2026-09-09). `window.__workbenchApp` 전체 교체(Phase 1-4 시험 재작성)는 별도 작업으로 미룸.
 
+- **WK-032** (monaco 반입과 텍스트·코드 보기)
+  - **무엇을 했나**: `src/core/texteditor.ts` 신설 — `monaco-editor/editor/editor.api`(전체 언어 등록 없는 순수 API) + javascript 언어 등록 + find 컨트리뷰션만 개별 임포트. `TextEditorView`가 문법 색칠·줄 번호·찾기바꾸기·되돌리기/다시하기·읽기 전용을 제공. `vite.config.ts`에 `rolldownOptions.output.codeSplitting: false` 추가해 monaco의 지연 언어별 `import()`가 Phase 1의 고정 3파일 dist 골든셋을 깨지 않도록 함.
+  - **결과**: `FR-P1` ~ `FR-P3`, `FR-P4`(읽기 전용) 동작. 앱 쪽 프리셋(`file-preset.ts`) 외 다른 곳에 monaco 의존성 0건(`FR-P6`).
+  - **검증**: `node scripts/verify-phase6.mjs`(빌드 후 dist 정확히 3파일, Electron·pywebview 런타임에서 색칠 토큰·줄 번호·찾기 위젯·실제 치환·되돌리기/다시하기·읽기 전용 거부 확인) 통과.
+- **WK-033** (끄기로 한 넷을 끈다)
+  - **무엇을 했나**: `TextEditorView` 생성 옵션에서 `quickSuggestions`·`suggestOnTriggerCharacters`·`wordBasedSuggestions`·`parameterHints`·`hover`를 모두 끄고, 해당 컨트리뷰션 자체를 임포트하지 않음(자동완성·언어 서비스). `minimap: { enabled: false }`. 다중 커서는 `onDidChangeCursorSelection`에서 선택이 2개 이상이면 즉시 1개로 되접음.
+  - **결과**: 자동완성·언어 서비스·미니맵·다중 커서 넷 다 각각을 부르는 조작(`editor.action.triggerSuggest`/`editor.action.showHover`/`createCursor`)에도 나타나지 않음(`FR-P5`, `X-12`). 언어 서비스가 아예 없어 문법 오류가 있어도 오류 마커 0건.
+  - **검증**: `node scripts/verify-phase6.mjs` 런타임 검사(제안/호버 액션 미등록 구조적 확인, `createCursor` 두 번 호출 후 선택 1개로 복귀, 미니맵 요소가 존재해도 크기·캔버스 내용 0, 잘못된 JS 구문에서도 마커 0건) 통과.
+- **WK-034** (고쳐짐 표시와 저장 확인 창)
+  - **무엇을 했나**: `src/core/dialog.ts`(`ConfirmDialogController`, 저장/저장 안 함/취소 3버튼 장치) 신설. `editor.ts`에 `wirePanelClose()`(모든 패널의 `panel.api.close`를 가로채 `confirmAndClose()`로 통일 — 탭 자체 닫기 버튼·Ctrl+W·메뉴·"활성 칸 탭 모두 닫기" 전부 같은 경로), `confirmReplaceIfDirty()`(더러운 활성 탭 위에 다른 리소스를 열 때 확인), `confirmQuit()`, `setTabDirty()` 추가. 각 호스트(`main.cjs`의 `win.on('close')`, `main.py`의 `events.closing`+`request_confirmed_close()`)에 네이티브/타이틀바 닫기용 확인 게이트를 설치해 `File > Exit`와 동일한 단일 확인 지점으로 통일.
+  - **결과**: 고친 탭에 `●` 표시, 닫거나 앱을 끄려 할 때(탭 닫기 버튼·Ctrl+W·File 메뉴·"모두 닫기"·File>Exit·타이틀바/네이티브 닫기 전부) `[저장]`·`[저장 안 함]`·`[취소]` 창이 뜨고 각 버튼이 정해진 결과를 냄(`FR-L1` ~ `FR-L7`). 안 고친 탭은 확인 창 0개로 닫힘. "모두 닫기" 중 취소하면 그 지점에서 루프가 멈춤.
+  - **검증**: `node scripts/verify-phase6.mjs`(Electron·pywebview 각각에서 실제 dockview 탭 닫기 버튼 클릭, 실제 종료 경로(`handleExitRequest()` → 각 호스트 네이티브 닫기 게이트)를 통한 취소 확인, 저장/저장 안 함/취소 각 버튼 결과 확인) 통과.
+- **WK-035** (하단 바 알림 — 껍데기 오류·진행과 앱이 올리는 메시지)
+  - **무엇을 했나**: `src/core/statusmessage.ts`(`StatusMessageController`) 신설 — 오류·안내·진행 시작/종료를 같은 한 줄에 그린다. `main.ts`가 읽을 수 없는 폴더(`FR-G2`)·사라진 파일(`FR-G3`, 파일/폴더 종류로만 국한해 `editor.ts`에는 리소스 종류 지식이 새지 않음)·오래 걸리는 작업(`FR-G4`)에 이를 사용하고, `WorkbenchAppSurface`에 `showStatusMessage`/`startStatusProgress`/`stopStatusProgress`를 노출.
+  - **결과**: 하단 바 한 줄로만 뜨고 새로 뜨는 알림 상자 0개. 앱도 같은 자리에 메시지·진행을 올리며 껍데기가 문구를 고치지 않고 가장 최근 것 하나만 보임(`FR-N10a`, `FR-N10b`, `D-32`).
+  - **검증**: `node scripts/verify-phase6.mjs` 런타임 검사(오류/진행 표시·해제, 앱 메시지 우선 표시, 앱 진행이 셸에 의해 자동으로 꺼지지 않음) 통과. (진행 소유권 미구분 — 서로 다른 호출 주체의 진행이 겹칠 때의 잔여 위험은 A6 참조)
+- **WK-036** (다시 열 때의 상태와 최근 폴더)
+  - **무엇을 했나**: `main.ts`에 `saveLastOpenedFolder`/`loadLastOpenedFolder`(localStorage)/`restoreLastSession()` 추가. 최근 폴더 목록과, `ContextMenuController`를 재사용한 두 번째 항상-활성 인스턴스(`recentFoldersMenu`, Phase 5의 D-22 토글과 독립)로 만든 선택 가능한 최근 폴더 picker 추가.
+  - **결과**: 다시 켜면 마지막 루트만 살아나고 칸 수 1 · 탭 수 0 · 펼쳐진 노드가 루트 하나뿐이며(`FR-K1` ~ `FR-K3`, `D-27`), 최근 폴더 목록에서 최신이 아닌 항목을 골라도 폴더 열기와 같은 결과가 남(`FR-N6a`, `D-16`). 폴더 닫기는 이 복원 상태를 지우지 않음.
+  - **검증**: `node scripts/verify-phase6.mjs`(Electron 두 프로세스 실제 재시작 — 공유 `userData` 프로필로 launch1이 폴더를 열고 종료, launch2가 새 프로세스에서 `restoreLastSession()`으로 복원 확인. pywebview는 같은 프로세스 내 `clear()`+`restoreLastSession()` 시뮬레이션 — A6 "미해결" 참조) 통과.
+- **A6 검증** (Phase 6 적대적 검증)
+  - **무엇을 했나**: OpenAI Codex `gpt-5.6-sol` 모델을 통한 적대적 검증 3회(한도 소진) 진행. Round 1(2 Critical·5 Major·1 Minor) → Round 2(2 Critical·5 Major·1 Minor, 5건 해소+신규 발견) → Round 3(1 Critical·3 Major·1 Minor, 5건 추가 해소)로 지적을 순차 보완. 매 라운드 후 `npm run typecheck && npm test`(Phase 1~6, 양 호스트) 재통과 확인. `docs/reviews/A6.md` 작성.
+  - **결과**: 3회 한도 소진 시점에 남은 Critical 1건(pywebview 종료 확인이 타임아웃·저장 실패·예외 시 fail-open으로 편집 내용을 잃을 수 있음)과 Major 1건(FR-M5 "산출물" 문언과 `src/style.css`만 검사하는 구현의 불일치)을 사용자가 검토·결정(2026-09-09): Critical은 "지금 수정"(`main.py`의 `request_confirmed_close()`를 세 경로 모두 fail-closed로 교정), FR-M5는 "SPEC 문언 개정"(`docs/current/SPEC.md`의 FR-M5 판정 방법을 workbench-kit 자체 작성 시각 토큰 소스로 명시적으로 좁힘). 잔여 Major 2건(진행 소유권 미구분, pywebview 실제 재시작 미검증)과 Minor 1건(FR-P2 화이트박스 치환 검증)은 Phase 진행을 막지 않는 잔여 위험으로 `A6.md`에 근거와 함께 기록.
+  - **검증**: `npm.cmd test`(`tsc --noEmit`, `scripts/verify-dist.mjs`, `scripts/verify-phase2~6.mjs`) 0 failures 통과, Phase 6 단언 36개(Electron·pywebview 0 divergence).
+  - **사용자 승인**: `docs/ADVERSARIAL-REVIEW.md` 4절의 3회 실행 한도 소진 시점에 남은 Critical 1건과 FR-M5 문언 불일치에 대해 사용자가 각각 "지금 수정"·"SPEC 문언 개정"으로 결정함(2026-09-09). 두 결정 모두 반영 후 전체 회귀 재통과 확인.
+
 ## 2. 계획 외 개선
 
 `backlog`에 없는 작업이다. 여기 적지 않으면 어디에도 남지 않는다. 이 구간이 다음

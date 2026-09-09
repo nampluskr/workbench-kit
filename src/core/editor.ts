@@ -10,6 +10,14 @@ import {
   Direction,
   DockviewPanelRenderer,
 } from 'dockview-core';
+import { ConfirmDialogController } from './dialog';
+
+/**
+ * Returns whether the save succeeded. On a falsy result the shell keeps the
+ * tab open (D-28) instead of closing it (FR-P7: the shell performs 0 save
+ * actions itself — this only calls out to whatever the app registered).
+ */
+export type SaveHandler = (panelId: string) => Promise<boolean> | boolean;
 
 export interface EditorOpenOptions {
   renderer?: DockviewPanelRenderer;
@@ -44,9 +52,19 @@ export interface OpenedPanelHandle {
  * `EditorController` itself is deliberately NOT assignable to this type.
  */
 export interface AppEditorSurface {
-  openItem(targetId: string, title?: string, options?: EditorOpenOptions): OpenedPanelHandle;
-  openBeside(targetId: string, title?: string, options?: EditorOpenOptions): OpenedPanelHandle;
+  /**
+   * Async because it may need to ask first (FR-L2, D-28) when the target
+   * group's active tab is dirty and would otherwise be silently replaced
+   * in place (FR-B1, round-1 adversarial finding). Resolves to null if the
+   * user cancels.
+   */
+  openItem(targetId: string, title?: string, options?: EditorOpenOptions): Promise<OpenedPanelHandle | null>;
+  openBeside(targetId: string, title?: string, options?: EditorOpenOptions): Promise<OpenedPanelHandle | null>;
   queryPanePlacement(panelId?: string): { own: PanePlacement; beside: PanePlacement | null } | undefined;
+  /** Reports "changed"/"saved" state for the ● indicator (FR-L1, FR-P7). Draws only — no structural change. */
+  setTabDirty(panelId: string, dirty: boolean): void;
+  /** Registers what "save" does; the shell calls this only when the user picks the Save button (FR-P7, D-28). */
+  setSaveHandler(fn: SaveHandler | null): void;
 }
 
 /**
@@ -57,16 +75,26 @@ export interface AppEditorSurface {
  */
 export function createAppEditorSurface(controller: EditorController): AppEditorSurface {
   return {
-    openItem(targetId, title, options) {
+    async openItem(targetId, title, options) {
+      if (!(await controller.confirmReplaceIfDirty())) return null;
       const panel = controller.openItem(targetId, title, options);
       return { id: panel.id };
     },
-    openBeside(targetId, title, options) {
+    async openBeside(targetId, title, options) {
+      const activeGroup = controller.getActiveGroup();
+      const besideGroup = activeGroup ? controller.findBesideGroup(activeGroup) : undefined;
+      if (besideGroup && !(await controller.confirmReplaceIfDirty(besideGroup))) return null;
       const panel = controller.openBeside(targetId, title, options);
       return { id: panel.id };
     },
     queryPanePlacement(panelId) {
       return controller.queryPanePlacement(panelId);
+    },
+    setTabDirty(panelId, dirty) {
+      controller.setTabDirty(panelId, dirty);
+    },
+    setSaveHandler(fn) {
+      controller.setSaveHandler(fn);
     },
   };
 }
@@ -241,6 +269,8 @@ export class EditorController {
   private activePanelChangeListeners: ((panel: IDockviewPanel | undefined) => void)[] = [];
   private layoutChangeListeners: (() => void)[] = [];
   private customComponentFactory: EditorComponentFactory | null = null;
+  private saveHandler: SaveHandler | null = null;
+  private dialogController: ConfirmDialogController | null = null;
   public readonly panelLifecycleStats = new Map<string, {
     creationCount: number;
     disposalCount: number;
@@ -321,6 +351,20 @@ export class EditorController {
 
   public setComponentFactory(factory: EditorComponentFactory | null): void {
     this.customComponentFactory = factory;
+  }
+
+  /** Registers what "save" does (FR-P7, D-28). The shell never saves itself. */
+  public setSaveHandler(fn: SaveHandler | null): void {
+    this.saveHandler = fn;
+  }
+
+  /** Wires the confirm-dialog device the shell uses before a dirty tab or the app closes (D-28). */
+  public setDialogController(dialog: ConfirmDialogController): void {
+    this.dialogController = dialog;
+  }
+
+  public hasDirtyPanels(): boolean {
+    return this.api.panels.some((p) => Boolean(p.params?.isDirty));
   }
 
   public getLifecycleStats(panelId: string) {
@@ -404,9 +448,108 @@ export class EditorController {
         targetId: null,
       },
     });
+    this.wirePanelClose(panel);
 
     panel.api.setActive();
     return panel;
+  }
+
+  /**
+   * Routes every close of this panel — the tab's own close button
+   * (dockview calls `panel.api.close()` directly, bypassing our methods),
+   * `Ctrl+W`, the File menu, and our own `closePanel`/`closeAllTabsInGroup`
+   * — through the same dirty-confirmation gate (FR-L2, FR-L6, D-28).
+   */
+  private wirePanelClose(panel: IDockviewPanel): void {
+    const rawClose = () => {
+      const isLastPanelInWorkbench = this.api.totalPanels === 1 && this.api.groups.length === 1;
+      (this.api as any).component.removePanel(panel, { removeEmptyGroup: !isLastPanelInWorkbench });
+      if (this.api.groups.length === 0) {
+        this.api.addGroup();
+      }
+    };
+    // Cast past the `(): void` typing: the real return value is a Promise,
+    // and every caller here (dockview's own tab button included) only ever
+    // fires this from a click/keydown handler or `await`s it — both work
+    // whether or not the declared type says `void` (TS's `await` on any
+    // runtime thenable still suspends correctly regardless of static type).
+    (panel.api as unknown as { close: () => Promise<boolean> }).close = () => this.confirmAndClose(panel, rawClose);
+  }
+
+  /**
+   * If the panel is dirty, asks the user via the confirm-dialog device
+   * before proceeding (FR-L2 ~ FR-L7). An unmodified tab closes with 0
+   * dialogs (FR-L7). Saving calls only the app-registered handler — the
+   * shell itself performs 0 save actions (FR-P7). Returns whether the panel
+   * actually closed, so a caller closing several panels in sequence (FR-J2)
+   * can stop at the first Cancel instead of proceeding to the next one.
+   */
+  private async confirmAndClose(panel: IDockviewPanel, rawClose: () => void): Promise<boolean> {
+    const isDirty = Boolean(panel.params?.isDirty);
+    if (!isDirty || !this.dialogController) {
+      rawClose();
+      return true;
+    }
+    const choice = await this.dialogController.show(`저장하지 않은 변경 내용이 있습니다: ${panel.title || panel.id}`);
+    if (choice === 'cancel') return false;
+    if (choice === 'save') {
+      const ok = this.saveHandler ? await this.saveHandler(panel.id) : false;
+      if (!ok) return false;
+    }
+    rawClose();
+    return true;
+  }
+
+  /**
+   * Synchronous dirty check for the target group's active tab — the thing
+   * `confirmReplaceIfDirty` would need to ask about. Callers use this to
+   * stay on the old synchronous open path in the common (clean) case, so a
+   * confirmation-capable call site does not force every open through an
+   * extra microtask tick (Phase 4's FR-A6/FR-B1~B4/FR-J8 acceptance tests
+   * assert state immediately after a synchronous keydown/click with 0 waits).
+   */
+  public isActivePanelDirty(group?: DockviewGroupPanel): boolean {
+    const targetGroup = group || this.getActiveGroup();
+    return Boolean(targetGroup?.activePanel?.params?.isDirty);
+  }
+
+  /**
+   * Round-1 adversarial finding (Critical): `openItem`'s FR-B1 in-place
+   * replacement silently discarded whatever the target group's active tab
+   * held, dirty or not. Callers that might replace a group's active tab in
+   * place (tree selection, the app-facing surface) call this first and
+   * skip the open when it resolves false.
+   */
+  public async confirmReplaceIfDirty(group?: DockviewGroupPanel): Promise<boolean> {
+    const targetGroup = group || this.getActiveGroup();
+    const activePanel = targetGroup?.activePanel;
+    if (!this.isActivePanelDirty(targetGroup) || !this.dialogController) return true;
+    const choice = await this.dialogController.show(`저장하지 않은 변경 내용이 있습니다: ${activePanel!.title || activePanel!.id}`);
+    if (choice === 'cancel') return false;
+    if (choice === 'save') {
+      const ok = this.saveHandler ? await this.saveHandler(activePanel!.id) : false;
+      if (!ok) return false;
+    }
+    return true;
+  }
+
+  /**
+   * Asks once before quitting when any tab is dirty (FR-L6). Returns
+   * whether it is OK to proceed with quitting.
+   */
+  public async confirmQuit(): Promise<boolean> {
+    if (!this.hasDirtyPanels() || !this.dialogController) return true;
+    const choice = await this.dialogController.show('저장하지 않은 변경 내용이 있습니다.');
+    if (choice === 'cancel') return false;
+    if (choice === 'save') {
+      for (const panel of this.api.panels) {
+        if (panel.params?.isDirty) {
+          const ok = this.saveHandler ? await this.saveHandler(panel.id) : false;
+          if (!ok) return false;
+        }
+      }
+    }
+    return true;
   }
 
   public setActiveGroup(group: DockviewGroupPanel): void {
@@ -445,6 +588,11 @@ export class EditorController {
           ...meta,
           targetId,
           isUserCreatedEmptyTab: false,
+          // Round-2 adversarial finding (Major): dockview merges partial
+          // params rather than replacing them, so a stale isDirty: true from
+          // whatever this panel held before would otherwise survive into the
+          // freshly (re)loaded content it no longer describes.
+          isDirty: false,
         },
       });
       activePanel.api.setActive();
@@ -467,6 +615,11 @@ export class EditorController {
           ...meta,
           targetId,
           isUserCreatedEmptyTab: false,
+          // Round-2 adversarial finding (Major): see the FR-B3 branch above —
+          // the confirm-then-discard path already asked about (and gave up)
+          // whatever this panel held; the freshly loaded content must start
+          // clean, not inherit a stale isDirty: true from a dockview param merge.
+          isDirty: false,
         },
       });
       activePanel.api.setActive();
@@ -490,6 +643,7 @@ export class EditorController {
         isUserCreatedEmptyTab: false,
       },
     });
+    this.wirePanelClose(panel);
 
     panel.api.setActive();
     return panel;
@@ -649,37 +803,31 @@ export class EditorController {
    * - If other groups exist, that group disappears (FR-C4, FR-J1).
    * - If it is the last group, it remains as an empty pane (FR-C4, FR-J7).
    */
-  public closeActiveTab(): void {
+  public async closeActiveTab(): Promise<void> {
     const activeGroup = this.getActiveGroup();
     const activePanel = activeGroup?.activePanel;
     if (activePanel) {
-      this.closePanel(activePanel);
+      await this.closePanel(activePanel);
     }
   }
 
   /**
-   * Closes a specific panel and disposes its view (FR-E3).
-   * Preserves empty group if it is the last panel in the workbench (FR-C4, FR-J7).
+   * Closes a specific panel and disposes its view (FR-E3), asking first if
+   * it is dirty (FR-L2 ~ FR-L7, D-28). Preserves empty group if it is the
+   * last panel in the workbench (FR-C4, FR-J7).
    */
-  public closePanel(panel: IDockviewPanel): void {
-    const isLastPanelInWorkbench = this.api.totalPanels === 1 && this.api.groups.length === 1;
-    if (isLastPanelInWorkbench) {
-      (this.api as any).component.removePanel(panel, { removeEmptyGroup: false });
-    } else {
-      (this.api as any).component.removePanel(panel, { removeEmptyGroup: true });
-    }
-    if (this.api.groups.length === 0) {
-      this.api.addGroup();
-    }
+  public async closePanel(panel: IDockviewPanel): Promise<boolean> {
+    return (panel.api as unknown as { close: () => Promise<boolean> }).close();
   }
 
   /**
-   * Closes all tabs in the specified group (or active group) (FR-J2).
+   * Closes all tabs in the specified group (or active group) (FR-J2),
+   * asking first for each dirty tab (D-28).
    * If other groups exist, that group disappears (FR-J1).
    * If it is the last group, it remains as an empty pane (FR-J2, FR-J7).
    * If already an empty pane, changes nothing (FR-J4).
    */
-  public closeAllTabsInGroup(targetGroup?: DockviewGroupPanel): void {
+  public async closeAllTabsInGroup(targetGroup?: DockviewGroupPanel): Promise<void> {
     const group = targetGroup || this.getActiveGroup();
     if (!group) return;
 
@@ -689,16 +837,9 @@ export class EditorController {
       return;
     }
 
-    const isLastGroupInWorkbench = this.api.groups.length === 1;
-    for (let i = 0; i < panels.length; i++) {
-      const panel = panels[i];
-      const isLastInThisOperation = isLastGroupInWorkbench && i === panels.length - 1;
-      (this.api as any).component.removePanel(panel, {
-        removeEmptyGroup: !isLastInThisOperation,
-      });
-    }
-    if (this.api.groups.length === 0) {
-      this.api.addGroup();
+    for (const panel of panels) {
+      const closed = await this.closePanel(panel);
+      if (!closed) break;
     }
   }
 

@@ -76,6 +76,29 @@ export class FileSystemTreeProvider implements ITreeDataProvider {
     }));
   }
 
+  /**
+   * Whether a path still exists, by listing its parent directory (FR-G3).
+   * Reuses the existing readDir bridge — no new host-native code needed.
+   */
+  public async pathExists(targetPath: string): Promise<boolean> {
+    const normalized = targetPath.replace(/[/\\]+$/, '');
+    const lastSepIndex = Math.max(normalized.lastIndexOf('/'), normalized.lastIndexOf('\\'));
+    if (lastSepIndex <= 0) return true;
+    const parentPath = normalized.slice(0, lastSepIndex);
+
+    const host = getHostFsBridge();
+    if (!host?.readDir && !host?.read_dir) return true;
+
+    try {
+      const entries = host.readDir
+        ? ((await host.readDir(parentPath)) as HostDirectoryEntry[])
+        : ((await host.read_dir!(parentPath)) as HostDirectoryEntry[]);
+      return entries.some((e) => e.path === normalized || e.path === targetPath);
+    } catch {
+      return false;
+    }
+  }
+
   public async createRootNode(folderPath: string): Promise<TreeNode> {
     let cleanPath = folderPath.replace(/[/\\]+$/, '');
     if (cleanPath === '') {

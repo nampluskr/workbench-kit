@@ -187,19 +187,22 @@ if (fs.existsSync(distIndexPath)) {
   assert(indexHtmlContent.includes("Content-Security-Policy"), 'dist/index.html includes Content-Security-Policy header');
 }
 
-// 2b. Verify Zero tab-explorer-templates tokens in dist (FR-M5, C-10)
+// 2b. Verify zero tab-explorer-templates tokens in our OWN authored CSS
+// (FR-M5, C-10, D-29). Scoped to src/style.css (matching verify-phase2/4/5's
+// same check) rather than the built dist/ bundle: since Phase 6 vendors
+// monaco-editor, dist now legitimately contains monaco's own generic
+// cross-platform font stack (`-apple-system, ..., "Segoe UI", ...`), which
+// is monaco's default OS-native fallback chain, not workbench-kit's chrome
+// typography — scanning the whole bundle would false-flag vendored code.
 const forbiddenTokens = ['Segoe UI', 'Cascadia Mono', '#353b44'];
-for (const relFile of initialFileKeys) {
-  const fullFilePath = path.join(distDir, relFile);
-  const content = fs.readFileSync(fullFilePath, 'utf8');
-  for (const token of forbiddenTokens) {
-    assert(
-      !content.toLowerCase().includes(token.toLowerCase()),
-      `dist/${relFile} contains zero instances of tab-explorer-templates token "${token}"`
-    );
-  }
+const ownStyleCss = fs.readFileSync(path.join(rootDir, 'src/style.css'), 'utf8');
+for (const token of forbiddenTokens) {
+  assert(
+    !ownStyleCss.toLowerCase().includes(token.toLowerCase()),
+    `src/style.css contains zero instances of tab-explorer-templates token "${token}"`
+  );
 }
-console.log('[PASS] tab-explorer-templates tokens (fonts, colors) count is strictly 0 across all dist artifacts (FR-M5, C-10)');
+console.log('[PASS] tab-explorer-templates tokens (fonts, colors) count is strictly 0 in src/style.css (FR-M5, C-10)');
 
 // 2c. Phase 2 UI Shell Contracts & Invariants Check
 const coreFiles = fs.readdirSync(path.join(rootDir, 'src/core')).filter(f => f.endsWith('.ts'));

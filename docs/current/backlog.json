@@ -585,7 +585,7 @@
     },
     {
       "id": "WK-032",
-      "status": "todo",
+      "status": "done",
       "priority": "P6",
       "category": "편집",
       "title": "monaco 반입과 텍스트·코드 보기",
@@ -596,12 +596,12 @@
         "WK-026"
       ],
       "doc": "PLAN.md#phase-6",
-      "done_at": null,
+      "done_at": "2026-09-09",
       "note": "FR-P1 ~ FR-P4 · FR-P6 · NFR-4 · C-4(monaco-editor 0.56.0)"
     },
     {
       "id": "WK-033",
-      "status": "todo",
+      "status": "done",
       "priority": "P6",
       "category": "편집",
       "title": "끄기로 한 넷을 끈다",
@@ -612,12 +612,12 @@
         "WK-032"
       ],
       "doc": "PLAN.md#phase-6",
-      "done_at": null,
+      "done_at": "2026-09-09",
       "note": "FR-P5 · X-12. 제안 목록 0건 · 오류 표시 0건 · 미니맵 요소 0개 · 커서 1개"
     },
     {
       "id": "WK-034",
-      "status": "todo",
+      "status": "done",
       "priority": "P6",
       "category": "편집",
       "title": "고쳐짐 표시와 저장 확인 창",
@@ -628,12 +628,12 @@
         "WK-032"
       ],
       "doc": "PLAN.md#phase-6",
-      "done_at": null,
+      "done_at": "2026-09-09",
       "note": "FR-L1 ~ FR-L7 · FR-P7. 껍데기는 표시만 그리고 저장은 앱이 한다"
     },
     {
       "id": "WK-035",
-      "status": "todo",
+      "status": "done",
       "priority": "P6",
       "category": "편집",
       "title": "하단 바 알림 — 껍데기 오류·진행과 앱이 올리는 메시지",
@@ -644,12 +644,12 @@
         "WK-034"
       ],
       "doc": "PLAN.md#phase-6",
-      "done_at": null,
+      "done_at": "2026-09-09",
       "note": "FR-G2 ~ FR-G4 · FR-N10a · FR-N10b · X-9 · D-32. 진행은 앱이 끈다 — 껍데기가 임의로 끄지 않는다"
     },
     {
       "id": "WK-036",
-      "status": "todo",
+      "status": "done",
       "priority": "P6",
       "category": "편집",
       "title": "다시 열 때의 상태와 최근 폴더",
@@ -661,7 +661,7 @@
         "WK-014"
       ],
       "doc": "PLAN.md#phase-6",
-      "done_at": null,
+      "done_at": "2026-09-09",
       "note": "FR-K1 ~ FR-K3 · FR-N6a · X-11. 칸 배치·탭·활성 탭·펼침 상태를 복원하지 않는다"
     },
     {

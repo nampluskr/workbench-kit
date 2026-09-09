@@ -15,6 +15,15 @@ export default defineConfig({
     outDir: 'dist',
     emptyOutDir: true,
     assetsInlineLimit: 250000,
+    rolldownOptions: {
+      output: {
+        // Keeps the single-JS-bundle golden set (FR-H2, NFR-2, A1): without
+        // this, monaco's lazily loaded language modules (dynamic import())
+        // would land as separate chunk files, breaking the exact dist file
+        // set the two hosts are checked against.
+        codeSplitting: false,
+      },
+    },
   },
 });
 
