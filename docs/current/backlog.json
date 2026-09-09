@@ -3,7 +3,7 @@
   "meta": {
     "version": "v0.1",
     "id_seed": "WK-001",
-    "updated": "2026-09-08",
+    "updated": "2026-09-09",
     "context_doc": "SPEC.md",
     "note": "workbench-kit v0.1 작업 SSOT. priority P{n} = PLAN.md의 Phase 번호. deps는 권장 순서다. summary가 완료 조건이고, note 앞머리의 FR/NFR/C/X 번호가 SPEC.md 역참조다. where는 아직 파일 배치가 정해지지 않아 영역 이름으로 둔다 — 착수(INIT) 때 실제 경로로 바꾼다. 계약은 SPEC.md, 근거는 DECISIONS.md, Phase 순서와 적대적 검증 게이트는 PLAN.md."
   },
@@ -455,7 +455,7 @@
     },
     {
       "id": "WK-025",
-      "status": "todo",
+      "status": "done",
       "priority": "P5",
       "category": "확장점",
       "title": "리소스 종류 등록 자리",
@@ -466,12 +466,12 @@
         "WK-024"
       ],
       "doc": "PLAN.md#phase-5",
-      "done_at": null,
+      "done_at": "2026-09-09",
       "note": "FR-I1 · NFR-1 · D-4. 등록 코드는 공통 코어 밖에만 둔다"
     },
     {
       "id": "WK-026",
-      "status": "todo",
+      "status": "done",
       "priority": "P5",
       "category": "확장점",
       "title": "파일 프리셋 · 폴더 프리셋",
@@ -482,12 +482,12 @@
         "WK-025"
       ],
       "doc": "PLAN.md#phase-5",
-      "done_at": null,
+      "done_at": "2026-09-09",
       "note": "FR-I2 · FR-I3. 탭 안에 무엇을 그리는지는 앱 몫이라 판정하지 않는다"
     },
     {
       "id": "WK-027",
-      "status": "todo",
+      "status": "done",
       "priority": "P5",
       "category": "확장점",
       "title": "앱 표면 — 옆 칸에 열기 · 칸 배치 묻기",
@@ -498,12 +498,12 @@
         "WK-025"
       ],
       "doc": "PLAN.md#phase-5",
-      "done_at": null,
+      "done_at": "2026-09-09",
       "note": "FR-I4 · FR-I5 · FR-I8 · C-9. 표면을 넓히지 않는다(D-19)"
     },
     {
       "id": "WK-028",
-      "status": "todo",
+      "status": "done",
       "priority": "P5",
       "category": "확장점",
       "title": "키 분배와 예약 키 목록 문서",
@@ -515,12 +515,12 @@
         "WK-016"
       ],
       "doc": "PLAN.md#phase-5",
-      "done_at": null,
+      "done_at": "2026-09-09",
       "note": "FR-I6 · FR-I7 · FR-R1 · FR-R1a · D-19. NFR-7의 키보드 경로도 이 목록에 적힌다"
     },
     {
       "id": "WK-029",
-      "status": "todo",
+      "status": "done",
       "priority": "P5",
       "category": "확장점",
       "title": "하단 바 · 세로 띠 항목 갈아끼우기",
@@ -531,12 +531,12 @@
         "WK-027"
       ],
       "doc": "PLAN.md#phase-5",
-      "done_at": null,
+      "done_at": "2026-09-09",
       "note": "FR-N10 · FR-N12. 껍데기의 하단 바 세 자리는 남는다"
     },
     {
       "id": "WK-048",
-      "status": "todo",
+      "status": "done",
       "priority": "P5",
       "category": "확장점",
       "title": "앱이 File 묶음·뷰 제목줄에 항목을 더한다",
@@ -548,12 +548,12 @@
         "WK-047"
       ],
       "doc": "PLAN.md#phase-5",
-      "done_at": null,
+      "done_at": "2026-09-09",
       "note": "FR-I9 ~ FR-I11 · D-31. 앱 항목은 가름선 아래(뷰 제목줄은 껍데기 액션 왼쪽)에만 놓인다"
     },
     {
       "id": "WK-030",
-      "status": "todo",
+      "status": "done",
       "priority": "P5",
       "category": "확장점",
       "title": "우클릭 메뉴 장치",
@@ -564,12 +564,12 @@
         "WK-029"
       ],
       "doc": "PLAN.md#phase-5",
-      "done_at": null,
+      "done_at": "2026-09-09",
       "note": "FR-G5 · FR-G6 · X-10. 껍데기는 장치만 준다(D-22)"
     },
     {
       "id": "WK-031",
-      "status": "todo",
+      "status": "done",
       "priority": "P5",
       "category": "확장점",
       "title": "모든 명령의 키보드 경로",
@@ -580,7 +580,7 @@
         "WK-028"
       ],
       "doc": "PLAN.md#phase-5",
-      "done_at": null,
+      "done_at": "2026-09-09",
       "note": "NFR-7 · X-20(화면 낭독기는 이번 버전 대상이 아니다)"
     },
     {
@@ -781,7 +781,7 @@
     },
     {
       "id": "WK-044",
-      "status": "todo",
+      "status": "done",
       "priority": "P5",
       "category": "검증",
       "title": "Phase 5 적대적 검증",
@@ -792,7 +792,7 @@
         "WK-031"
       ],
       "doc": "PLAN.md#phase-5",
-      "done_at": null,
+      "done_at": "2026-09-09",
       "note": "필수 통과. 공격 초점은 공통 코어 diff 0줄 주장과 표면 우회로"
     },
     {

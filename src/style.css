@@ -628,6 +628,16 @@ html, body, #app {
   justify-content: flex-end;
 }
 
+.statusbar-app-items {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.statusbar-app-items:empty {
+  display: none;
+}
+
 /* Visibility modifiers */
 .hidden {
   display: none !important;
@@ -713,7 +723,8 @@ html, body, #app {
   white-space: nowrap;
 }
 
-.menu-item-row:hover {
+.menu-item-row:hover,
+.menu-item-row.kbd-focused {
   background-color: var(--menu-hover-bg);
   color: var(--menu-hover-fg);
 }
@@ -749,6 +760,33 @@ html, body, #app {
   height: 1px;
   background-color: var(--border-color);
   margin: 5px 0;
+}
+
+/* 6b. Generic Right-Click Menu Device (WK-030, D-22) */
+.workbench-context-menu {
+  position: fixed;
+  z-index: 1200;
+  background-color: var(--menu-bg);
+  color: var(--sidebar-fg);
+  border: 1px solid var(--border-color);
+  box-shadow: 0 5px 15px rgba(0, 0, 0, 0.35);
+  display: flex;
+  flex-direction: column;
+  min-width: 160px;
+  font-size: 13px;
+  padding: 5px 0;
+}
+
+.context-menu-item-row {
+  padding: 5px 15px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.context-menu-item-row:hover,
+.context-menu-item-row.focused {
+  background-color: var(--menu-hover-bg);
+  color: var(--menu-hover-fg);
 }
 
 /* 7. Dockview Core Layout & Theme Rules (WK-019 ~ WK-024) */

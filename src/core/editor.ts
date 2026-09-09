@@ -14,6 +14,61 @@ import {
 export interface EditorOpenOptions {
   renderer?: DockviewPanelRenderer;
   isUserCreatedEmptyTab?: boolean;
+  /**
+   * Opaque metadata the caller attaches to a panel (FR-I1, D-4, NFR-1).
+   * The shell stores and forwards this bag without inspecting its keys or
+   * values, so registering a new resource kind never requires a core change.
+   */
+  meta?: Record<string, unknown>;
+}
+
+export interface PanePlacement {
+  groupId: string;
+  targets: (string | null)[];
+}
+
+export interface OpenedPanelHandle {
+  id: string;
+}
+
+/**
+ * The entire surface the shell exposes to app code (presets, registry
+ * helpers) that opens or inspects panes (FR-I4, FR-I5, FR-I8, C-9). It
+ * deliberately excludes every method that creates, closes, or moves a tab
+ * or pane (addNewTab, closePanel, splitGroup, ...) — those stay shell-only.
+ * Note it does not take a `targetGroup` parameter and returns a plain
+ * `{ id }` handle rather than the real dockview panel/group objects, so
+ * holding this surface gives no path back to dockview's own API (Critical
+ * finding, round 1: `AppEditorSurface` must not leak `IDockviewPanel` or
+ * `DockviewGroupPanel`). Build one with `createAppEditorSurface()` below —
+ * `EditorController` itself is deliberately NOT assignable to this type.
+ */
+export interface AppEditorSurface {
+  openItem(targetId: string, title?: string, options?: EditorOpenOptions): OpenedPanelHandle;
+  openBeside(targetId: string, title?: string, options?: EditorOpenOptions): OpenedPanelHandle;
+  queryPanePlacement(panelId?: string): { own: PanePlacement; beside: PanePlacement | null } | undefined;
+}
+
+/**
+ * Builds a genuinely narrow, non-castable view of an EditorController: each
+ * method here constructs a fresh plain object at runtime, so there is no
+ * dockview panel/group reference for app code to reach through even via a
+ * type cast (FR-I8, C-9).
+ */
+export function createAppEditorSurface(controller: EditorController): AppEditorSurface {
+  return {
+    openItem(targetId, title, options) {
+      const panel = controller.openItem(targetId, title, options);
+      return { id: panel.id };
+    },
+    openBeside(targetId, title, options) {
+      const panel = controller.openBeside(targetId, title, options);
+      return { id: panel.id };
+    },
+    queryPanePlacement(panelId) {
+      return controller.queryPanePlacement(panelId);
+    },
+  };
 }
 
 export interface PanelContentState {
@@ -373,8 +428,11 @@ export class EditorController {
     options?: EditorOpenOptions,
     targetGroup?: DockviewGroupPanel
   ): IDockviewPanel {
-    const displayTitle = title || targetId.split(/[\/\\]/).pop() || targetId;
+    // No path-shape assumption: a targetId is an opaque resource identifier,
+    // not necessarily a filesystem path (round 2 Minor finding, INTENT 3).
+    const displayTitle = title || targetId;
     const requestedRenderer = options?.renderer || 'onlyWhenVisible';
+    const meta = options?.meta || {};
     const group = targetGroup || this.getActiveGroup() || this.api.groups[0];
     const activePanel = group?.activePanel;
 
@@ -384,6 +442,7 @@ export class EditorController {
       activePanel.api.setRenderer(requestedRenderer);
       activePanel.update({
         params: {
+          ...meta,
           targetId,
           isUserCreatedEmptyTab: false,
         },
@@ -405,6 +464,7 @@ export class EditorController {
       activePanel.api.setRenderer(requestedRenderer);
       activePanel.update({
         params: {
+          ...meta,
           targetId,
           isUserCreatedEmptyTab: false,
         },
@@ -425,6 +485,7 @@ export class EditorController {
         direction: 'within',
       },
       params: {
+        ...meta,
         targetId,
         isUserCreatedEmptyTab: false,
       },
@@ -432,6 +493,32 @@ export class EditorController {
 
     panel.api.setActive();
     return panel;
+  }
+
+  /**
+   * Reports the caller's own group and the targets currently open in the
+   * spatially adjacent group (FR-I5, D-19). The shell only reports pane
+   * placement; it never performs the copy/move itself (INTENT 3).
+   */
+  public queryPanePlacement(panelId?: string): { own: PanePlacement; beside: PanePlacement | null } | undefined {
+    const panel = panelId ? this.api.getPanel(panelId) : this.getActivePanel();
+    const group = panel?.group || this.getActiveGroup();
+    if (!group) return undefined;
+
+    const own: PanePlacement = {
+      groupId: group.id,
+      targets: group.panels.map((p) => (p.params?.targetId as string | undefined) ?? null),
+    };
+
+    const besideGroup = this.findBesideGroup(group);
+    const beside: PanePlacement | null = besideGroup
+      ? {
+          groupId: besideGroup.id,
+          targets: besideGroup.panels.map((p) => (p.params?.targetId as string | undefined) ?? null),
+        }
+      : null;
+
+    return { own, beside };
   }
 
   /**

@@ -133,6 +133,44 @@
   - **검증**: `npm.cmd test` (`tsc --noEmit`, `scripts/verify-dist.mjs`, `scripts/verify-phase2.mjs`, `scripts/verify-phase3.mjs`, `scripts/verify-phase4.mjs`) 0 failures 통과.
   - **사용자 승인**: `docs/ADVERSARIAL-REVIEW.md` 4절의 검증 CLI 3회 실행 한도를 초과해 4회 진행된 절차상 예외와, 잔여 Major 1건(R4-1, 헤드리스 환경 제약으로 DOM DragEvent + `moveTo()` API 병행 검증)의 자체 반박 처리 결과를 사용자가 현재 상태로 검토·승인함(2026-09-09). 추가 검증 라운드 없이 Phase 4를 이 상태로 종결.
 
+- **WK-025** (리소스 종류 등록 자리)
+  - **무엇을 했나**: `src/core/editor.ts`에 `EditorOpenOptions.meta`(불투명 메타데이터 전달), `AppEditorSurface`(앱 표면 타입), `createAppEditorSurface()`(런타임에 새 `{id}` 객체만 반환하는 진짜 격리 래퍼)를 신설. `src/registry/kind-registry.ts`(공통 코어 밖)에 `ResourceKindRegistry`를 신설해 `kind` 문자열 → 렌더러 팩토리 등록과 `EditorController.setComponentFactory()`용 디스패치 팩토리를 제공.
+  - **결과**: 시험이 새 리소스 종류를 `register()`로 등록하면 공통 코어(`src/core/*.ts`) diff 0줄로 탭에서 열림(`FR-I1`). 등록 코드는 전부 `src/registry/`에만 있음.
+  - **검증**: `node scripts/verify-phase5.mjs`(코어 순수성 검사 + 런타임에서 시험 전용 `'widget'` 종류 등록·오픈 확인) 통과.
+- **WK-026** (파일 프리셋 · 폴더 프리셋)
+  - **무엇을 했나**: `src/presets/file-preset.ts`, `src/presets/folder-preset.ts`(공통 코어 밖) 신설. 각각 최소 플레이스홀더 렌더러만 등록(실제 파일 읽기 없음, `INTENT` 7절) 및 `AppEditorSurface`를 받는 `openFile`/`openFolder` 헬퍼 제공.
+  - **결과**: 두 프리셋 모두 공통 코어 diff 0줄로 성립 — 트리에서 파일·폴더 행을 고르면 각각의 프리셋 화면이 활성 탭에 열림(`FR-I2`, `FR-I3`).
+  - **검증**: `node scripts/verify-phase5.mjs`가 실제 트리 루트에 파일·폴더 행을 심고 `ArrowDown`/`Enter`로 선택해 각 프리셋이 열리는지 실행 확인.
+- **WK-027** (앱 표면 — 옆 칸에 열기 · 칸 배치 묻기)
+  - **무엇을 했나**: `editor.ts`에 `queryPanePlacement()` 추가(자기 칸·옆 칸의 대상 목록만 반환, 실 패널/그룹 객체 미노출). 기존 `openBeside()`가 `FR-I4`를 충족함을 확인.
+  - **결과**: 앱이 옆 칸에 열기·칸 배치 묻기 둘 다 사용 가능하고, 앱 표면(`AppEditorSurface`)에 탭·칸을 만들거나 닫거나 옮기는 수단이 0개(`FR-I8`).
+  - **검증**: `node scripts/verify-phase5.mjs` 런타임 검사(두 칸에 서로 다른 대상을 열고 `queryPanePlacement()` 결과가 실제와 일치하는지 확인) 통과.
+- **WK-028** (키 분배와 예약 키 목록 문서)
+  - **무엇을 했나**: `docs/reserved-keys.md` 신설 — 전역 예약 키(`Ctrl+O`·`Ctrl+W`·`Ctrl+\`·`F10`·`F11`·`Escape`), 메뉴·우클릭 메뉴·트리 포커스별 예약 키, 그리고 **가져가지 않는** 여섯(`Ctrl+S`·`F2`·`Delete`·`Ctrl+Z`/`Y`·`Ctrl+C`/`V`)을 명시.
+  - **결과**: 예약 키 목록 문서 1개 존재(`FR-R1`), 여섯 키가 "가져가지 않는다"로 명시(`FR-R1a`).
+  - **검증**: `node scripts/verify-phase5.mjs`가 문서 존재 및 여섯 키 기재를 확인하고, 런타임으로 그 여섯과 `FR-I6` 예시(`F3`·`F4`·`F5`·`F6`·`Space`)가 실제로 탭 뷰에 도달함(`defaultPrevented === false`)을 확인. 트리 포커스의 `ArrowDown`은 `tree.ts`에 추가한 `e.stopPropagation()` 덕에 `document`/`window` 리스너에 0회 도달함(`FR-I7`)을 확인.
+- **WK-029** (하단 바 · 세로 띠 항목 갈아끼우기)
+  - **무엇을 했나**: `layout.ts`에 하단 바 4번째 자리 `statusbarAppItems` 추가(기존 세 자리는 그대로). 세로 띠는 기존 `ActivityBarController.setTopItems()`/`setBottomItems()`가 이미 이 요구를 충족함을 확인.
+  - **결과**: 앱이 공통 코어 diff 0줄로 두 곳의 항목을 바꾸고, 바꾼 뒤에도 View 메뉴의 열 항목이 그대로(`FR-N10`, `FR-N12`).
+  - **검증**: `node scripts/verify-phase5.mjs` 런타임 검사(세로 띠 교체 전후 View 메뉴 항목 수 비교, 하단 바 앱 항목 존재 및 기존 세 자리 존속 확인) 통과.
+- **WK-048** (앱이 File 묶음·뷰 제목줄에 항목을 더한다)
+  - **무엇을 했나**: 기존 `menu.ts`의 `addAppFileItem()`, `sidebar.ts`의 `ExplorerTitlebarController.addAppAction()`이 이미 이 요구를 충족함을 확인하고 `main.ts`에 예시 항목(각 1개, "Preset Info")을 연결. `menu.ts`에 View/Help용 추가 수단이 없음(`addAppViewItem`/`addAppHelpItem` 자체가 존재하지 않음)을 확인.
+  - **결과**: 공통 코어 diff 0줄로 항목이 붙고, File 다섯 항목·뷰 제목줄 두 액션의 목록·순서가 그대로이며 앱 항목은 각각 가름선 아래·왼쪽에만 위치. View·Help에 닿는 수단 0개(`FR-I9` ~ `FR-I11`).
+  - **검증**: `node scripts/verify-phase5.mjs` 런타임 검사(File 메뉴 순서·구분선·앱 항목 위치, 뷰 제목줄 DOM 순서, `addAppViewItem`/`addAppHelpItem` 미존재) 통과.
+- **WK-030** (우클릭 메뉴 장치)
+  - **무엇을 했나**: `src/core/contextmenu.ts` 신설 — 장치만 제공(위치·키보드 내비게이션·열기/닫기), 기본 꺼짐(`enabled = false`), 항목 0개면 렌더 0개. `main.ts`가 트리·탭 우클릭 이벤트를 위임해 앱이 등록한 항목 제공자(`contextMenuItemsForTreeNode`/`ForPanel`)를 호출.
+  - **결과**: 기본 상태에서 우클릭에 메뉴 요소 0개, 앱이 항목을 정의하고 켰을 때 껍데기가 더한 항목 0개(`FR-G5`, `FR-G6`). 햄버거 메뉴와 상호 배타적으로 열림.
+  - **검증**: `node scripts/verify-phase5.mjs` 런타임 검사(기본 꺼짐 시 DOM 0개, 활성화 후 앱 정의 항목 수와 정확히 일치, 화살표+Enter로 실행 및 자동 닫힘) 통과.
+- **WK-031** (모든 명령의 키보드 경로)
+  - **무엇을 했나**: `menu.ts`에 `F10` 전역 단축키(메뉴 열기/닫기)와 메뉴가 열린 동안의 화살표 키 항목·카테고리 이동 + `Enter` 실행을 추가. 세로 띠·탭 줄 버튼은 이미 네이티브 `<button>`이라 `Tab`/`Enter`/`Space`로 접근 가능함을 확인.
+  - **결과**: 메뉴·세로 띠·탭 줄의 모든 명령에 마우스 없이 실행하는 경로가 1개 이상 존재(`NFR-7`), 그 키는 전부 `docs/reserved-keys.md`에 기재됨.
+  - **검증**: `node scripts/verify-phase5.mjs`가 `F10` → 화살표 → `Enter` 흐름을 실제로 실행해 메뉴 키보드 포커스 이동을 확인하고, 세로 띠·탭 줄 버튼이 네이티브 `<button>`이며 `tabindex="-1"`로 배제되지 않았음을 확인(합성 이벤트로 실제 Enter→클릭 기본 동작까지는 재현 불가 — A5 "잔여 위험" 참조).
+- **A5 검증** (Phase 5 적대적 검증)
+  - **무엇을 했나**: OpenAI Codex `gpt-5.6-sol` 모델을 통한 적대적 검증 진행. Round 1(1 Critical·5 Major·1 Minor) 전건 보완. Round 2 1차 시도는 프롬프트 전달 셸 이스케이핑 오류로 무효 처리(회차로 산입). Round 2 재시도(2/3)에서 6건 해소·1 Critical 잔존 확인 후 3회 한도 소진 — 추가 실행 없이 사용자 판단 요청. `docs/reviews/A5.md` 작성.
+  - **결과**: 잔여 Critical(`window.__workbenchApp` 전역이 좁은 표면과 같은 컨텍스트에 있어 관행적 제약일 뿐 강제 경계가 아님)을 사용자가 "현재 상태 승인"으로 검토·확정(2026-09-09). `window.__workbenchAppSurface`를 FR-I8의 공식 판정 대상으로 삼고 Phase 5를 이 상태로 종결.
+  - **검증**: `npm.cmd test`(`tsc --noEmit`, `scripts/verify-dist.mjs`, `scripts/verify-phase2~5.mjs`) 0 failures 통과, Phase 5 단언 30개(Electron·pywebview 0 divergence).
+  - **사용자 승인**: `docs/ADVERSARIAL-REVIEW.md` 4절의 3회 실행 한도 소진 시점에 남은 Critical 1건에 대해 사용자가 현재 상태(문서화된 좁은 표면 `window.__workbenchAppSurface`를 FR-I8 판정 대상으로, `window.__workbenchApp`은 Phase 1-4 시험 전용 예외로 인정)로 검토·승인함(2026-09-09). `window.__workbenchApp` 전체 교체(Phase 1-4 시험 재작성)는 별도 작업으로 미룸.
+
 ## 2. 계획 외 개선
 
 `backlog`에 없는 작업이다. 여기 적지 않으면 어디에도 남지 않는다. 이 구간이 다음

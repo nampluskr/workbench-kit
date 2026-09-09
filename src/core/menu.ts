@@ -44,6 +44,7 @@ export class MenuController {
   private menuDropdownEl: HTMLElement | null = null;
   private _isOpen = false;
   private activeCategoryId: string = 'file';
+  private focusedItemIndex = 0;
 
   private readonly coreFileItems: readonly MenuItem[] = Object.freeze(
     DEFAULT_FILE_ITEMS.map((it) => Object.freeze({ ...it }))
@@ -75,8 +76,43 @@ export class MenuController {
     });
 
     document.addEventListener('keydown', (e) => {
-      if (e.key === 'Escape' && this._isOpen) {
+      // F10 opens/closes the menu with zero mouse involvement (NFR-7, D-7).
+      if (e.key === 'F10' && !e.ctrlKey && !e.altKey && !e.shiftKey) {
+        e.preventDefault();
+        this.toggleMenu();
+        return;
+      }
+
+      if (!this._isOpen) return;
+
+      if (e.key === 'Escape') {
+        e.preventDefault();
         this.closeMenu();
+        return;
+      }
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        this.moveItemFocus(1);
+        return;
+      }
+      if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        this.moveItemFocus(-1);
+        return;
+      }
+      if (e.key === 'ArrowRight') {
+        e.preventDefault();
+        this.moveCategoryFocus(1);
+        return;
+      }
+      if (e.key === 'ArrowLeft') {
+        e.preventDefault();
+        this.moveCategoryFocus(-1);
+        return;
+      }
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        this.triggerFocusedItem();
       }
     });
 
@@ -88,6 +124,18 @@ export class MenuController {
     this.rootContainer.addEventListener('workbench:zen-enter', handleZenEnter);
     if (typeof window !== 'undefined') {
       window.addEventListener('workbench:zen-enter', handleZenEnter);
+    }
+
+    // Exactly one shell menu device is open at a time (NFR-7): opening the
+    // right-click menu closes the hamburger menu.
+    const handleContextMenuOpen = () => {
+      if (this._isOpen) {
+        this.closeMenu();
+      }
+    };
+    this.rootContainer.addEventListener('workbench:contextmenu-open', handleContextMenuOpen);
+    if (typeof window !== 'undefined') {
+      window.addEventListener('workbench:contextmenu-open', handleContextMenuOpen);
     }
   }
 
@@ -107,7 +155,47 @@ export class MenuController {
     if (this._isOpen) return;
     this._isOpen = true;
     this.activeCategoryId = 'file';
+    this.focusedItemIndex = 0;
     this.renderMenu();
+    this.rootContainer.dispatchEvent(new CustomEvent('workbench:menu-open'));
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('workbench:menu-open'));
+    }
+  }
+
+  private getSelectableItems(categoryId: string): MenuItem[] {
+    const group = this.getGroups().find((g) => g.id === categoryId);
+    return (group?.items || []).filter((it) => it.type !== 'separator');
+  }
+
+  private moveItemFocus(delta: number): void {
+    const items = this.getSelectableItems(this.activeCategoryId);
+    if (items.length === 0) return;
+    this.focusedItemIndex = (this.focusedItemIndex + delta + items.length) % items.length;
+    this.renderMenu();
+  }
+
+  private moveCategoryFocus(delta: number): void {
+    const groups = this.getGroups();
+    const currentIndex = groups.findIndex((g) => g.id === this.activeCategoryId);
+    const nextIndex = (currentIndex + delta + groups.length) % groups.length;
+    this.activeCategoryId = groups[nextIndex].id;
+    this.focusedItemIndex = 0;
+    this.renderMenu();
+  }
+
+  private triggerFocusedItem(): void {
+    const items = this.getSelectableItems(this.activeCategoryId);
+    const item = items[this.focusedItemIndex];
+    if (!item) return;
+    if (item.type === 'checkbox') {
+      this.setItemChecked(item.id, !this.isItemChecked(item.id));
+    }
+    const act = this.itemActions.get(item.id) || item.action;
+    if (act) {
+      act();
+    }
+    this.closeMenu();
   }
 
   public closeMenu(): void {
@@ -217,6 +305,7 @@ export class MenuController {
       submenuEl.className = 'menu-submenu';
       submenuEl.dataset.parentGroup = group.id;
 
+      let selectableIndex = -1;
       group.items.forEach((item) => {
         if (item.type === 'separator') {
           const sep = document.createElement('div');
@@ -224,9 +313,12 @@ export class MenuController {
           submenuEl.appendChild(sep);
           return;
         }
+        selectableIndex++;
+        const isKeyboardFocused =
+          group.id === this.activeCategoryId && selectableIndex === this.focusedItemIndex;
 
         const itemRow = document.createElement('div');
-        itemRow.className = 'menu-item-row';
+        itemRow.className = 'menu-item-row' + (isKeyboardFocused ? ' kbd-focused' : '');
         itemRow.dataset.itemId = item.id;
 
         const checkMark = document.createElement('span');
@@ -269,6 +361,7 @@ export class MenuController {
 
       groupRow.addEventListener('mouseenter', () => {
         this.activeCategoryId = group.id;
+        this.focusedItemIndex = 0;
         menuEl.querySelectorAll('.menu-category-row').forEach((r) => r.classList.remove('active'));
         groupRow.classList.add('active');
       });
@@ -276,6 +369,7 @@ export class MenuController {
       groupRow.addEventListener('click', (e) => {
         e.stopPropagation();
         this.activeCategoryId = group.id;
+        this.focusedItemIndex = 0;
         menuEl.querySelectorAll('.menu-category-row').forEach((r) => r.classList.remove('active'));
         groupRow.classList.add('active');
       });

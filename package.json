@@ -15,7 +15,8 @@
     "verify:phase2": "node scripts/verify-phase2.mjs",
     "verify:phase3": "node scripts/verify-phase3.mjs",
     "verify:phase4": "node scripts/verify-phase4.mjs",
-    "test": "npm run typecheck && npm run verify:dist && npm run verify:phase2 && npm run verify:phase3 && npm run verify:phase4"
+    "verify:phase5": "node scripts/verify-phase5.mjs",
+    "test": "npm run typecheck && npm run verify:dist && npm run verify:phase2 && npm run verify:phase3 && npm run verify:phase4 && npm run verify:phase5"
   },
   "engines": {
     "node": ">=22.0.0"

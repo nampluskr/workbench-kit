@@ -598,6 +598,7 @@ export class TreeController {
     // F3 or Ctrl+Alt+F: Find in tree (FR-A13, FR-A19)
     if (e.key === 'F3' || (e.ctrlKey && e.altKey && (e.key === 'f' || e.key === 'F'))) {
       e.preventDefault();
+      e.stopPropagation();
       this.openFindWidget();
       return;
     }
@@ -605,6 +606,7 @@ export class TreeController {
     // Ctrl+A: Select all visible items (FR-A10)
     if (e.ctrlKey && !e.shiftKey && !e.altKey && (e.key === 'a' || e.key === 'A')) {
       e.preventDefault();
+      e.stopPropagation();
       this.selectAll();
       return;
     }
@@ -612,6 +614,7 @@ export class TreeController {
     // Escape: Clear selection (FR-A12)
     if (e.key === 'Escape') {
       e.preventDefault();
+      e.stopPropagation();
       this.clearSelection();
       return;
     }
@@ -619,6 +622,7 @@ export class TreeController {
     // Ctrl+LeftArrow: Collapse all (FR-A7, FR-A21)
     if (e.ctrlKey && !e.shiftKey && !e.altKey && e.key === 'ArrowLeft') {
       e.preventDefault();
+      e.stopPropagation();
       this.collapseAll();
       return;
     }
@@ -626,6 +630,7 @@ export class TreeController {
     // Ctrl+Shift+Enter: Toggle selection of current item (FR-A18)
     if (e.ctrlKey && e.shiftKey && !e.altKey && e.key === 'Enter') {
       e.preventDefault();
+      e.stopPropagation();
       if (this.focusedId) {
         if (this.selectedIds.has(this.focusedId)) {
           this.selectedIds.delete(this.focusedId);
@@ -641,6 +646,7 @@ export class TreeController {
     // Ctrl+Enter: Open to side (FR-A14)
     if (e.ctrlKey && !e.shiftKey && !e.altKey && e.key === 'Enter') {
       e.preventDefault();
+      e.stopPropagation();
       const node = this.getNodeById(this.focusedId);
       if (node) {
         this.emitOpenToSide(node);
@@ -651,6 +657,7 @@ export class TreeController {
     // Enter: Select/open focused item (FR-A6)
     if (e.key === 'Enter' && !e.ctrlKey && !e.shiftKey && !e.altKey) {
       e.preventDefault();
+      e.stopPropagation();
       const node = this.getNodeById(this.focusedId);
       if (node) {
         this.emitOpen(node);
@@ -661,6 +668,7 @@ export class TreeController {
     // Ctrl+Enter: Open item in beside pane (FR-A14)
     if (e.key === 'Enter' && e.ctrlKey && !e.shiftKey && !e.altKey) {
       e.preventDefault();
+      e.stopPropagation();
       const node = this.getNodeById(this.focusedId);
       if (node) {
         this.emitOpenToSide(node);
@@ -671,6 +679,7 @@ export class TreeController {
     // Space: Toggle expand/collapse of container (FR-A5)
     if (e.key === ' ' && !e.ctrlKey && !e.shiftKey && !e.altKey) {
       e.preventDefault();
+      e.stopPropagation();
       if (this.focusedId) {
         const node = this.getNodeById(this.focusedId);
         if (node?.isContainer) {
@@ -683,6 +692,7 @@ export class TreeController {
     // Ctrl+ArrowUp / Ctrl+ArrowDown: Scroll without moving focus (FR-A17)
     if (e.ctrlKey && !e.shiftKey && !e.altKey && (e.key === 'ArrowUp' || e.key === 'ArrowDown')) {
       e.preventDefault();
+      e.stopPropagation();
       const listEl = this.container.querySelector('.tree-list') as HTMLElement | null;
       if (listEl) {
         listEl.scrollTop += e.key === 'ArrowDown' ? 22 : -22;
@@ -699,6 +709,7 @@ export class TreeController {
     // Home: Focus first visible item (FR-A8)
     if (e.key === 'Home' && !e.ctrlKey && !e.altKey) {
       e.preventDefault();
+      e.stopPropagation();
       this.focusItemByIndex(0);
       return;
     }
@@ -706,6 +717,7 @@ export class TreeController {
     // End: Focus last visible item (FR-A8)
     if (e.key === 'End' && !e.ctrlKey && !e.altKey) {
       e.preventDefault();
+      e.stopPropagation();
       this.focusItemByIndex(visible.length - 1);
       return;
     }
@@ -713,6 +725,7 @@ export class TreeController {
     // PageDown / PageUp: Move focus one page (FR-A16)
     if (e.key === 'PageDown' || e.key === 'PageUp') {
       e.preventDefault();
+      e.stopPropagation();
       const listEl = this.container.querySelector('.tree-list') as HTMLElement | null;
       const viewportHeight = listEl?.clientHeight || this.container.clientHeight || 0;
       const pageSize = viewportHeight > 0 ? Math.max(1, Math.floor(viewportHeight / 22)) : 10;
@@ -726,6 +739,7 @@ export class TreeController {
     // Shift+ArrowUp / Shift+ArrowDown: Expand selection range (FR-A9)
     if (e.shiftKey && (e.key === 'ArrowUp' || e.key === 'ArrowDown')) {
       e.preventDefault();
+      e.stopPropagation();
       if (!this.anchorId) {
         this.anchorId = this.focusedId || visible[0].node.id;
       }
@@ -753,6 +767,7 @@ export class TreeController {
     // ArrowDown: Focus next visible item (FR-A2)
     if (e.key === 'ArrowDown' && !e.ctrlKey && !e.altKey) {
       e.preventDefault();
+      e.stopPropagation();
       if (curIdx < visible.length - 1) {
         this.focusItemByIndex(curIdx + 1);
       }
@@ -762,6 +777,7 @@ export class TreeController {
     // ArrowUp: Focus previous visible item (FR-A2)
     if (e.key === 'ArrowUp' && !e.ctrlKey && !e.altKey) {
       e.preventDefault();
+      e.stopPropagation();
       if (curIdx > 0) {
         this.focusItemByIndex(curIdx - 1);
       }
@@ -771,6 +787,7 @@ export class TreeController {
     // ArrowRight: Expand container or move to first child (FR-A3)
     if (e.key === 'ArrowRight' && !e.ctrlKey && !e.altKey) {
       e.preventDefault();
+      e.stopPropagation();
       const current = visible[curIdx];
       if (current.node.isContainer) {
         if (!current.isExpanded) {
@@ -790,6 +807,7 @@ export class TreeController {
     // ArrowLeft: Collapse container or move to parent (FR-A4)
     if (e.key === 'ArrowLeft' && !e.ctrlKey && !e.altKey) {
       e.preventDefault();
+      e.stopPropagation();
       const current = visible[curIdx];
       if (current.node.isContainer && current.isExpanded) {
         // Collapse container, focus stays on node (FR-A4)
@@ -1172,9 +1190,11 @@ export class TreeController {
       findInput.addEventListener('keydown', (e) => {
         if (e.key === 'Escape') {
           e.preventDefault();
+      e.stopPropagation();
           this.closeFindWidget();
         } else if (e.key === 'Enter') {
           e.preventDefault();
+      e.stopPropagation();
           if (e.shiftKey) {
             this.goToFindMatch(this.findMatchIndex - 1);
           } else {
@@ -1204,6 +1224,7 @@ export class TreeController {
         e.stopPropagation();
         if (e.key === 'Enter') {
           e.preventDefault();
+      e.stopPropagation();
           const val = promptInput.value;
           if (val.length > 0 && this.promptState) {
             const commitCb = this.promptState.onCommit;
@@ -1219,6 +1240,7 @@ export class TreeController {
           }
         } else if (e.key === 'Escape') {
           e.preventDefault();
+      e.stopPropagation();
           this.cancelPrompt(); // Disappears, 0 app commit calls
         }
       });

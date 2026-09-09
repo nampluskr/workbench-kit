@@ -1,0 +1,99 @@
+You are the adversarial reviewer for workbench-kit Phase 5, round 2. In round 1 you
+found 1 Critical, 5 Major, and 1 Minor finding. All 7 have been addressed:
+
+1. Critical (app-facing editor boundary bypassable via window.__workbenchApp.editor /
+   AppEditorSurface leaking IDockviewPanel/DockviewGroupPanel):
+   - Added `createAppEditorSurface(controller)` in editor.ts, returning a plain object
+     whose openItem/openBeside construct a FRESH `{ id }` handle at runtime (not the
+     real dockview panel), and whose queryPanePlacement only returns primitive fields.
+     Removed the `targetGroup` parameter from the `AppEditorSurface` interface.
+   - Added `WorkbenchApp.getAppSurface()` in main.ts, exposed at
+     `window.__workbenchAppSurface`, containing ONLY: the narrow editor surface,
+     kindRegistry, addFileMenuItem, addSidebarViewAction, setActivityBarTopItems/
+     BottomItems, setContextMenuEnabled, and the two context-menu item providers.
+     `window.__workbenchApp` (full access) is kept only for the Phase 1-4 frozen test
+     harnesses and is now commented as a test-only diagnostic hook, not the app surface.
+   - New runtime assertions in phase5-suite.js: P5-FR-I8-SURFACE-EDITOR (surface.editor
+     has 0 of addNewTab/closePanel/closeActiveTab/closeAllTabsInGroup/splitGroup/
+     splitActiveGroup/getApi/clear/setTabDirty), P5-FR-I8-SURFACE-NO-MENU-CONTROL
+     (surface.menu is undefined, so setAction/triggerItem are unreachable),
+     P5-FR-I8-SURFACE-HANDLE (openItem() via the surface returns a plain {id} object
+     with exactly one key).
+
+2. Major (menu.setAction() lets app code override/hijack shell-owned commands, e.g.
+   file:open-folder, view:zen-mode, help:about, and reach View/Help despite no
+   addAppViewItem/addAppHelpItem method):
+   - `window.__workbenchAppSurface` does not expose `menu` at all — only
+     `addFileMenuItem`, which appends a caller-supplied item (id + its own action)
+     below the separator and cannot touch existing ids. Verified by
+     P5-FR-I8-SURFACE-NO-MENU-CONTROL above.
+
+3. Major (KindDispatchRenderer.update() disposes and recreates the view on ANY params
+   change, including unrelated metadata like isDirty, destroying a live view D-4 says
+   must survive the tab's lifetime):
+   - kind-registry.ts's `update()` now compares merged `kind`/`targetId` against the
+     previous values and only calls `renderForCurrentParams()` (dispose + recreate)
+     when one of them actually changed. Unrelated metadata updates leave the live
+     inner view untouched.
+
+4. Major (FR-I2/FR-I3 acceptance tested via a direct `editor.openItem()` call, never
+   proving a preset supplies a tree row or that selecting it opens the preset):
+   - Rewrote phase5-suite.js section 2: sets a real tree root with a file child and a
+     folder child, moves keyboard focus row-by-row via ArrowDown (checking
+     `.tree-row.focused[data-id]`), and dispatches a real `Enter` keydown to open each
+     one, then asserts the active tab's content matches the corresponding preset.
+
+5. Major (context-menu's own Escape/ArrowUp/ArrowDown/Enter interception is not in the
+   reserved-key document):
+   - Added section "2b. 우클릭 메뉴가 열려 있을 때만 (WK-030, D-22)" to
+     docs/reserved-keys.md documenting those four keys, and the menu/context-menu
+     mutual-exclusion behavior (see finding 7 below).
+
+6. Major (the core-purity verifier in verify-phase5.mjs checked only 6 hand-picked
+   files with an exact-lowercase-literal match, so e.g. `kind === "terminal"` in an
+   unchecked core file would pass):
+   - Rewrote section 1 of verify-phase5.mjs: it now recursively walks EVERY .ts file
+     under src/core/ (not a fixed list), and checks for actual resource-kind BRANCHING
+     (a regex matching `kind === "file"`/`"terminal" === x` in either direction and any
+     case) plus extension-mapping-table names, rather than a naive literal-word search
+     that would have false-flagged legitimate pre-existing code (menu.ts's File/View/
+     Help group ids, icontheme.ts's real codicon glyph names).
+
+7. Minor (opening the context menu while the hamburger menu is open lets one keystroke
+   trigger both):
+   - menu.ts's `openMenu()` now dispatches a `workbench:menu-open` custom event;
+     contextmenu.ts listens for it and hides itself. contextmenu.ts's `show()` now
+     dispatches `workbench:contextmenu-open`; menu.ts listens for it and closes itself.
+     The two menu devices are now mutually exclusive.
+
+`npm test` (all of Phase 1-5, both Electron and pywebview hosts) passes with 0
+failures after these changes, including 3 new Phase 5 assertions proving the narrow
+surface (29 total, up from 25).
+
+Review scope: Phase 5 — 확장점 (extension points) (WK-025 ~ WK-031, WK-048)
+Files to review (same set as round 1):
+- src/core/editor.ts
+- src/core/layout.ts
+- src/core/menu.ts
+- src/core/contextmenu.ts
+- src/registry/kind-registry.ts
+- src/presets/file-preset.ts
+- src/presets/folder-preset.ts
+- src/main.ts
+- src/hosts/pywebview/main.py
+- src/style.css
+- docs/reserved-keys.md
+- scripts/phase5-suite.js
+- scripts/phase5-electron-runner.cjs
+- scripts/verify-phase5.mjs
+- package.json
+
+Re-attack the same Phase 5 focus (break the "zero core diff" claim: core code that
+knows files/folders/terminals/extensions; any app-facing bypass to create/close a
+tab/pane; any way to remove/reorder shell menu items or reach View/Help; any key
+leaking outside the reserved-key document) and re-validate against FR-I1 ~ FR-I11,
+FR-N10, FR-N12, FR-G5, FR-G6, FR-R1, FR-R1a, NFR-1, NFR-7, and the DECISIONS/INTENT
+clauses from round 1. Do not inspect Git status, branches, remotes, or commit history,
+and do not use shell tools beyond reading files. For each finding, report severity
+(Critical/Major/Minor), exact reproduction conditions, and the violated clause. Order
+findings by severity. Do not modify any file.
