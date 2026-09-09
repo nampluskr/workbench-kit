@@ -38,7 +38,7 @@
   "tasks": [
     {
       "id": "WK-001",
-      "status": "todo",
+      "status": "done",
       "priority": "P1",
       "category": "빌드",
       "title": "Vite 웹 산출물 한 벌 빌드",
@@ -47,12 +47,12 @@
       "parent": null,
       "deps": [],
       "doc": "PLAN.md#phase-1",
-      "done_at": null,
+      "done_at": "2026-09-08",
       "note": "NFR-2 · C-1. 갈래 이름이 들어간 조건 분기를 빌드 설정에 두지 않는다"
     },
     {
       "id": "WK-002",
-      "status": "todo",
+      "status": "done",
       "priority": "P1",
       "category": "빌드",
       "title": "Electron 갈래가 산출물을 읽어 창을 띄운다",
@@ -63,12 +63,12 @@
         "WK-001"
       ],
       "doc": "PLAN.md#phase-1",
-      "done_at": null,
+      "done_at": "2026-09-08",
       "note": "C-8. 창 조작 자체는 WK-007. 여기서는 창이 뜨는 것까지"
     },
     {
       "id": "WK-003",
-      "status": "todo",
+      "status": "done",
       "priority": "P1",
       "category": "빌드",
       "title": "pywebview 갈래가 같은 산출물을 읽어 창을 띄운다",
@@ -79,12 +79,12 @@
         "WK-001"
       ],
       "doc": "PLAN.md#phase-1",
-      "done_at": null,
+      "done_at": "2026-09-08",
       "note": "C-2 · D-6. 산출물을 갈래용으로 가공하지 않는다"
     },
     {
       "id": "WK-004",
-      "status": "todo",
+      "status": "done",
       "priority": "P1",
       "category": "검증",
       "title": "두 갈래 산출물 동일성 확인",
@@ -96,12 +96,12 @@
         "WK-003"
       ],
       "doc": "PLAN.md#phase-1",
-      "done_at": null,
+      "done_at": "2026-09-08",
       "note": "FR-H2. 사람 확인이 아니라 실행으로 판정한다"
     },
     {
       "id": "WK-005",
-      "status": "todo",
+      "status": "done",
       "priority": "P1",
       "category": "환경",
       "title": "실행 환경 최소 버전 확정",
@@ -113,12 +113,12 @@
         "WK-003"
       ],
       "doc": "PLAN.md#phase-1",
-      "done_at": null,
+      "done_at": "2026-09-08",
       "note": "C-11. SPEC이 미룬 항목. 실제 설치한 버전으로 정한다"
     },
     {
       "id": "WK-006",
-      "status": "todo",
+      "status": "done",
       "priority": "P2",
       "category": "껍데기",
       "title": "다섯 조각 레이아웃과 상단·하단 바 자리",
@@ -129,12 +129,12 @@
         "WK-004"
       ],
       "doc": "PLAN.md#phase-2",
-      "done_at": null,
+      "done_at": "2026-09-08",
       "note": "FR-N1 · FR-N9 · D-7. 가로 메뉴 줄을 두지 않는다"
     },
     {
       "id": "WK-007",
-      "status": "todo",
+      "status": "done",
       "priority": "P2",
       "category": "껍데기",
       "title": "프레임리스 창 조작 — 끌기·크기 조절·창 버튼",
@@ -145,12 +145,12 @@
         "WK-006"
       ],
       "doc": "PLAN.md#phase-2",
-      "done_at": null,
+      "done_at": "2026-09-08",
       "note": "FR-N2 ~ FR-N4 · C-8. 갈래별 코드가 갈리는 두 자리 중 하나다"
     },
     {
       "id": "WK-008",
-      "status": "todo",
+      "status": "done",
       "priority": "P2",
       "category": "껍데기",
       "title": "햄버거 메뉴 File · View · Help",
@@ -161,12 +161,12 @@
         "WK-006"
       ],
       "doc": "PLAN.md#phase-2",
-      "done_at": null,
+      "done_at": "2026-09-08",
       "note": "FR-N5 ~ FR-N8 · D-31. 항목이 목록에 있다까지만 판정한다. 동작은 각 Phase. 앱이 더하는 표면은 WK-048"
     },
     {
       "id": "WK-009",
-      "status": "todo",
+      "status": "done",
       "priority": "P2",
       "category": "껍데기",
       "title": "세로 띠 아이콘",
@@ -177,12 +177,12 @@
         "WK-006"
       ],
       "doc": "PLAN.md#phase-2",
-      "done_at": null,
+      "done_at": "2026-09-08",
       "note": "FR-N11 · X-7. 세로 띠는 뷰 고르는 자리가 아니라 명령 자리다(D-11)"
     },
     {
       "id": "WK-010",
-      "status": "todo",
+      "status": "done",
       "priority": "P2",
       "category": "껍데기",
       "title": "탐색기 접기 · 상단/하단 바 감추기 · Zen",
@@ -193,12 +193,12 @@
         "WK-009"
       ],
       "doc": "PLAN.md#phase-2",
-      "done_at": null,
+      "done_at": "2026-09-08",
       "note": "FR-F1 ~ FR-F7 · X-17. Zen은 전체화면이 아니다. 세로 띠 감추기는 두지 않는다"
     },
     {
       "id": "WK-011",
-      "status": "todo",
+      "status": "done",
       "priority": "P2",
       "category": "껍데기",
       "title": "세 색 테마 토큰",
@@ -209,12 +209,12 @@
         "WK-006"
       ],
       "doc": "PLAN.md#phase-2",
-      "done_at": null,
+      "done_at": "2026-09-08",
       "note": "FR-M1 ~ FR-M3 · FR-M5 · C-10. tab-explorer-templates의 글꼴·간격·색 토큰 값이 산출물에서 0건이어야 한다"
     },
     {
       "id": "WK-012",
-      "status": "todo",
+      "status": "done",
       "priority": "P2",
       "category": "껍데기",
       "title": "codicons 반입과 UI 아이콘",
@@ -225,12 +225,12 @@
         "WK-011"
       ],
       "doc": "PLAN.md#phase-2",
-      "done_at": null,
+      "done_at": "2026-09-08",
       "note": "FR-M4 · NFR-4 · C-5. 직접 그리지 않는다. 라이선스 본문은 Phase 7(WK-037)에서 함께 챙긴다"
     },
     {
       "id": "WK-013",
-      "status": "todo",
+      "status": "done",
       "priority": "P2",
       "category": "껍데기",
       "title": "seti · vscode-icons 반입과 아이콘 테마 전환",
@@ -241,124 +241,124 @@
         "WK-012"
       ],
       "doc": "PLAN.md#phase-2",
-      "done_at": null,
+      "done_at": "2026-09-08",
       "note": "FR-Q1 · FR-Q1a ~ FR-Q3 · NFR-6 · X-13. 아이콘 테마를 고르는 자리는 View 메뉴 하나"
     },
     {
       "id": "WK-014",
-      "status": "todo",
+      "status": "done",
       "priority": "P3",
       "category": "탐색기",
       "title": "단일 루트 트리와 폴더 열기",
       "summary": "완료: 폴더 열기로 루트가 바뀌고 이전 루트를 가리키는 노드가 0개이며, 트리 안에서 루트를 바꾸는 수단이 0개다. File의 폴더 닫기가 루트를 비우고 칸 수·탭 수는 그대로다",
-      "where": "공통 웹 코어",
+      "where": "src/core/tree.ts",
       "parent": null,
       "deps": [
         "WK-008"
       ],
       "doc": "PLAN.md#phase-3",
-      "done_at": null,
+      "done_at": "2026-09-08",
       "note": "FR-A1 · FR-A15 · FR-N6c · X-5. 멀티 루트를 두지 않는다(D-16)"
     },
     {
       "id": "WK-015",
-      "status": "todo",
+      "status": "done",
       "priority": "P3",
       "category": "탐색기",
       "title": "트리 키보드 조작",
       "summary": "완료: FR-A2 ~ A5 · A7 ~ A10 · A12 · A16 ~ A18이 각 항목에 적힌 대로 나온다",
-      "where": "공통 웹 코어",
+      "where": "src/core/tree.ts",
       "parent": null,
       "deps": [
         "WK-014"
       ],
       "doc": "PLAN.md#phase-3",
-      "done_at": null,
+      "done_at": "2026-09-08",
       "note": "X-15의 키(Alt+↑/↓/Home/End · Ctrl+K Ctrl+I · Shift+Alt+F)는 넣지 않는다"
     },
     {
       "id": "WK-016",
-      "status": "todo",
+      "status": "done",
       "priority": "P3",
       "category": "탐색기",
       "title": "트리 안에서 찾기",
       "summary": "완료: F3과 Ctrl+Alt+F 각각으로 찾기가 열리고, 글자를 넣으면 일치 항목으로 포커스가 간다",
-      "where": "공통 웹 코어",
+      "where": "src/core/tree.ts",
       "parent": null,
       "deps": [
         "WK-015"
       ],
       "doc": "PLAN.md#phase-3",
-      "done_at": null,
+      "done_at": "2026-09-08",
       "note": "FR-A13 · FR-A19. 두 키의 결과가 같아야 한다"
     },
     {
       "id": "WK-017",
-      "status": "todo",
+      "status": "done",
       "priority": "P3",
       "category": "탐색기",
       "title": "마우스 다중 선택",
       "summary": "완료: Ctrl+클릭으로 떨어진 두 항목이, Shift+클릭으로 두 항목 사이 전부가 선택된다",
-      "where": "공통 웹 코어",
+      "where": "src/core/tree.ts",
       "parent": null,
       "deps": [
         "WK-015"
       ],
       "doc": "PLAN.md#phase-3",
-      "done_at": null,
+      "done_at": "2026-09-08",
       "note": "FR-A11. 키보드 범위 선택(FR-A9)과 결과가 어긋나지 않아야 한다"
     },
     {
       "id": "WK-018",
-      "status": "todo",
+      "status": "done",
       "priority": "P3",
       "category": "탐색기",
       "title": "폴더를 열지 않은 빈 상태",
       "summary": "완료: 트리 자리에 자식 요소와 텍스트가 0개이고, 클릭해도 상태가 바뀌지 않는다",
-      "where": "공통 웹 코어",
+      "where": "src/core/tree.ts",
       "parent": null,
       "deps": [
         "WK-014"
       ],
       "doc": "PLAN.md#phase-3",
-      "done_at": null,
+      "done_at": "2026-09-08",
       "note": "FR-G1 · X-8. 환영 뷰·안내 문구·버튼을 두지 않는다(D-20)"
     },
     {
       "id": "WK-046",
-      "status": "todo",
+      "status": "done",
       "priority": "P3",
       "category": "탐색기",
       "title": "탐색기 뷰 제목줄과 껍데기 액션 둘",
       "summary": "완료: 제목줄이 1개 있고 껍데기 액션이 정확히 둘(모두 접기 · 새로 고침)이다. 모두 접기가 Ctrl+←와 같은 결과를 내고, 새로 고침이 펼침 상태와 선택을 유지한 채 트리를 다시 읽는다",
-      "where": "공통 웹 코어",
+      "where": "src/core/sidebar.ts",
       "parent": null,
       "deps": [
         "WK-015"
       ],
       "doc": "PLAN.md#phase-3",
-      "done_at": null,
+      "done_at": "2026-09-08",
       "note": "FR-A20 ~ FR-A22 · FR-A24 · D-30. 새로 고침은 트리 공급자를 부르기만 한다 — 무엇을 읽는지 아는 코드가 공통 코어에 0건"
     },
     {
       "id": "WK-047",
-      "status": "todo",
+      "status": "done",
       "priority": "P3",
       "category": "탐색기",
       "title": "새 파일·새 폴더 인라인 이름 입력 장치",
       "summary": "완료: 입력 행이 1개 생기고, Enter → 앱에 이름을 넘긴 기록 1건 · 껍데기 쪽 생성 동작 0회, Escape → 입력 행이 사라지고 앱 호출 0건이다. 앱이 꽂지 않으면 아이콘이 0개다",
-      "where": "공통 웹 코어",
+      "where": "src/core/tree.ts",
       "parent": null,
       "deps": [
         "WK-046"
       ],
       "doc": "PLAN.md#phase-3",
-      "done_at": null,
+      "done_at": "2026-09-08",
       "note": "FR-A23 · D-30 · D-22. 껍데기는 장치만 준다. 파일·폴더를 만드는 코드가 공통 코어에 0건"
     },
     {
       "id": "WK-019",
-      "status": "todo",
+      "status": "done",
       "priority": "P4",
       "category": "칸·탭",
       "title": "dockview-core 반입과 칸 격자",
@@ -369,12 +369,12 @@
         "WK-013"
       ],
       "doc": "PLAN.md#phase-4",
-      "done_at": null,
+      "done_at": "2026-09-09",
       "note": "FR-D1 ~ FR-D7 · NFR-4 · C-4(dockview-core 8.2.0). 배치·크기·재배치를 자체 구현하지 않는다"
     },
     {
       "id": "WK-020",
-      "status": "todo",
+      "status": "done",
       "priority": "P4",
       "category": "칸·탭",
       "title": "탭 줄 — 추가 · 닫기 · 순서 바꾸기 · 빈 탭",
@@ -385,12 +385,12 @@
         "WK-019"
       ],
       "doc": "PLAN.md#phase-4",
-      "done_at": null,
+      "done_at": "2026-09-09",
       "note": "FR-C1 ~ FR-C3 · FR-C5 · FR-C9 · FR-N6b · X-4. 미리보기 탭·고정 탭을 두지 않는다"
     },
     {
       "id": "WK-021",
-      "status": "todo",
+      "status": "done",
       "priority": "P4",
       "category": "칸·탭",
       "title": "탭 끌기 — 다른 칸 · 가장자리 분할 · 창 밖",
@@ -401,12 +401,12 @@
         "WK-020"
       ],
       "doc": "PLAN.md#phase-4",
-      "done_at": null,
+      "done_at": "2026-09-09",
       "note": "FR-C6 ~ FR-C8 · X-6. 떼어내기·새 창을 두지 않는다"
     },
     {
       "id": "WK-022",
-      "status": "todo",
+      "status": "done",
       "priority": "P4",
       "category": "칸·탭",
       "title": "보기 수명 — 생성 1 · 폐기는 닫을 때만",
@@ -417,12 +417,12 @@
         "WK-021"
       ],
       "doc": "PLAN.md#phase-4",
-      "done_at": null,
+      "done_at": "2026-09-09",
       "note": "FR-E1 ~ FR-E5. D-24가 8.2.0으로 한 확인 시험을 여기서 재현한다"
     },
     {
       "id": "WK-023",
-      "status": "todo",
+      "status": "done",
       "priority": "P4",
       "category": "칸·탭",
       "title": "열기 규칙 — 탭은 사용자가 추가할 때만 늘어난다",
@@ -434,12 +434,12 @@
         "WK-017"
       ],
       "doc": "PLAN.md#phase-4",
-      "done_at": null,
+      "done_at": "2026-09-09",
       "note": "D-5가 D-10보다 우선한다. Ctrl+Enter는 옆 칸, 없으면 오른쪽에 칸을 만든다"
     },
     {
       "id": "WK-024",
-      "status": "todo",
+      "status": "done",
       "priority": "P4",
       "category": "칸·탭",
       "title": "칸 소멸과 마지막 한 칸",
@@ -450,7 +450,7 @@
         "WK-023"
       ],
       "doc": "PLAN.md#phase-4",
-      "done_at": null,
+      "done_at": "2026-09-09",
       "note": "FR-C4 · FR-J1 ~ FR-J8 · X-7. 사라지는 칸의 탭을 옆 칸으로 옮기지 않는다(D-26)"
     },
     {
@@ -749,7 +749,7 @@
     },
     {
       "id": "WK-042",
-      "status": "todo",
+      "status": "done",
       "priority": "P1",
       "category": "검증",
       "title": "Phase 1 적대적 검증",
@@ -760,12 +760,12 @@
         "WK-005"
       ],
       "doc": "PLAN.md#phase-1",
-      "done_at": null,
+      "done_at": "2026-09-08",
       "note": "필수 통과. 공격 초점은 PLAN 적대적 검증 절 1행. 실행 3회 제한"
     },
     {
       "id": "WK-043",
-      "status": "todo",
+      "status": "done",
       "priority": "P4",
       "category": "검증",
       "title": "Phase 4 적대적 검증",
@@ -776,7 +776,7 @@
         "WK-024"
       ],
       "doc": "PLAN.md#phase-4",
-      "done_at": null,
+      "done_at": "2026-09-09",
       "note": "필수 통과. 공격 초점은 수명 카운트가 stub으로 충족됐는지"
     },
     {

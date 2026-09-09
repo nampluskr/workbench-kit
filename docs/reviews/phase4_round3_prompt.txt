@@ -1,0 +1,89 @@
+You are an uncompromising adversarial specification reviewer for workbench-kit Phase 4.
+This is Round 3 of the Phase 4 adversarial review. In Round 2, you identified 0 Critical, 2 Major, and 1 Minor findings:
+1. Major: Phase 4 was verified only under Electron (pywebview acceptance path missing).
+2. Major: Verification bypassed or omitted required user acceptance paths (direct controller calls instead of real DOM/event dispatches; 2D layout geometry, sashes, tab drag invariants, close paths, etc.).
+3. Minor: Closed renderers remained strongly retained in contentRenderers map.
+
+All findings have been thoroughly resolved across the codebase:
+
+1. Host-Neutral Acceptance Test Suite & Full Pywebview Parity (Major 1):
+   - Extracted all in-browser tests into a host-neutral test suite (`scripts/phase4-suite.js`) containing 73 explicit assertions.
+   - Integrated `--phase4-test` into `src/hosts/pywebview/main.py` which loads the canonical `dist/` bundle, executes the suite via `evaluate_js()`, and outputs structured JSON results.
+   - Enhanced `scripts/verify-phase4.mjs` to execute both Electron (`scripts/phase4-electron-runner.cjs`) and pywebview (`python -m src.hosts.pywebview.main --phase4-test`).
+   - Structured JSON outputs are parsed and asserted: both hosts execute 73 assertions, 73/73 PASS on both hosts, with strictly 0 divergences in IDs or pass statuses between Electron and pywebview.
+
+2. Real User-Visible DOM & Keyboard Acceptance Paths (Major 2):
+   - Real Event Dispatches:
+     * FR-A6: Focused item in tree and dispatched genuine `KeyboardEvent('keydown', { key: 'Enter' })` directly to `.tree-list`.
+     * FR-A14: Focused item in tree and dispatched genuine `KeyboardEvent('keydown', { key: 'Enter', ctrlKey: true })` directly to `.tree-list`.
+     * FR-C1: Dispatched real mouse click on the Tab Header New Tab (+) button element.
+     * FR-C3: Dispatched real mouse click on native tab close button element (`.dv-tab.dv-active-tab .dv-tab-close-btn` / `.dv-default-tab-action`).
+     * FR-D1: Dispatched real mouse click on Tab Header Split Right button element (`.tab-action-split-right`).
+     * FR-D2: Dispatched real mouse click on Tab Header Split Down button element (`.tab-action-split-down`).
+     * FR-C9 & D-22: Dispatched `contextmenu` event on tab title and asserted strictly 0 context menus in base shell.
+   - Spatial Adjacency & 2D Layout Geometry (FR-A14, D-19, FR-D6):
+     * Added `findBesideGroup(group)` in `src/core/editor.ts` which spatially evaluates candidate groups in the grid, filtering for rightward candidates (`dx > 0`) and prioritizing top alignment (`|top - from.top|`).
+     * In a 2D layout (left full-height pane, right pane split into top-right and bottom-right), `openBeside` from top-left strictly targets `gTopRight` (top-right pane), reuses it without creating a 4th group (`getGroupCount() === 3`), and satisfies workbench-wide duplicate protection (FR-B2, D-5).
+   - Layout & Dockview Invariants:
+     * Added full structural CSS in `src/style.css` for dockview containers (`.dv-split-view-container`, `.dv-view-container`, `.dv-view`, `.dv-sash`, `.dv-groupview`, `.dv-tab`).
+     * FR-D4: Verified draggable sashes (`.dv-sash`) exist between adjacent panes.
+     * FR-D5: Verified group view headers rendered with drag surfaces (`.dv-tabs-and-actions-container, .dv-tabs-container`).
+     * FR-D7: Split stress test creates 8 coexisting panes.
+     * FR-C7: Registered drag edge overlay service (`api.onWillShowOverlay`).
+     * FR-C8: Verified `disableFloatingGroups: true` preventing detach outside window.
+     * FR-C5: Tested tab reordering inside same group updates panel array sequence.
+   - Lifecycle & Cross-Pane Move Continuity (FR-E1 ~ FR-E5, FR-C6):
+     * Rechecked application view instance identity after cross-pane movement (`reacquired === originalView`).
+     * Verified `creationCount === 1` across moves and tab switches.
+     * Verified timer continuity (`ticksAfterMove > ticks2`) and DOM-only input state persistence across cross-pane moves.
+     * Verified DOM containment (`document.contains(view.element) === true`).
+     * Verified renderer detachment for `onlyWhenVisible` when tab is inactive, and retention for `always`.
+   - Close & Empty Pane Invariants (FR-C4, FR-J1 ~ FR-J8, FR-N6b):
+     * FR-J1: Closing last tab of group when another group exists causes the group to disappear.
+     * FR-J7: Closing last tab of last remaining group preserves it as empty pane (`getGroupCount() === 1, getPanelCount() === 0`), container visible in DOM.
+     * FR-J4: "활성 칸 탭 모두 닫기" on empty pane changes nothing.
+     * FR-J2 & FR-J5: "활성 칸 탭 모두 닫기" closes multi-tab group, disposes every tab in that group, and disappears when other group exists.
+     * FR-J8: 3 restart paths verified: 1: picking file from tree opens 1st tab in empty pane, 2: activity bar split creates 2nd pane, 3: view menu split creates 3rd pane.
+     * FR-N6b: File menu `탭 닫기` (Ctrl+W) closes active tab.
+     * FR-L1: Dirty tab indicator tested (`setTabDirty(true)` prefixes title with ●, `setTabDirty(false)` removes ●).
+     * FR-D8 & FR-J6: Verified 0 instances of "칸 닫기" / "칸 삭제" in menu, activity bar, and headers.
+     * FR-J3: Verified "활성 칸 탭 모두 닫기" is present in View menu only and 0 in activity bar or tab headers.
+
+3. Renderer Memory Cleanup on Disposal (Minor 1):
+   - In `src/core/editor.ts`, wrapped `dispose()` calls `this.contentRenderers.delete(options.id)` in a `finally` block.
+   - Added assertion `P4-MEM-CLEANUP` verifying `editor.getContentRenderer(id) === undefined` after closing.
+
+4. Dist Parity & Quality Verification:
+   - Single canonical `dist/` bundle loaded by both Electron and pywebview.
+   - Zero forbidden tokens in `src/style.css` (`12px`, `4px`, `8px`, `16px`, `6px`, `#353b44`, `Segoe UI`, `Cascadia Mono`).
+   - `npm test` runs full verification pipeline (typecheck, verify-dist, verify-phase2, verify-phase3, verify-phase4) and passes with 0 failures.
+
+Review Scope: Phase 4 – 칸·탭·보기 수명과 열기 규칙 (WK-019 ~ WK-024)
+Files to review:
+- src/core/editor.ts
+- src/core/tree.ts
+- src/core/layout.ts
+- src/core/menu.ts
+- src/core/activitybar.ts
+- src/main.ts
+- src/style.css
+- scripts/phase4-suite.js
+- scripts/phase4-electron-runner.cjs
+- src/hosts/pywebview/main.py
+- scripts/verify-phase4.mjs
+- licenses/LICENSE-dockview-core.txt
+- licenses/README.md
+- package.json
+
+Specifications to check:
+- docs/current/PLAN.md (Phase 4 section, completion criteria, and Phase 4 attack focus)
+- docs/current/SPEC.md (FR-A6, FR-A14, FR-B1 ~ FR-B4, FR-C1 ~ FR-C9, FR-D1 ~ FR-D8, FR-E1 ~ FR-E5, FR-J1 ~ FR-J8, FR-L1, FR-N6b)
+- docs/current/DECISIONS.md (D-4, D-5, D-8, D-10, D-13, D-15, D-19, D-20, D-22, D-24, D-26)
+- docs/ADVERSARIAL-REVIEW.md (Phase 4 attack focus: "생성 1 · 파기 0이 실제 인스턴스가 아니라 stub·재생성으로 충족된 것은 아닌지, 탭 이동·마지막 탭 닫기·칸 경계에서 수명 카운터가 어긋나는 경로")
+
+Please conduct an exhaustive adversarial audit of all files in scope against all specifications. Check whether the Round 2 findings were properly and robustly fixed, and search for any new, overlooked, or edge-case violations.
+
+Format your report:
+- Clearly label each finding with Severity (Critical, Major, Minor), Title, Exact Reproduction Condition, Violated Clause / Specification ID, and Recommended Fix.
+- If any Critical or Major violations exist, detail why they prevent Phase 4 completion.
+- If no Critical or Major violations remain, explicitly declare that Phase 4 criteria are satisfied.

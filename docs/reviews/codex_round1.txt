@@ -1,0 +1,72 @@
+Found 1 Critical and 6 Major violations. No files were modified, and no shell or Git operations were used.
+
+## Critical
+
+### 1. Icon themes are placeholders, not Seti or vscode-icons
+
+- **Severity:** Critical
+- **Summary:** Both resolvers return generic Codicons. They do not import or render assets from `seti-ui` or `vscode-icons`, and both ignore the filename. Consequently, every file has essentially the same icon; toggling themes only changes a generic glyph/color.
+- **Evidence:** [seti.ts](/D:/projects/workbench-kit/src/icons/seti.ts:3), [vscode-icons.ts](/D:/projects/workbench-kit/src/icons/vscode-icons.ts:3)
+- **Reproduction conditions:** Resolve `index.py`, `README.md`, and `package.json` under either theme. Seti always returns `codicon-file-code`; vscode-icons always returns `codicon-file` with hard-coded blue. None of the expected extension-specific Seti or vscode-icons artwork appears.
+- **Violated clauses:** PLAN Phase 2 icon-import completion condition; SPEC FR-Q1, FR-Q2; DECISIONS D-3, D-17.
+
+## Major
+
+### 2. Keyboard-entered Zen mode can leave the hamburger menu visible
+
+- **Severity:** Major
+- **Summary:** Zen CSS hides only titlebar, activity bar, sidebar, and statusbar. An already-open `.workbench-menu-dropdown` is not hidden or closed when `F11` enters Zen.
+- **Evidence:** [viewstate.ts](/D:/projects/workbench-kit/src/core/viewstate.ts:20), [style.css](/D:/projects/workbench-kit/src/style.css:297), [menu.ts](/D:/projects/workbench-kit/src/core/menu.ts:246)
+- **Reproduction conditions:** Open the hamburger menu, then press `F11` without selecting an item. The four shell elements disappear, but the menu remains over the main area. Zen therefore does not leave only the editor/main area.
+- **Violated clauses:** PLAN Phase 2 Zen completion condition; SPEC FR-F5; DECISIONS D-12.
+
+### 3. pywebview makes the whole window draggable instead of the titlebar
+
+- **Severity:** Major
+- **Summary:** The pywebview host leaves `easy_drag` at its default `true`, while the markup lacks pywebview’s drag-region class. The `-webkit-app-region` rule only supplies the Electron behavior.
+- **Evidence:** [main.py](/D:/projects/workbench-kit/src/hosts/pywebview/main.py:83), [layout.ts](/D:/projects/workbench-kit/src/core/layout.ts:26), [style.css](/D:/projects/workbench-kit/src/style.css:103)
+- **Reproduction conditions:** Launch the pywebview host and drag an empty point in the main/editor area. The OS window moves even though the drag did not start in the titlebar. The official pywebview API documents that `easy_drag` defaults to true and permits dragging from any point; element-scoped dragging uses `.pywebview-drag-region`. [pywebview API](https://pywebview.flowrl.com/api/)
+- **Violated clauses:** SPEC FR-N2, C-8; DECISIONS D-7; common two-host Phase 2 completion condition.
+
+### 4. Statusbar app information omits version and execution host
+
+- **Severity:** Major
+- **Summary:** The right zone contains only `workbench-kit`. Neither host injects the version or branch name (`Electron`/`pywebview`).
+- **Evidence:** [layout.ts](/D:/projects/workbench-kit/src/core/layout.ts:56), especially [layout.ts](/D:/projects/workbench-kit/src/core/layout.ts:64)
+- **Reproduction conditions:** Launch either host and inspect the right statusbar zone. Both display only `workbench-kit`; the actual version and current execution branch are absent.
+- **Violated clauses:** PLAN Phase 2 statusbar completion condition; SPEC FR-N9; DECISIONS D-7.
+
+### 5. Apps can mutate all menu groups and remove/reorder core items
+
+- **Severity:** Major
+- **Summary:** `fileItems`, `viewItems`, and `helpItems` are public mutable arrays, and `WorkbenchApp.menu` is public. This directly exposes the operations D-31 forbids. The dedicated `appFileItems` separator logic does not protect the core arrays.
+- **Evidence:** [menu.ts](/D:/projects/workbench-kit/src/core/menu.ts:47), [main.ts](/D:/projects/workbench-kit/src/main.ts:10)
+- **Reproduction conditions:** From app code, remove an element from `menu.fileItems`, reorder that array, or append an element to `menu.viewItems`/`menu.helpItems`; then open the hamburger menu. The altered lists render directly.
+- **Violated clauses:** SPEC FR-N6, FR-N7; DECISIONS D-31, which requires no means to remove/reorder core File items or modify View/Help.
+
+### 6. Light-theme menu hover text becomes effectively unreadable
+
+- **Severity:** Major
+- **Summary:** Hovering forcibly changes text to white, but the light-theme hover background is only a 7% black overlay on `#f8f8f8`. This produces white text on a nearly white background.
+- **Evidence:** [style.css](/D:/projects/workbench-kit/src/style.css:35), [style.css](/D:/projects/workbench-kit/src/style.css:331), [style.css](/D:/projects/workbench-kit/src/style.css:375)
+- **Reproduction conditions:** Switch to Light, open the hamburger menu, and hover any category or item. The hovered label nearly disappears. It occurs with either icon-theme selection.
+- **Violated clauses:** PLAN Phase 2 six-combination visual condition; SPEC FR-M2, FR-Q2; DECISIONS D-29.
+
+### 7. Gray theme does not follow the required midpoint rule
+
+- **Severity:** Major
+- **Summary:** Main gray backgrounds use `#888888`, whose L* is approximately 56.7, outside the specified 54–56 range. Other tokens are not interpolated consistently: for example, gray foregrounds become `#ffffff`, even though both corresponding Light and Dark values are darker.
+- **Evidence:** [style.css](/D:/projects/workbench-kit/src/style.css:56)
+- **Reproduction conditions:** Select Gray and inspect computed tokens. `--bg-color`, `--editor-bg`, `--titlebar-bg`, and `--sidebar-bg` are `#888888`; foreground tokens jump to white rather than lying proportionally between the Light and Dark values.
+- **Violated clauses:** PLAN Phase 2 gray-theme completion condition; SPEC FR-M3; DECISIONS D-29.
+
+## Categories with no additional violations
+
+- **Activity Bar:** Default top/bottom lists and order match FR-N11. No pane-delete, pane-merge, or icon-theme switcher is present.
+- **Electron window controls:** Drag region, no-drag controls, IPC preload bridge, and maximize/restore toggle are connected.
+- **Basic folding:** Sidebar, titlebar, and statusbar state variables are independent. Removing the Zen class restores their pre-existing `hidden` classes correctly, aside from the open-menu Zen defect above.
+- **Hamburger defaults:** The initial File/View/Help lists, ordering, shortcuts, and default unchecked context-menu item match FR-N5–FR-N8. No permanent horizontal menu bar appears in the reviewed sources.
+- **Theme cycle:** The cycle is `light → gray → dark → light`.
+- **Forbidden inherited tokens:** No `Segoe UI`, `Cascadia Mono`, or `#353b44` occurrence was found in the reviewed product files.
+- **Core purity:** No extension-to-icon mapping table appears in `src/core`.
+- **Licensing:** The reviewed [licenses/README.md](/D:/projects/workbench-kit/licenses/README.md:1) records the three Phase 2 dependencies and required attribution. Actual license-body files were outside the explicitly allowed review-file list, so their physical presence/content was not independently verified.

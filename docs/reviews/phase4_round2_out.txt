@@ -1,0 +1,146 @@
+## Verdict
+
+Phase 4 criteria are **not yet satisfied**.
+
+I found **0 Critical, 2 Major, and 1 Minor** issues. The implementation fixes for Round 1 findings 1, 2, 3, 4, and 6 are present, but the verification-related finding remains materially unresolved.
+
+## Findings
+
+### Major ? Phase 4 is verified only under Electron
+
+**Exact Reproduction Condition**
+
+Run:
+
+```powershell
+npm run verify:phase4
+```
+
+The verifier launches only `npx.cmd electron` at [verify-phase4.mjs](/D:/projects/workbench-kit/scripts/verify-phase4.mjs:88), and the runtime runner imports only Electron at [phase4-electron-runner.cjs](/D:/projects/workbench-kit/scripts/phase4-electron-runner.cjs:1).
+
+There is no pywebview runner executing the Phase 4 assertions. The pywebview smoke test used elsewhere does not exercise tab switching, dragging, renderer modes, lifecycle, closing, splitting, or opening rules.
+
+**Violated Clause / Specification ID**
+
+- SPEC common judgment rule: every FR must be evaluated independently under Electron and pywebview.
+- PLAN Phase 4 completion: all 37 associated requirements must produce their specified result.
+- FR-H1, as incorporated by the SPEC common judgment rule.
+- PLAN Phase 4 adversarial focus: actual lifecycle behavior, especially around movement, closing, and pane boundaries.
+
+**Why This Prevents Phase 4 Completion**
+
+Passing the same built assets to two hosts is not equivalent to executing the required interactions in both hosts. Input dispatch, focus, keyboard handling, drag behavior, resizing, and window-boundary behavior can differ between Electron and pywebview.
+
+Consequently, the current verifier proves at most the Electron branch and cannot satisfy the explicit two-branch completion rule.
+
+**Recommended Fix**
+
+Extract the browser assertions into a host-neutral test module and run it through:
+
+- the existing Electron runner; and
+- a pywebview runner that loads the same `dist` artifact and returns structured assertion results.
+
+Compare the complete result set and require zero missing, failed, or divergent assertion IDs.
+
+---
+
+### Major ? The Electron verification still bypasses or omits many required acceptance paths
+
+**Exact Reproduction Condition**
+
+Run `npm run verify:phase4` and inspect the operations in [phase4-electron-runner.cjs](/D:/projects/workbench-kit/scripts/phase4-electron-runner.cjs:49). The runner calls controller and dockview APIs directly instead of performing the specified user interactions.
+
+Examples:
+
+- FR-A6 and FR-A14 call `openItem`/`openBeside`; they never dispatch `Enter` or `Ctrl+Enter` through the tree.
+- FR-C1 calls `addNewTab()` instead of clicking the header `+`.
+- FR-C3 never clicks the native tab close button.
+- FR-C5 is not tested.
+- FR-C6 uses `appTab.api.moveTo(...)`, bypassing drag-and-drop.
+- FR-C7 never drags a tab to an editor edge.
+- FR-C8 never drags outside the window.
+- FR-D1/D2 do not click the header split buttons.
+- FR-D3 invokes stored action functions directly instead of exercising Activity Bar and View menu DOM interactions.
+- FR-D4 never drags a sash and measures both pane sizes.
+- FR-D5 never drags a pane/group.
+- FR-D6 checks only group count, not two-dimensional geometry.
+- FR-D7 never performs eight splits.
+- FR-J1 does not compare native `¡¿` with `Ctrl+W`.
+- FR-J2 tests the empty-pane no-op but not closing a populated group.
+- FR-J5 does not close a multi-tab group and verify every disposal count.
+- FR-N6b does not click File ¡æ ÅÇ ´Ý±â and compare it with `Ctrl+W`.
+
+The claimed spatial-neighbor test is particularly weak: `besideTopRight` is assigned at [phase4-electron-runner.cjs](/D:/projects/workbench-kit/scripts/phase4-electron-runner.cjs:251), but the assertion checks only that the group count remains three. It never verifies which group received the panel. An implementation selecting any existing group would pass.
+
+The application lifecycle test checks timer and DOM input state before cross-pane movement, but after movement it checks only renderer identity and creation count at [phase4-electron-runner.cjs](/D:/projects/workbench-kit/scripts/phase4-electron-runner.cjs:217). It does not recheck the input value, timer continuity, instance stamp, or DOM attachment after the move as claimed.
+
+**Violated Clause / Specification ID**
+
+- PLAN Phase 4 completion: all 37 requirements must be judged according to their specified acceptance method.
+- PLAN Phase 4 adversarial focus.
+- FR-A6, FR-A14.
+- FR-C1, FR-C3, FR-C5?FR-C8.
+- FR-D1?FR-D7.
+- FR-E2.
+- FR-J1, FR-J2, FR-J5.
+- FR-N6b.
+- D-8, D-10, D-13, D-19, D-24, D-26.
+- ADVERSARIAL-REVIEW principle that tests must inspect the real implementation rather than substitutes.
+
+**Why This Prevents Phase 4 Completion**
+
+The most failure-prone parts of Phase 4?dockview drag/drop, pane geometry, native close paths, keyboard/UI wiring, and boundary behavior?can regress while `verify:phase4` remains green. Direct API calls prove controller methods, not the required user-visible paths.
+
+This means Round 1 finding 5 was expanded but not robustly resolved.
+
+**Recommended Fix**
+
+Add browser-level acceptance tests that:
+
+- dispatch real keyboard events from a focused tree;
+- click actual header, Activity Bar, and menu elements;
+- use pointer events for tab reorder, cross-pane movement, edge docking, sash resizing, pane movement, and outside-window drops;
+- compare pane bounding rectangles, membership, order, and sizes;
+- test both native close-button and keyboard/menu close paths;
+- assert all lifecycle properties after every switch and movement;
+- assign one explicit assertion ID to every Phase 4 FR and fail if any required ID is absent.
+
+---
+
+### Minor ? Closed renderers remain strongly retained indefinitely
+
+**Exact Reproduction Condition**
+
+```javascript
+const panel = editor.addNewTab();
+const id = panel.id;
+editor.closePanel(panel);
+
+editor.getContentRenderer(id) !== undefined; // true
+```
+
+`createComponent` inserts each renderer into `contentRenderers` at [editor.ts](/D:/projects/workbench-kit/src/core/editor.ts:220). The wrapped `dispose` increments statistics and delegates disposal, but never removes the renderer from that map at [editor.ts](/D:/projects/workbench-kit/src/core/editor.ts:222).
+
+Repeating open/close operations causes the map to retain every disposed view, including its detached DOM tree and application-owned fields.
+
+**Violated Clause / Specification ID**
+
+- FR-E3.
+- D-24 lifecycle intent.
+
+The disposal callback is invoked, so the explicit disposal count requirement passes, but the shell continues owning the supposedly closed instance.
+
+**Recommended Fix**
+
+Delete the renderer from `contentRenderers` inside the wrapped disposal function, preferably in `finally`. Keep only the small aggregate record in `panelLifecycleStats`.
+
+## Round 1 Fix Assessment
+
+- Finding 1: substantially fixed. A custom application renderer is now injected and lifecycle-tracked.
+- Finding 2: fixed at [editor.ts](/D:/projects/workbench-kit/src/core/editor.ts:355) and [editor.ts](/D:/projects/workbench-kit/src/core/editor.ts:376).
+- Finding 3: implementation fixed with spatial dockview navigation at [editor.ts](/D:/projects/workbench-kit/src/core/editor.ts:430); its claimed regression test remains insufficient.
+- Finding 4: fixed by workbench-wide duplicate lookup at [editor.ts](/D:/projects/workbench-kit/src/core/editor.ts:423).
+- Finding 5: not fully fixed; major host and acceptance-path gaps remain.
+- Finding 6: fixed; the header order is Split Right, Split Down, New Tab at [editor.ts](/D:/projects/workbench-kit/src/core/editor.ts:135).
+
+`verify:phase4` completed successfully in this environment. Type checking also passed. The full `npm test` could not complete under the read-only review sandbox because Vite was denied creation of its temporary config file; that environmental limitation is not counted as a product finding.

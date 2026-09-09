@@ -1,0 +1,201 @@
+﻿# Phase 4 adversarial review
+
+Phase 4 criteria are not satisfied. I found 1 Critical, 4 Major, and 1 Minor violation. The Critical lifecycle/view integration defect and the Major renderer/opening-rule defects prevent Phase 4 completion.
+
+## Critical — The lifecycle implementation tests a shell-owned placeholder, not an app-provided view
+
+Exact reproduction condition:
+
+1. Open any tree item.
+2. `WorkbenchApp` passes only its ID and label to `EditorController`.
+3. Every panel is rendered by the hard-coded `EditorContentRenderer`.
+4. The visible result is merely `Content of <targetId>`.
+
+Evidence:
+
+- [main.ts](D:/projects/workbench-kit/src/main.ts:112) supplies no application view or component factory.
+- [editor.ts](D:/projects/workbench-kit/src/core/editor.ts:169) ignores Dockview’s component options and always constructs `EditorContentRenderer`.
+- [editor.ts](D:/projects/workbench-kit/src/core/editor.ts:65) renders synthetic placeholder text.
+- `EditorOpenOptions` supports only Dockview attachment mode, not an application renderer.
+
+Violated clause/specification:
+
+- D-4: live views must be supplied by the application; the shell supplies tabs, lifecycle, and the host bridge.
+- D-24.
+- Phase 4 purpose and completion criteria.
+- Phase 4 attack focus: lifecycle must not be satisfied by a stub.
+
+Why this blocks completion:
+
+The implementation proves that Dockview can retain a synthetic shell-owned `<div>`. It does not provide or verify the contract needed to host an actual application view with live state. Consequently, the central Phase 4 lifecycle result has not been implemented at the required abstraction boundary.
+
+Recommended fix:
+
+Accept an application-provided component factory or registered renderer from `EditorController`, create that real view through `createComponent`, and make the lifecycle assertions observe the injected instance, its DOM-only state, and a continuously running timer.
+
+## Major — Renderer mode is silently ignored when an existing tab is filled or replaced
+
+Exact reproduction condition:
+
+```text
+addNewTab()
+openItem("terminal", ..., { renderer: "always" })
+```
+
+The panel was created with Dockview’s default renderer. `openItem` updates only its title and parameters; it never calls `panel.api.setRenderer('always')`. The same failure occurs when replacing the target of any active tab.
+
+Evidence:
+
+- The two in-place update branches are at [editor.ts](D:/projects/workbench-kit/src/core/editor.ts:284) and [editor.ts](D:/projects/workbench-kit/src/core/editor.ts:312).
+- `renderer` is applied only when a new panel is created at [editor.ts](D:/projects/workbench-kit/src/core/editor.ts:327) and [editor.ts](D:/projects/workbench-kit/src/core/editor.ts:363).
+
+Violated clause/specification:
+
+- FR-E4, FR-E5.
+- D-24: an application can elevate an individual tab to “always rendered.”
+- D-5, because normal tree selection usually reuses the active tab.
+
+Why this blocks completion:
+
+The renderer policy cannot reliably follow the view occupying a reused tab. A live view that requires continuous DOM attachment can instead be detached, while a later lightweight view can inherit an unnecessary `always` policy.
+
+Recommended fix:
+
+On every in-place target change, explicitly set the requested renderer using the public `panel.api.setRenderer(...)`. Define whether an omitted renderer resets to `onlyWhenVisible` and test both transitions.
+
+## Major — “Open beside” does not select a spatially adjacent pane
+
+Exact reproduction condition:
+
+1. Create a two-dimensional layout using right and below splits.
+2. Activate a pane whose next entry in `api.groups` is not its spatial right-hand neighbor.
+3. Use `Ctrl+Enter`.
+
+`openBeside` selects `groups[currentIndex + 1]`, or the preceding array entry for the last group. Array order is not a spatial adjacency contract.
+
+Evidence:
+
+- [editor.ts](D:/projects/workbench-kit/src/core/editor.ts:381).
+- Dockview 8.2.0 exposes `api.adjacentGroupInDirection(group, direction)` specifically for spatial navigation.
+
+Violated clause/specification:
+
+- FR-A14.
+- D-19.
+- FR-D6 and D-24’s Dockview-managed two-dimensional layout contract.
+
+Why this blocks completion:
+
+Once the layout is two-dimensional or groups have been rearranged, `Ctrl+Enter` can open in an unrelated pane. This breaks a required tree-opening path in normal Phase 4 layouts.
+
+Recommended fix:
+
+Use `adjacentGroupInDirection(activeGroup, 'right')`. If no right-hand group exists, create one to the right. Add tests covering right-plus-below layouts and rearranged groups.
+
+## Major — `Ctrl+Enter` bypasses the workbench-wide duplicate rule
+
+Exact reproduction condition:
+
+1. Create two non-empty panes.
+2. Open target X in pane A and target Y in pane B.
+3. Make pane A active.
+4. Invoke `Ctrl+Enter` on X.
+
+`openBeside` calls `openItem` with an explicit `targetGroup`. That causes duplicate detection to search only the destination group, so pane B’s active target is replaced with X even though X is already open elsewhere.
+
+Evidence:
+
+- Workbench-wide lookup is used only when `targetGroup` is absent at [editor.ts](D:/projects/workbench-kit/src/core/editor.ts:297).
+- The explicit-group branch searches only `group.panels` at [editor.ts](D:/projects/workbench-kit/src/core/editor.ts:304).
+- `openBeside` always supplies the target group at [editor.ts](D:/projects/workbench-kit/src/core/editor.ts:386).
+
+Violated clause/specification:
+
+- FR-B2: duplicate lookup is across any tab in the workbench.
+- D-5.
+- FR-A14.
+
+Recommended fix:
+
+Perform the FR-B2 workbench-wide duplicate lookup before choosing or modifying the beside pane. Preserve the sole FR-B3 exception for a user-created empty active tab.
+
+## Major — Phase 4 verification does not exercise the required acceptance behavior
+
+Exact reproduction condition:
+
+Run `npm run verify:phase4` in an environment where Electron starts successfully. The suite can report success without verifying several mandatory clauses:
+
+- FR-E4/E5 never check `document.contains(renderer.element)` or equivalent.
+- The “always” and “default” variables can reference the same panel and renderer.
+- Lifecycle checks retain the original `rA` object and do not re-fetch the renderer associated with the panel.
+- Each renderer increments its own `creationCount` once in its constructor, so that value cannot reveal replacement by a second instance.
+- No continuous timer or DOM-only state is implemented or checked.
+- FR-C5, FR-C7, FR-C8, FR-D4, and FR-D5 user drag behavior is not exercised.
+- Split direction and pane position are reduced to group-count assertions.
+- FR-J8 does not click the Activity Bar and View menu paths.
+- FR-C9 dispatches on `panel.element`, not demonstrably on the tab title.
+- Header-action checks only search source strings, so incorrect ordering still passes.
+
+Evidence:
+
+- Per-instance tautological counter: [editor.ts](D:/projects/workbench-kit/src/core/editor.ts:35).
+- Stale lifecycle reference checks: [phase4-electron-runner.cjs](D:/projects/workbench-kit/scripts/phase4-electron-runner.cjs:188).
+- Defective E4/E5 setup: [phase4-electron-runner.cjs](D:/projects/workbench-kit/scripts/phase4-electron-runner.cjs:219).
+- Presence-only header checks: [verify-phase4.mjs](D:/projects/workbench-kit/scripts/verify-phase4.mjs:83).
+
+Violated clause/specification:
+
+- FR-C5, FR-C7, FR-C8.
+- FR-D1–D6.
+- FR-E1–E5.
+- FR-J5, FR-J8.
+- Phase 4 completion criteria and attack focus.
+- `ADVERSARIAL-REVIEW.md`: tests must inspect the implementation’s real behavior rather than let a stub satisfy the condition.
+
+Recommended fix:
+
+Test distinct panels created with explicit renderer policies; query the current renderer again after every switch/move; maintain aggregate creation/disposal history keyed by panel ID; assert DOM attachment, timer continuity, and DOM-only state; and drive the actual tree, tab header, Activity Bar, View menu, keyboard, resize, and drag/drop surfaces.
+
+## Minor — Tab-header action order contradicts the specified layout
+
+Exact reproduction condition:
+
+Open any pane and inspect the right-hand tab-header actions. They render as:
+
+```text
++  Split Right  Split Down
+```
+
+The specification requires:
+
+```text
+Split Right  Split Down  +
+```
+
+Therefore `+` is not at the right end.
+
+Evidence:
+
+- [editor.ts](D:/projects/workbench-kit/src/core/editor.ts:108).
+
+Violated clause/specification:
+
+- FR-C1.
+- D-13.
+- D-15.
+
+Recommended fix:
+
+Render split-right, split-down, then new-tab, and add a DOM-order assertion.
+
+## Checks that passed
+
+- TypeScript typecheck completed successfully.
+- No filesystem imports, filesystem bridge calls, or extension mapping tables were found in `src/core/editor.ts`.
+- Comments in `src/core/editor.ts` are English-only.
+- The specified forbidden CSS tokens have zero exact matches.
+- No pane close/delete/merge command was found in the Activity Bar, View menu, or tab actions.
+- “활성 칸 탭 모두 닫기” is present only in the View menu.
+- The Dockview license text and license inventory entry are present, and the installed lockfile version is 8.2.0.
+
+The supplied Electron runtime verification could not load `dist/index.html` in this restricted environment because Electron could not create its cache/GPU state. I did not count that environment-specific failure as a product defect; `npm run verify:phase4` nevertheless exited with code 1, so there is no successful runtime result from this review.

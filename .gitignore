@@ -16,6 +16,7 @@ coverage/
 
 .vscode/
 .idea/
+.serena/
 *.swp
 .DS_Store
 Thumbs.db

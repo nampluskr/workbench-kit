@@ -1,0 +1,40 @@
+{
+  "name": "workbench-kit",
+  "version": "0.1.0",
+  "private": true,
+  "description": "여러 데스크톱 앱이 공유하는 공통 껍데기 한 벌",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit",
+    "start:electron": "electron src/hosts/electron/main.cjs",
+    "start:pywebview": "python -m src.hosts.pywebview.main",
+    "verify:dist": "node scripts/verify-dist.mjs",
+    "verify:phase2": "node scripts/verify-phase2.mjs",
+    "verify:phase3": "node scripts/verify-phase3.mjs",
+    "verify:phase4": "node scripts/verify-phase4.mjs",
+    "test": "npm run typecheck && npm run verify:dist && npm run verify:phase2 && npm run verify:phase3 && npm run verify:phase4"
+  },
+  "engines": {
+    "node": ">=22.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/nampluskr/workbench-kit.git"
+  },
+  "keywords": [],
+  "author": "workbench-kit contributors",
+  "license": "MIT",
+  "devDependencies": {
+    "@types/node": "^26.5.0",
+    "electron": "^44.2.0",
+    "typescript": "^7.0.2",
+    "vite": "^8.2.2"
+  },
+  "dependencies": {
+    "@vscode/codicons": "^0.0.46-24",
+    "dockview-core": "^8.2.0"
+  }
+}

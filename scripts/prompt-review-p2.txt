@@ -1,0 +1,64 @@
+You are an adversarial reviewer for Phase 2 of workbench-kit (Common UI Shell: Five Pieces, Command System, Visual System).
+Your job is to break this code and find real violations, not to confirm it works.
+
+Review only these product source files:
+- src/core/layout.ts
+- src/core/window.ts
+- src/core/menu.ts
+- src/core/activitybar.ts
+- src/core/viewstate.ts
+- src/core/theme.ts
+- src/core/icontheme.ts
+- src/icons/seti.ts
+- src/icons/vscode-icons.ts
+- src/icons/index.ts
+- src/style.css
+- src/main.ts
+- src/hosts/electron/main.cjs
+- src/hosts/electron/preload.cjs
+- src/hosts/pywebview/main.py
+- licenses/README.md
+
+Validate against these PLAN clauses and SPEC requirements:
+- PLAN.md#phase-2
+- SPEC.md: FR-F1 ~ FR-F7, FR-M1 ~ FR-M5, FR-N1 ~ FR-N5, FR-N6 ~ FR-N8, FR-N11, FR-Q1, FR-Q1a ~ FR-Q3, X-7, X-13, X-17, C-5, C-10
+- DECISIONS.md: D-3, D-7, D-11, D-12, D-14, D-17, D-29, D-31
+
+Attack these specific points:
+1. Titlebar & Frameless Window (FR-N1 ~ FR-N4, D-7):
+   - Check titlebar dragging (-webkit-app-region: drag) and controls (minimize, maximize/restore, close).
+   - Verify window controls bridge in Electron preload/main.cjs and pywebview WindowApi.
+   - Statusbar has 3 distinct zones (path, message, app-info) (FR-N9).
+2. Hamburger Menu (FR-N5 ~ FR-N8, D-31):
+   - Exactly 3 top-level groups (File, View, Help). No permanently visible horizontal menu bar anywhere.
+   - File group: exactly 5 items (폴더 열기(Ctrl+O), 최근 폴더, 탭 닫기(Ctrl+W), 폴더 닫기, 끝내기). App extension point allows appending only below separator (D-31).
+   - View group: exactly 10 items (탐색기 접기/펴기, 상단 바 감추기/보이기, 하단 바 감추기/보이기, Zen 모드(F11), 테마 바꾸기, 아이콘 테마 바꾸기, 좌우 스플릿, 상하 스플릿, 활성 칸 탭 모두 닫기, 우클릭 메뉴 사용[checkbox, default false]). Apps cannot add to View.
+   - Help group: exactly 1 item (정보).
+3. Activity Bar (FR-N11, D-11):
+   - Top group: exactly 6 items in order (탐색기 접기/펴기, 상단 바 감추기/보이기, 하단 바 감추기/보이기, 좌우 스플릿, 상하 스플릿, Zen 모드).
+   - Bottom group: exactly 1 item (테마 바꾸기).
+   - No 칸 삭제 or 칸 합치기 items anywhere (X-7).
+   - No icon theme switcher in activity bar (X-13).
+4. View Folding & Zen Mode (FR-F1 ~ FR-F7, D-12, D-14):
+   - Sidebar toggle, titlebar toggle, statusbar toggle are independent without mutual interference (FR-F4).
+   - Activity bar cannot be hidden outside Zen mode (FR-F7, X-17).
+   - Zen mode (F11): hides titlebar, activity bar, sidebar, and statusbar; leaves only main-area. Window outer size and position remain unchanged (no OS fullscreen).
+   - Exiting Zen (Escape): accurately restores pre-Zen visibility state of individual elements.
+5. Visual Themes (FR-M1 ~ FR-M5, C-10, D-29):
+   - Theme cycle sequence: light -> gray -> dark -> light.
+   - Light Modern and Dark Modern color tokens match VS Code defaults.
+   - Gray theme background brightness is arithmetic midpoint of Light and Dark backgrounds (L* in [54, 56], #808080 family).
+   - Zero instances of tab-explorer-templates tokens (fonts: Segoe UI, Cascadia Mono; colors: #353b44) (FR-M5, C-10).
+6. Icon Themes & Core Purity (FR-Q1 ~ FR-Q3, D-17, INTENT 3):
+   - Exactly 2 icon themes: seti (default) and vscode-icons (color).
+   - Toggled only from View menu (FR-Q1a, X-13).
+   - Common core contains zero extension-to-icon mapping tables (FR-Q3).
+   - Third-party licenses present in licenses/ directory (FR-Q4).
+
+Do not inspect Git status, branches, remotes, or commit history, and do not use shell tools.
+For each finding, report:
+- Severity (Critical/Major/Minor)
+- Summary
+- Exact reproduction conditions
+- Violated PLAN / SPEC clause
+Order findings by severity. If you find no violations in a category, state so clearly. Do not modify any file.

@@ -1,0 +1,168 @@
+# Phase 4 Round 3 Adversarial Review
+
+Result: **0 Critical, 4 Major, 1 Minor**
+
+Phase 4 criteria are **not satisfied**. Pywebview execution was added and the original renderer-reference leak was fixed, but the Round 2 user-acceptance finding remains materially unresolved.
+
+## Major 1 ? Drag, resize, and command paths still bypass real user interaction
+
+**Exact Reproduction Condition**
+
+Break or remove the DOM drag handlers while leaving Dockview¡¯s programmatic API intact. The suite will continue passing because:
+
+- Cross-pane movement calls `appTab1.api.moveTo(...)` directly: [phase4-suite.js](/D:/projects/workbench-kit/scripts/phase4-suite.js:212)
+- Same-row reordering calls `tB.api.moveTo(...)` directly: [phase4-suite.js](/D:/projects/workbench-kit/scripts/phase4-suite.js:323)
+- FR-D4 merely checks that a sash exists; it never drags it or compares pane sizes: [phase4-suite.js](/D:/projects/workbench-kit/scripts/phase4-suite.js:307)
+- FR-D5 merely checks that a header element exists; it never moves a group: [phase4-suite.js](/D:/projects/workbench-kit/scripts/phase4-suite.js:309)
+- FR-C7 checks only whether `onWillShowOverlay` is a function: [phase4-suite.js](/D:/projects/workbench-kit/scripts/phase4-suite.js:330)
+- FR-C8 checks only `disableFloatingGroups`, without attempting an outside-window drop or checking group/order invariants: [phase4-suite.js](/D:/projects/workbench-kit/scripts/phase4-suite.js:329)
+- Activity-bar and View-menu split paths invoke stored actions directly instead of clicking visible UI: [phase4-suite.js](/D:/projects/workbench-kit/scripts/phase4-suite.js:289), [phase4-suite.js](/D:/projects/workbench-kit/scripts/phase4-suite.js:292)
+- The tab-close test silently falls back to `editor.closeActiveTab()` if the native close button is absent. A missing or unusable close button therefore passes: [phase4-suite.js](/D:/projects/workbench-kit/scripts/phase4-suite.js:349)
+- File-menu close and ¡°close all¡± similarly call `menu.triggerItem(...)`, bypassing the rendered menu: [phase4-suite.js](/D:/projects/workbench-kit/scripts/phase4-suite.js:355), [phase4-suite.js](/D:/projects/workbench-kit/scripts/phase4-suite.js:383)
+- No real `Ctrl+W` keyboard event is dispatched.
+- FR-C3 does not use the required three-tab/middle-tab scenario and does not assert that an adjacent tab becomes active.
+
+Consequently, broken pointer event wiring, overlays, hitboxes, z-indexes, draggable regions, menu rows, or keyboard routing can all ship while both hosts report success.
+
+**Violated Clause / Specification ID**
+
+- FR-C3, FR-C5, FR-C6, FR-C7, FR-C8
+- FR-D3, FR-D4, FR-D5
+- FR-J1, FR-J2, FR-J8, FR-N6b
+- WK-019 through WK-021 and WK-024
+- PLAN Phase 4 requirement that all 37 cases produce the specified result: [PLAN.md](/D:/projects/workbench-kit/docs/current/PLAN.md:111)
+- Adversarial rule forbidding a test from substituting internal/stub evidence for the real feature: [ADVERSARIAL-REVIEW.md](/D:/projects/workbench-kit/docs/ADVERSARIAL-REVIEW.md:18)
+
+**Recommended Fix**
+
+Use coordinate-based pointer/mouse sequences against rendered tabs, sashes, headers, edge overlays, activity-bar buttons, and menu rows. Assert final geometry, tab/group membership and order, renderer identity, pane count, and window count. Dispatch a genuine bubbling `Ctrl+W` event. Remove every controller fallback from user-path assertions: absence of the intended DOM target must be an immediate failure.
+
+**Why this prevents completion**
+
+This is substantially the same unresolved Round 2 Major finding. The suite demonstrates internal Dockview operations, not that users can perform the required operations in either host.
+
+## Major 2 ? FR-D7 has the wrong oracle and performs only three stress-test splits
+
+**Exact Reproduction Condition**
+
+Immediately before the stress section, the preceding tests have already created five groups. The loop then runs only until the total reaches eight:
+
+```js
+while (editor.getGroupCount() < 8) {
+  editor.splitActiveGroup('right');
+}
+```
+
+Thus the alleged ¡°8 Splits¡± test performs only three additional splits and asserts eight panes: [phase4-suite.js](/D:/projects/workbench-kit/scripts/phase4-suite.js:298).
+
+FR-D7 explicitly requires starting with a pane, performing **eight split operations**, and ending with **nine panes**: [SPEC.md](/D:/projects/workbench-kit/docs/current/SPEC.md:86).
+
+An implementation that rejects every split after the eighth pane would pass the current assertion while violating the specification.
+
+**Violated Clause / Specification ID**
+
+- FR-D7
+- WK-019
+- PLAN Phase 4 all-37-cases completion condition
+
+**Recommended Fix**
+
+Reset to exactly one pane, record the initial count, perform an explicit eight-iteration loop, and after every iteration assert:
+
+- No exception or rejection
+- Pane count equals `initial + iteration`
+- All groups remain attached and measurable
+
+The final count must be nine.
+
+**Why this prevents completion**
+
+The suite positively certifies a result different from the normative result. FR-D7 therefore has no valid acceptance evidence.
+
+## Major 3 ? Lifecycle timer continuity is masked by a shared counter
+
+**Exact Reproduction Condition**
+
+The custom renderer test defines one `liveTimerTicks` variable outside the component factory: [phase4-suite.js](/D:/projects/workbench-kit/scripts/phase4-suite.js:156). Every renderer¡¯s interval increments that same value, and every renderer returns it through `getTimerTicks()`: [phase4-suite.js](/D:/projects/workbench-kit/scripts/phase4-suite.js:164), [phase4-suite.js](/D:/projects/workbench-kit/scripts/phase4-suite.js:173).
+
+After `bgTab` is created, its timer also increments this counter. If the original view¡¯s timer stops when hidden or moved, the background view can still make these assertions pass:
+
+- Inactive-tab continuity: [phase4-suite.js](/D:/projects/workbench-kit/scripts/phase4-suite.js:198)
+- Cross-pane continuity: [phase4-suite.js](/D:/projects/workbench-kit/scripts/phase4-suite.js:221)
+
+This recreates precisely the attack-focus problem: a synthetic aggregate supplies the expected observation instead of the tested instance.
+
+**Violated Clause / Specification ID**
+
+- FR-E2 and FR-E5
+- D-24
+- WK-022
+- PLAN¡¯s requirement to reproduce the live-instance lifecycle experiment: [PLAN.md](/D:/projects/workbench-kit/docs/current/PLAN.md:114)
+- Phase 4 attack focus against stubbed lifecycle counts: [PLAN.md](/D:/projects/workbench-kit/docs/current/PLAN.md:226)
+
+**Recommended Fix**
+
+Create `timerTicks` inside each factory invocation and close over that renderer-local counter. Record the original view¡¯s tick value immediately before and after each transition. Also confirm that the background renderer has a distinct counter and cannot affect the original view¡¯s observation.
+
+**Why this prevents completion**
+
+Creation identity and DOM-state checks are meaningful, but the required timer-continuity evidence is currently a false-positive oracle.
+
+## Major 4 ? Cross-host verification does not enforce the claimed 73-assertion contract
+
+**Exact Reproduction Condition**
+
+Delete matching assertions from `phase4-suite.js` in both hosts while leaving the remaining assertions successful. Verification still passes because it checks only:
+
+- Pywebview¡¯s returned `success`: [verify-phase4.mjs](/D:/projects/workbench-kit/scripts/verify-phase4.mjs:155)
+- Equality of the two result-list lengths, whatever that length is: [verify-phase4.mjs](/D:/projects/workbench-kit/scripts/verify-phase4.mjs:166)
+- Pairwise ID/pass equality for the returned entries: [verify-phase4.mjs](/D:/projects/workbench-kit/scripts/verify-phase4.mjs:169)
+
+There is no assertion that each host returned exactly 73 results, no expected-ID manifest, and no duplicate-ID rejection. Two identically incomplete result sets are accepted as full parity.
+
+**Violated Clause / Specification ID**
+
+- SPEC common cross-host adjudication rule: [SPEC.md](/D:/projects/workbench-kit/docs/current/SPEC.md:23)
+- FR-H1¡¯s requirement to compare the complete applicable result table: [SPEC.md](/D:/projects/workbench-kit/docs/current/SPEC.md:132)
+- PLAN Phase 4 requirement to adjudicate every one of the 37 Phase 4 cases
+
+**Recommended Fix**
+
+Maintain an explicit immutable manifest of required assertion IDs. For each host independently assert:
+
+- Exact expected count
+- No duplicate IDs
+- No missing or unexpected IDs
+- Every required ID passes
+
+Only then compare the two normalized result maps. The manifest should map every Phase 4 FR to at least one acceptance assertion and flag untested clauses.
+
+**Why this prevents completion**
+
+Host-neutral execution exists, so Round 2 Major 1 is directionally fixed. However, the verifier cannot prove that either host executed the complete suite it claims to have executed.
+
+## Minor 1 ? Lifecycle diagnostic metadata grows permanently
+
+**Exact Reproduction Condition**
+
+Open and close many uniquely identified tabs during a long-lived session. Every renderer creates an entry in `panelLifecycleStats`: [editor.ts](/D:/projects/workbench-kit/src/core/editor.ts:204), [editor.ts](/D:/projects/workbench-kit/src/core/editor.ts:207). Disposal removes the renderer from `contentRenderers`, but never removes its statistics entry: [editor.ts](/D:/projects/workbench-kit/src/core/editor.ts:236).
+
+The Round 2 strong renderer/DOM retention problem is fixed, but one metadata record and stamp string remain for every historical panel.
+
+**Violated Clause / Specification ID**
+
+- Quality/lifecycle expectations associated with FR-E3 and WK-022
+- This is not currently a direct renderer-instance retention violation.
+
+**Recommended Fix**
+
+Move lifecycle accounting into test-only instrumentation or provide a bounded/explicitly disposable diagnostics store. If post-close statistics are needed, have the test subscribe to disposal events and retain them outside the production controller.
+
+## Resolution assessment
+
+- Round 2 Major 1, pywebview parity: **partially resolved**. The pywebview host now loads `dist/` and executes the shared suite, but completeness is not enforced.
+- Round 2 Major 2, real acceptance paths: **not resolved** for the drag, resize, menu, keyboard-close, and geometry-heavy requirements.
+- Round 2 Minor 1, `contentRenderers` retention: **resolved**. The renderer reference is removed in a `finally` block.
+- License attribution and the reviewed Dockview/CSS structural additions showed no separate blocking defect.
+
+I attempted `npm test`, but this read-only review environment prevented Vite from creating `node_modules/.vite-temp` and prevented Electron from creating its cache/user-data state. Those environment failures are not counted as product findings; the findings above follow directly from the checked-in implementation and verification logic.

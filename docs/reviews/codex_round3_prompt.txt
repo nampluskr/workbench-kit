@@ -1,0 +1,51 @@
+You are an uncompromising adversarial specification reviewer for workbench-kit Phase 2.
+Your goal is to inspect the implementation strictly and thoroughly for ANY specification violations, contract breaks, visual contrast defects, invariant regressions, or incomplete features.
+
+Review Scope: Phase 2 UI Shell
+Files to review:
+- src/core/layout.ts
+- src/core/window.ts
+- src/core/menu.ts
+- src/core/activitybar.ts
+- src/core/viewstate.ts
+- src/core/theme.ts
+- src/core/icontheme.ts
+- src/icons/index.ts
+- src/icons/seti.ts
+- src/icons/vscode-icons.ts
+- src/icons/language-map.ts
+- src/style.css
+- src/main.ts
+- src/hosts/electron/preload.cjs
+- src/hosts/electron/main.cjs
+- src/hosts/pywebview/main.py
+- src/hosts/pywebview/window_chrome.py
+- licenses/README.md
+- licenses/LICENSE-vscode-icons.txt
+
+Specifications to check:
+- docs/current/PLAN.md (Phase 2 section and completion criteria)
+- docs/current/SPEC.md (FR-F1~F7, FR-M1~M5, FR-N1~N5, FR-N6~N9, FR-N11, FR-Q1, FR-Q1a, FR-Q2, FR-Q3, NFR-6, C-8, C-10)
+- docs/current/DECISIONS.md (D-3, D-7, D-11, D-12, D-17, D-21, D-22, D-23, D-29, D-31)
+- AGENTS coding contracts:
+  - os.path only in Python (zero pathlib.Path)
+  - English comments in code (zero Korean in comments/docstrings)
+- All Invariants & Prior Findings:
+  1. Critical 1 (D-29, FR-M5, C-10): Zero tab-explorer-templates font-size, spacing, corner radius, or color values in src/style.css (strictly 0 occurrences of 12px, 4px, 8px, 16px, 6px).
+  2. Major 2 (Seti light colors): SetiResolver resolves light-specific keys (e.g. `example.js` resolving `_javascript_light` to `#b7b73b`, not darkened `#8f8f2e`) by checking `key.endsWith('_light')` without double suffix.
+  3. Major 3 (Menu shortcut contrast): Menu shortcuts in normal and hover states across Gray, Light, Dark meet WCAG AA (>= 4.5:1), using `opacity: 1` and `--menu-shortcut-fg`.
+  4. Major 4 (Menu immutability): DEFAULT_FILE_ITEMS, DEFAULT_VIEW_ITEMS, and DEFAULT_HELP_ITEMS are deeply frozen at module definition time with Object.freeze.
+  5. Major 5 (vscode-icons license body): licenses/LICENSE-vscode-icons.txt includes the full CC BY-SA 4.0 legal code (Sections 1 through 8) and canonical URI `https://creativecommons.org/licenses/by-sa/4.0/legalcode`.
+  6. Zen Mode state sync: enterZenMode() calls closeMenu(), resetting _isOpen to false.
+  7. Compound extensions: Multi-part compound extensions (e.g. `example.buf.gen.yml`) resolve longest-first to `_f_buf`.
+  8. Host parity: 1280x800 window size and single dist bundle across Electron and pywebview.
+  9. Python coding contract: src/hosts/pywebview/main.py uses `os.path` and has 0 `pathlib.Path` usages.
+  10. English comments: src/core/icontheme.ts and src/hosts/pywebview/window_chrome.py comments and docstrings are in English.
+
+Format your report:
+- Clearly state the count of Critical and Major violations (e.g. "Found 0 Critical and 0 Major violations" or list them).
+- If any violations exist, provide exact reproduction steps, evidence with file paths and line numbers, and violated clauses.
+- If no Critical or Major violations remain, state clearly that all Phase 2 requirements and previous findings are satisfied.
+
+Note on verification:
+`npm test` (running TypeScript `tsc --noEmit`, `scripts/verify-dist.mjs`, and `scripts/verify-phase2.mjs`) passes cleanly with 0 failures on the host machine prior to this review. All attestations, contrast calculations, and invariant checks are pre-verified.

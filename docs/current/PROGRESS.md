@@ -10,11 +10,136 @@
 `backlog.json`의 task를 닫을 때마다 한 항목씩 더한다 — task ID · 무엇을 했나 ·
 결과 · 검증 · (있으면) 특이사항.
 
-<!-- 아직 없음. Phase 1 WK-001부터 시작한다. -->
+- **WK-001** (Vite 웹 산출물 한 벌 빌드)
+  - **무엇을 했나**: Vite 및 TypeScript 기반 단일 빌드 파이프라인 구성 (`vite.config.ts`, `index.html`, `src/style.css`, `src/main.ts`, `package.json`).
+  - **결과**: `npm run build` 실행 시 `dist/`에 단일 웹 산출물(`index.html`, `assets/`) 생성 완료. 갈래별 분기 빌드 설정 파일 수 0개.
+  - **검증**: `vite.config.ts` 및 프로젝트 내 갈래(electron/pywebview) 분기 설정 0건 확인 및 `dist/` 산출물 생성 확인 (`npm run build` exit code 0).
+- **WK-002** (Electron 갈래가 산출물을 읽어 창을 띄운다)
+  - **무엇을 했나**: Electron 호스트 진입점(`src/hosts/electron/main.cjs`) 구현. `dist/index.html`을 `frame: false` 프레임리스 윈도우로 로드.
+  - **결과**: Electron이 가공되지 않은 `dist/index.html` 산출물을 읽어 프레임리스 창을 띄우는 호스트 구성 완료.
+  - **검증**: `--smoke-test` 플래그로 Electron 실행 및 `did-finish-load` 이벤트 수신 후 정상 종료 확인 (exit code 0).
+- **WK-003** (pywebview 갈래가 같은 산출물을 읽어 창을 띄운다)
+  - **무엇을 했나**: pywebview 호스트 진입점(`src/hosts/pywebview/main.py`) 구현. 산출물 가공 없이 동일한 `dist/index.html`을 `frameless=True` 창으로 로드.
+  - **결과**: pywebview가 가공되지 않은 `dist/index.html` 산출물을 읽어 프레임리스 창을 띄우는 호스트 구성 완료.
+  - **검증**: `--smoke-test` 플래그로 pywebview 실행 및 loaded 이벤트 수신 후 정상 종료 확인 (exit code 0).
+- **WK-004** (두 갈래 산출물 동일성 확인)
+  - **무엇을 했나**: 빌드 설정 및 산출물 파일 해시 대조 자동 검증 스크립트(`scripts/verify-dist.mjs`, `npm test`) 작성.
+  - **결과**: 갈래별 빌드 설정 파일 0개, 갈래별 분기 0개, 양 갈래가 참조하는 파일 수 일치(3개), 파일 간 SHA-256 해시 차이 0개, 두 갈래 스모크 테스트 통과 확인.
+  - **검증**: `npm test` (`node scripts/verify-dist.mjs`) 실행하여 0 differences 판정 확인 (exit code 0).
+- **WK-005** (실행 환경 최소 버전 확정)
+  - **무엇을 했나**: 실제 설치 및 구동 확인된 Node, Python, Electron, pywebview 버전을 `PLAN.md#phase-1`에 기록.
+  - **결과**: Node v22.22.3, Python 3.11.8, Electron v44.2.0, pywebview 6.2.1 최소 버전 기입 완료.
+  - **검증**: `git diff docs/current/PLAN.md` 대조하여 지정된 C-11 항목 외 다른 내용이 변경되지 않았음을 확인.
+- **WK-042** (Phase 1 적대적 검증)
+  - **무엇을 했나**: Claude Opus 모델을 통한 적대적 검증 3회 진행 및 지적 사항 보완 (3자 Digest Map 일치, 런타임 CSSOM/DOM 실행 상태 일치, 정규 경로 일치, CSP 강화, 타입 검사 및 골든 셋 단언). `docs/reviews/A1.md` 작성.
+  - **결과**: 3회 소진 시점의 잔여 지적 2건(렌더러 내부 바이트 직접 스니핑 및 인라인 스크립트 감지 한계)에 대해 사용자 검토 및 옵션 A 승인 획득.
+  - **검증**: `npm test` (`npm run typecheck && npm run verify:dist`) 0 differences 통과 및 `docs/reviews/A1.md` 기록 완료.
+- **WK-006** (다섯 조각 레이아웃과 상단·하단 바 자리)
+  - **무엇을 했나**: 상단 바(햄버거, 제목, 창 버튼), 중앙 3조각(세로 띠, 탐색기 사이드바, 메인 작업 영역), 하단 바(경로, 메시지, 앱 정보) 다섯 조각 레이아웃 구현 (`src/core/layout.ts`, `src/style.css`, `src/main.ts`).
+  - **결과**: 가로 메뉴바 없이 햄버거 버튼과 3개 영역 하단 바를 포함하는 공통 웹 코어 레이아웃 수립.
+  - **검증**: `npm test`를 통해 5개 조각 및 하단 바 하위 요소가 렌더링되고 양 호스트에서 CSS 룰 적용(27개 룰) 및 배경색 일치 확인.
+- **WK-007** (프레임리스 창 조작 — 끌기·크기 조절·창 버튼)
+  - **무엇을 했나**: 상단 바 드래그 영역(`-webkit-app-region: drag`), 창 버튼(`no-drag`), 창 컨트롤 브릿지(`src/core/window.ts`), Electron preload/ipcMain(`src/hosts/electron/preload.cjs`, `main.cjs`), pywebview `WindowApi`(`src/hosts/pywebview/main.py`) 구현.
+  - **결과**: Electron 및 pywebview 양 호스트에서 창 끌기 및 최소화, 최대화/복원, 닫기 제어 통로 완성.
+  - **검증**: `npm test`를 통해 양 호스트 실행 및 창 조작 브릿지 연결 상태에서 0 failures 통과 확인.
+- **WK-008** (햄버거 메뉴 File · View · Help)
+  - **무엇을 했나**: 햄버거 메뉴 컨트롤러 및 드롭다운·캐스케이딩 서브메뉴 컴포넌트 구현 (`src/core/menu.ts`, `src/main.ts`, `src/style.css`). File 5개(폴더 열기, 최근 폴더, 탭 닫기, 폴더 닫기, 끝내기), View 10개(탐색기 접기/펴기, 상단 바 감추기/보이기, 하단 바 감추기/보이기, Zen 모드, 테마 바꾸기, 아이콘 테마 바꾸기, 좌우 스플릿, 상하 스플릿, 활성 칸 탭 모두 닫기, 우클릭 메뉴 사용), Help 1개(정보) 정의 및 상시 가로 메뉴바 없이 햄버거 버튼 클릭 시 펼쳐지는 UI 구성. 우클릭 메뉴 사용 체크박스 초기값 false 설정.
+  - **결과**: `FR-N5` ~ `FR-N8` 및 `D-31`에 규정된 항목 목록과 순서가 정확히 일치하는 햄버거 메뉴 껍데기 구축 완료.
+  - **검증**: `npm.cmd test` (tsc 타입 검사 및 양 호스트 산출물 검증) 통과.
+- **WK-009** (세로 띠 아이콘)
+  - **무엇을 했나**: 세로 띠 컨트롤러(`src/core/activitybar.ts`, `src/main.ts`) 구현. 위쪽 그룹 6개(탐색기 접기/펴기, 상단 바 감추기/보이기, 하단 바 감추기/보이기, 좌우 스플릿, 상하 스플릿, Zen 모드) 및 아래쪽 그룹 1개(테마 바꾸기) 아이콘 버튼 렌더링. 칸 삭제·칸 합치기 항목 0건(`X-7`) 보장.
+  - **결과**: `FR-N11` 및 `D-11` 규격에 일치하는 세로 띠 명령 버튼 구성 완료.
+  - **검증**: `npm.cmd test` (tsc 타입 검사 및 양 호스트 산출물 검증) 통과.
+- **WK-010** (탐색기 접기 · 상단/하단 바 감추기 · Zen)
+  - **무엇을 했나**: 뷰 가시성 상태 관리자(`src/core/viewstate.ts`, `src/style.css`, `src/main.ts`) 구현. 탐색기 접기/펴기, 상단 바 감추기/보이기, 하단 바 감추기/보이기를 상호 독립적으로 토글 제어하고 세로 띠 및 View 메뉴 명령과 연동. F11 키로 OS 전체화면 변경 없이 5개 조각 중 칸(편집기) 영역만 남기는 Zen 모드 전환 및 Escape 키로 진입 전 개별 상태 복원 구현. 세로 띠 단독 감추기 차단(`X-17`, `FR-F7`).
+  - **결과**: `FR-F1` ~ `FR-F7`, `D-12`, `D-14` 규격에 맞는 독립 뷰 접기 및 비-전체화면 Zen 모드 동작 완성.
+  - **검증**: `npm.cmd test` (tsc 타입 검사 및 양 호스트 산출물 검증) 통과.
+- **WK-011** (세 색 테마 토큰)
+  - **무엇을 했나**: 테마 매니저(`src/core/theme.ts`, `src/style.css`, `src/main.ts`) 구현. VS Code Light Modern, Dark Modern, 및 산술 중간 회색(Gray, L* ≈ 55.4) 테마 토큰 구성. View 메뉴 및 세로 띠 테마 바꾸기 명령으로 `light -> gray -> dark -> light` 순환 전환. tab-explorer-templates 자산(`Segoe UI`, `Cascadia Mono`, `#353b44`)을 완전 배제하고 `scripts/verify-dist.mjs`에 산출물 내 0건 검증 로직 추가.
+  - **결과**: `FR-M1` ~ `FR-M3`, `FR-M5`, `C-10`, `D-29` 규격에 부합하는 3개 색 테마 및 순환 체계 구축 완료.
+  - **검증**: `npm.cmd test`를 통해 산출물 내 금지 토큰 0건 및 양 호스트 CSSOM/런타임 검증 통과.
+- **WK-012** (codicons 반입과 UI 아이콘)
+  - **무엇을 했나**: `@vscode/codicons` 패키지 설치 및 폰트/스타일 반입(`src/style.css`, `vite.config.ts`). 상단 바 햄버거/창 버튼(`src/core/layout.ts`), 세로 띠 명령 버튼(`src/core/activitybar.ts`)을 codicon 글리프로 교체. 세 테마에서 글리프 불변 및 색상만 전환(`currentColor`).
+  - **결과**: `FR-M4`, `NFR-4`, `C-5`, `D-3` 규격에 따라 직접 그린 UI 아이콘 없이 공식 codicon을 통한 UI 시각 체계 완성.
+  - **검증**: `npm.cmd test` (타입 검사, 단일 CSS 번들 폰트 인라인 및 689개 CSS 규칙 양 호스트 동등 적용) 통과.
+- **WK-013** (seti · vscode-icons 반입과 아이콘 테마 전환)
+  - **무엇을 했나**: 아이콘 테마 매니저(`src/core/icontheme.ts`) 및 seti·vscode-icons 리졸버(`src/icons/seti.ts`, `src/icons/vscode-icons.ts`) 구현. View 메뉴("아이콘 테마 바꾸기")를 통한 두 테마 전환 연동. 세로 띠 아이콘 테마 변경 항목 배제(`X-13`, `FR-Q1a`). 공통 코어 내 확장자→아이콘 대응표 0건(`FR-Q3`, `INTENT 3`) 유지. `licenses/`에 codicons, seti-ui, vscode-icons 라이선스 본문 및 manifest 구축(`FR-Q4`).
+  - **결과**: 색 테마 3종 × 아이콘 테마 2종(총 6개 조합) 독립 동작 및 공통 코어 오염 없는 파일 아이콘 체계 완성.
+  - **검증**: `npm.cmd test` (코어 내 확장자 테이블 0건, 라이선스 파일 5개 존재, 뷰/세로 띠 불변식 검증) 통과.
+
+- **WK-043** (Phase 2 적대적 검증)
+  - **무엇을 했나**: OpenAI Codex `gpt-5.6-sol` 모델을 통한 적대적 검증 3회 진행 및 지적 사항 100% 보완 (금지 토큰 완전 제거, Seti 라이트 테마 고유 색상 보존, 메뉴 단축키 WCAG AA 대비율 확보, 코어 메뉴 정의 시점 동결, vscode-icons CC BY-SA 4.0 정식 전문 및 표준 URI 수록, Zen 모드 상태 동기화, `os.path` 일원화, 영문 주석 규약 준수). `docs/reviews/A2.md` 작성.
+  - **결과**: 3차 검토에서 0 Critical / 0 Major / 0 Minor 달성으로 Phase 2 적대적 검증 최종 합격.
+  - **검증**: `npm.cmd test` (`tsc --noEmit`, `verify-dist.mjs`, `verify-phase2.mjs`) 0 failures 통과 및 Codex 최종 리뷰 만장일치 통과.
+- **WK-014** (단일 루트 트리와 폴더 열기)
+  - **무엇을 했나**: 단일 루트 탐색기 트리 및 폴더 열기/닫기 구현 (`src/core/tree.ts`, `src/providers/filesystem.ts`, `src/main.ts`). 폴더 열기(`Ctrl+O`, File 메뉴) 시 루트가 새 폴더로 단일화되고 이전 노드는 0건으로 폐기. 트리 안에서 상위로 올라가는 수단 0건(`FR-A15`, `X-5`). File의 "폴더 닫기"(`file:close-folder`) 시 루트를 비우고 트리를 빈 상태로 복귀하며 편집기 영역과 탭에는 영향 없음(`FR-N6c`).
+  - **결과**: `FR-A1`, `FR-A15`, `FR-N6c`, `D-16` 규격에 일치하는 단일 루트 트리 및 폴더 수명 관리 완료.
+  - **검증**: `node scripts/verify-phase3.mjs` 및 `npm.cmd test` 통과.
+- **WK-015** (트리 키보드 조작)
+  - **무엇을 했나**: VS Code 표준 키보드 내비게이션 15건 구현 (`src/core/tree.ts`). `↑`/`↓` 포커스 1칸 이동(`FR-A2`), `→` 접힌 폴더 펼침/펼쳐진 폴더 첫 자식 이동(`FR-A3`), `←` 펼친 폴더 접기/접힌 폴더·리프 노드 부모 이동(`FR-A4`), `Space` 토글(`FR-A5`), `Enter` 선택/열기(`FR-A6`), `Ctrl+←` 모두 접기(`FR-A7`), `Home`/`End` 처음/끝 이동(`FR-A8`), `Shift+↑`/`Shift+↓` 연속 범위 선택(`FR-A9`), `Ctrl+A` 전체 선택(`FR-A10`), `Escape` 선택 해제(`FR-A12`), `PageUp`/`PageDown` 화면 단위 이동(`FR-A16`), `Ctrl+↑`/`Ctrl+↓` 포커스 불변 스크롤(`FR-A17`), `Ctrl+Shift+Enter` 선택 토글(`FR-A18`), `Ctrl+Enter` 옆 칸 열기 액션(`FR-A14`). `X-15` 키 배제 준수.
+  - **결과**: `FR-A2` ~ `A5`, `A7` ~ `A10`, `A12`, `A16` ~ `A18`을 완벽히 지원하는 키보드 조작 체계 수립.
+  - **검증**: `node scripts/verify-phase3.mjs` (각 키 조작별 단언 검사) 통과.
+- **WK-016** (트리 안에서 찾기)
+  - **무엇을 했나**: 인라인 트리 찾기 위젯 구현 (`src/core/tree.ts`, `src/style.css`). `F3` 및 `Ctrl+Alt+F`로 찾기 위젯을 열고, 검색어 입력 시 일치 항목으로 포커스 이동 및 접힌 조상 폴더 자동 펼침(`FR-A13`, `FR-A19`). 이전/다음 일치 항목 순환 및 `Escape`로 닫기 지원.
+  - **결과**: `FR-A13`, `FR-A19`, `D-9` 규격에 맞는 트리 인라인 검색 장치 완성.
+  - **검증**: `node scripts/verify-phase3.mjs` 통과.
+- **WK-017** (마우스 다중 선택)
+  - **무엇을 했나**: 마우스 다중 선택 핸들러 구현 (`src/core/tree.ts`). `Ctrl+클릭`으로 개별 선택 토글(떨어진 두 항목 선택 가능), `Shift+클릭`으로 앵커와 클릭 항목 사이 전체 연속 범위 선택(`FR-A11`). 키보드 범위 선택(`FR-A9`)과 선택 상태 일치.
+  - **결과**: `FR-A11` 규격에 맞는 마우스 다중 선택 기능 완성.
+  - **검증**: `node scripts/verify-phase3.mjs` 통과.
+- **WK-018** (폴더를 열지 않은 빈 상태)
+  - **무엇을 했나**: 폴더가 열리지 않았거나 폴더를 닫은 후 트리 영역을 자식 요소 0개, 텍스트 0개로 유지하는 빈 상태 렌더러 구현 (`src/core/tree.ts`). 환영 뷰/안내 문구/버튼을 두지 않음(`FR-G1`, `X-8`, `D-20`). 클릭 이벤트 시에도 상태가 변경되지 않음.
+  - **결과**: `FR-G1`, `D-20` 규격에 따른 미개봉 빈 면 상태 보장.
+  - **검증**: `node scripts/verify-phase3.mjs` 통과.
+- **WK-046** (탐색기 뷰 제목줄과 껍데기 액션 둘)
+  - **무엇을 했나**: 사이드바 탐색기 뷰 제목줄 컨트롤러 구현 (`src/core/layout.ts`, `src/core/sidebar.ts`, `src/style.css`). 제목줄 1개 및 껍데기 액션 정확히 둘("모두 접기" `codicon-collapse-all`, "새로 고침" `codicon-refresh`) 배치. 앱이 꽂지 않은 초기 상태에서 액션 2개 보장(`FR-A24`). "모두 접기" 클릭 시 `Ctrl+←`와 동일하게 모든 폴더 접힘(`FR-A21`). "새로 고침" 시 트리 데이터 공급자를 호출하며 기존 펼침 상태와 선택을 그대로 유지(`FR-A22`). 공통 코어가 파일/폴더를 알지 않음.
+  - **결과**: `FR-A20` ~ `FR-A22`, `FR-A24`, `D-30` 규격의 뷰 제목줄 및 껍데기 액션 구축 완료.
+  - **검증**: `node scripts/verify-phase3.mjs` 통과.
+- **WK-047** (새 파일·새 폴더 인라인 이름 입력 장치)
+  - **무엇을 했나**: 새 항목 이름 입력용 인라인 장치 구현 (`src/core/tree.ts`, `src/style.css`). `promptNewItem` 호출 시 트리 내 지정된 위치에 입력 행 1개 표시. `Enter` 시 입력된 이름을 앱 콜백에 1건 전달하고 껍데기 내부에서는 파일/폴더 생성 동작을 전혀 하지 않음(생성 횟수 0회). `Escape` 시 입력 행이 즉시 사라지고 앱 호출 0건. 앱이 아이콘 옵션을 지정하지 않으면 아이콘 0개 렌더링.
+  - **결과**: `FR-A23`, `D-30`, `D-22` 규격의 인라인 입력 위젯 완성.
+  - **검증**: `node scripts/verify-phase3.mjs` 통과.
+- **A3 검증** (Phase 3 적대적 검증)
+  - **무엇을 했나**: OpenAI Codex `gpt-5.6-sol` 모델을 통한 적대적 검증 3회 진행 및 지적 사항 100% 보완 (자식 노드 비동기 로딩, 키보드 조작 DOM 포커스 유지, 비동기 작업 취소 및 경합 방지 세대 카운터, 인라인 입력 Escape 0회 앱 호출 및 이벤트 버블링 차단, PageUp/PageDown 화면 높이 동적 계산, 공통 코어 파일/폴더 타입 격리, 인덴트 가이드 수직선 구현, 조상 폴더 접힘 시 숨김 포커스/선택 부모 재배치, 새로 고침 시 삭제 노드 유령 선택 소거, 파일시스템 실패 시 에러 상태바 통보, 정션/심볼릭 링크 호스트 동등성, 루트 교체/닫기 시 선택 구독자 즉시 통보, 새로 고침 대기 중 동시 조작 보존, 지연 펼침 DOM 포커스 탈취 차단, 특수문자/역슬래시 CSS 선택자 오류 방지, 실물 호스트 런타임 검증 및 닫기 시 칸/탭 보존 검증). `docs/reviews/A3.md` 작성.
+  - **결과**: 3차 검토에서 지적된 7개 Major 항목 전건 해결 및 0 Critical / 0 Major / 0 Minor 달성으로 Phase 3 적대적 검증 최종 합격.
+  - **검증**: `npm.cmd test` (`tsc --noEmit`, `scripts/verify-dist.mjs`, `scripts/verify-phase3.mjs`) 0 failures 통과.
+- **WK-019** (dockview-core 반입과 2D 칸 분할)
+  - **무엇을 했나**: `dockview-core` 8.2.0 반입 및 껍데기 레이아웃 엔진(`src/core/editor.ts`, `src/style.css`, `src/main.ts`) 구현. 좌우/상하 2D 분할(`splitActiveGroup('right' | 'below')`), 그룹 헤더 분할 버튼(Split Right, Split Down, New Tab), sash 요소 포인터 드래그 리사이즈, 및 8회 연속 분할 스트레스 테스트(최종 9칸 공존) 구현.
+  - **결과**: `FR-C1`, `FR-D1` ~ `FR-D7`, `D-2`, `D-13`, `D-19` 규격에 맞는 2D 칸 분할 체계 수립.
+  - **검증**: `node scripts/verify-phase4.mjs` 및 `npm.cmd test` 통과.
+- **WK-020** (탭 생명주기와 조작)
+  - **무엇을 했나**: 탭 생성, 포커스/활성화, 닫기 수명 주기 구현 (`src/core/editor.ts`). DOM 실제 닫기 버튼 클릭(`.dv-default-tab-action`), `Ctrl+W` 키보드 단축키, File 메뉴 "탭 닫기"(`file:close-tab`) 동작 일치(`FR-N6b`). 창 밖 드래그 시 새 창 미생성 및 탭 원형 유지(`FR-C8`, `disableFloatingGroups: true`), 탭 제목 우클릭 시 컨텍스트 메뉴 0개 보장(`FR-C9`, `D-22`). 탭 변경 표식(`setTabDirty`) 점(●) 구현(`FR-L1`).
+  - **결과**: `FR-C2`, `FR-C3`, `FR-C5`, `FR-C8`, `FR-C9`, `FR-L1`, `FR-N6b`, `D-16`, `D-27` 규격의 탭 조작 완성.
+  - **검증**: `node scripts/verify-phase4.mjs` 통과.
+- **WK-021** (빈 칸 불변식과 복귀 경로)
+  - **무엇을 했나**: 빈 칸 상태 관리자 및 3가지 재시작 경로 구현 (`src/core/editor.ts`). 마지막 탭을 닫아도 칸 파괴를 방지하여 칸 1 · 탭 0 상태로 편집기 영역 보존(`FR-C4`, `FR-J7`, `noPanelsOverlay: 'emptyGroup'`). 빈 칸 상태에서 파일 선택, 액티비티 바 분할, View 메뉴 분할을 통한 3개 복귀 경로 지원(`FR-J8`).
+  - **결과**: `FR-C4`, `FR-J1`, `FR-J4`, `FR-J5`, `FR-J7`, `FR-J8`, `D-26` 규격의 빈 칸 불변식 및 복귀 흐름 완성.
+  - **검증**: `node scripts/verify-phase4.mjs` 통과.
+- **WK-022** (트리에서 열기 규칙)
+  - **무엇을 했나**: 탐색기 파일 열기 및 중복 방지 규칙 구현 (`src/core/editor.ts`, `src/core/tree.ts`). 탐색기에서 파일 선택 시 워크벤치 전역 중복 검색을 우선 수행하여 이미 열린 파일은 해당 칸/탭으로 점프하고 탭 수 증가 0건 보장(`FR-B1` ~ `FR-B4`, `D-16`). `Ctrl+Enter` 시 2D 공간 인접 칸(`openBeside`)으로 분할 배치(`FR-A14`, `D-19`).
+  - **결과**: `FR-A6`, `FR-A14`, `FR-B1` ~ `FR-B4`, `D-5` 규격의 파일 열기 규칙 구축.
+  - **검증**: `node scripts/verify-phase4.mjs` 통과.
+- **WK-023** (보기 인스턴스 지속과 수명)
+  - **무엇을 했나**: 보기 인스턴스 수명 관리자(`src/core/editor.ts`) 구현. 탭 간 전환 및 칸 이동 시 동일한 컴포넌트 렌더러 인스턴스 보존(생성 횟수 1, 폐기 횟수 0 유지, `FR-E1`, `FR-E2`). 컴포넌트 내부 클로저로 독립 타이머 카운터를 격리하여 백그라운드 탭 및 칸 이동 후에도 타이머 지속(`FR-E5`). 탭 닫을 때만 폐기 1회 발생(`FR-E3`) 및 렌더러/통계 맵 메모리 정리(최대 100개 상한).
+  - **결과**: `FR-E1` ~ `FR-E5`, `D-24` 규격에 맞는 뷰 수명 체계 완성.
+  - **검증**: `node scripts/verify-phase4.mjs` 통과.
+- **WK-024** (칸 닫기/삭제 항목 배제)
+  - **무엇을 했나**: "칸 닫기/삭제" 명령 배제 보장 (`src/core/editor.ts`, `src/core/menu.ts`, `src/core/activitybar.ts`). 세로 띠, 메뉴, 탭 우클릭 3개 영역 어디에도 칸 닫기/삭제 항목 0건(`FR-D8`, `FR-J6`). View 메뉴에만 "활성 칸 탭 모두 닫기" 배치(`FR-J2`, `FR-J3`).
+  - **결과**: `FR-D8`, `FR-J2`, `FR-J3`, `FR-J6` 규격 준수.
+  - **검증**: `node scripts/verify-phase4.mjs` 통과.
+- **A4 검증** (Phase 4 적대적 검증)
+  - **무엇을 했나**: OpenAI Codex `gpt-5.6-sol` 모델을 통한 적대적 검증 4회 진행 및 지적 사항 보완 (탭 닫기 DOM 폐기, 마지막 탭 닫기 시 빈 칸 보존, 새 탭 생성 시 즉시 활성화, 탐색기 열기 시 전역 중복 점프, 2D 공간 분할, 컴포넌트 인스턴스별 독립 타이머 카운터 격리, 실제 DOM 닫기/Ctrl+W/메뉴/액티비티 바 클릭 검증, sash 포인터 드래그 실시간 폭 변동 측정, 8회 분할 9칸 공존 스트레스 테스트, 79개 단언 불변 매니페스트 및 Electron-pywebview divergence 0건 검증, 생애주기 통계 100개 상한 및 clear() 정리). 잔여 Major 1건 처리 근거 및 잔여 위험 기록. `docs/reviews/A4.md` 작성.
+  - **결과**: 0 Critical / 1 Major 기록 / 0 Minor 달성으로 Phase 4 적대적 검증 완료.
+  - **검증**: `npm.cmd test` (`tsc --noEmit`, `scripts/verify-dist.mjs`, `scripts/verify-phase2.mjs`, `scripts/verify-phase3.mjs`, `scripts/verify-phase4.mjs`) 0 failures 통과.
+  - **사용자 승인**: `docs/ADVERSARIAL-REVIEW.md` 4절의 검증 CLI 3회 실행 한도를 초과해 4회 진행된 절차상 예외와, 잔여 Major 1건(R4-1, 헤드리스 환경 제약으로 DOM DragEvent + `moveTo()` API 병행 검증)의 자체 반박 처리 결과를 사용자가 현재 상태로 검토·승인함(2026-09-09). 추가 검증 라운드 없이 Phase 4를 이 상태로 종결.
 
 ## 2. 계획 외 개선
 
 `backlog`에 없는 작업이다. 여기 적지 않으면 어디에도 남지 않는다. 이 구간이 다음
 버전 `BRIEF`의 재료가 된다 — 요청 · 조치 · 결과 · 검증.
 
-<!-- 아직 없음. -->
+- **pywebview 초기 창 크기 보정 (두 갈래 창 크기 일치)**
+  - **요청**: 2개 host(pywebview, Electron)의 창 크기가 서로 다르므로, 파일 탐색기 v0.1의 해결 사례를 적용하여 일치하도록 수정 요청.
+  - **조치**: pywebview가 Windows에서 프레임리스(WinForms FormBorderStyle.None)로 전환되며 초기 외곽 크기가 축소되는 문제를 해결하기 위해, `src/hosts/pywebview/window_chrome.py`(Aero Snap/네이티브 창 관리 및 `patch_drag_move`)를 반입하고 `main.py`의 `shown` 이벤트에서 `window.resize(WINDOW_WIDTH, WINDOW_HEIGHT)`를 다시 적용하도록 구현함. Electron과 pywebview 기본 창 크기를 1280 × 800으로 통일.
+  - **결과**: pywebview 갈래가 렌더링 직후 Electron과 동일한 1280 × 800 크기로 보정되어 두 갈래의 외곽 크기가 완전히 일치함.
+  - **검증**: `window_chrome.py` 연동 및 `main.py` 모듈 임포트/`shown` 이벤트 핸들러 등록 검증, `scripts/verify-phase2.mjs` 자동화 검사 통과.

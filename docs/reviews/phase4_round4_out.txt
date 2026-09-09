@@ -1,0 +1,54 @@
+Result: 0 Critical, 1 Major, 0 Minor
+
+Clean Sign-off: 거부
+
+### Major 1 ? 실제 드래그 사용자 경로가 여전히 검증되지 않음
+
+정확한 재현 조건:
+
+Dockview의 탭·그룹 드래그 이벤트 연결을 제거하거나 망가뜨려도 다음 단언은 계속 통과할 수 있습니다.
+
+- FR-C5는 실제 탭 드래그 대신 `tB.api.moveTo(...)`로 순서를 바꿉니다. [phase4-suite.js](/D:/projects/workbench-kit/scripts/phase4-suite.js:403)
+- FR-C6/FR-E2도 실제 칸 간 드래그 대신 `appTab1.api.moveTo(...)`를 호출합니다. [phase4-suite.js](/D:/projects/workbench-kit/scripts/phase4-suite.js:214)
+- FR-D5는 칸을 끌어 위치가 변경됐는지 전혀 확인하지 않습니다. 특히 헤더에 `.dv-tab` 자식만 있어도 드래그 표면 검사가 통과합니다. [phase4-suite.js](/D:/projects/workbench-kit/scripts/phase4-suite.js:386)
+- FR-C7은 실제 오른쪽·아래쪽 가장자리 드롭, 새 칸 생성 방향, 탭 이동을 검증하지 않고 `onWillShowOverlay`가 함수인지만 확인합니다. [phase4-suite.js](/D:/projects/workbench-kit/scripts/phase4-suite.js:426)
+- FR-C8은 이벤트가 실제 Dockview에 전달됐는지 확인하지 않습니다. 캡처한 탭 요소가 분리됐거나 드래그 핸들러가 없어도 “상태가 바뀌지 않음”으로 통과하며, Electron의 실제 창 개수도 측정하지 않습니다. [phase4-suite.js](/D:/projects/workbench-kit/scripts/phase4-suite.js:411)
+
+위반 조항:
+
+- FR-C5, FR-C6, FR-C7, FR-C8
+- FR-D5
+- WK-019, WK-021
+- Phase 4의 37개 요구가 명세대로 동작해야 한다는 완료 조건 [PLAN.md](/D:/projects/workbench-kit/docs/current/PLAN.md:111)
+- 내부 API나 대체 지표가 실제 기능을 대신하면 안 된다는 적대적 검증 원칙 [ADVERSARIAL-REVIEW.md](/D:/projects/workbench-kit/docs/ADVERSARIAL-REVIEW.md:18)
+
+필요한 보완:
+
+- 실제 연결된 탭 요소에서 드래그를 시작해 같은 칸 내 순서가 변경되는지 검증
+- 탭을 다른 칸에 드롭해 소속 칸과 보기 인스턴스가 유지되는지 검증
+- 칸 헤더를 실제로 끌고 전후 격자 위치와 각 칸의 탭 구성을 비교
+- 오른쪽과 아래쪽 가장자리 각각에 드롭하고 새 칸의 방향·탭 소속을 검증
+- 창 밖 드롭 전후 Electron `BrowserWindow` 개수, 그룹 수, 탭 수·순서·소속을 비교
+- DOM 대상이 연결·가시·측정 가능한 상태인지 확인하고, 이벤트가 처리됐다는 양의 결과를 단언
+
+### 해소된 Round 3 항목
+
+- FR-C3 실제 닫기 버튼 및 3탭 가운데 닫기: 해소
+- Ctrl+W와 메뉴·액티비티 바 DOM 경로: 해소
+- FR-D4 실제 포인터 리사이즈와 폭 변화: 해소
+- FR-D7 1칸에서 8회 분할 후 9칸: 해소
+- 인스턴스별 타이머 카운터와 이동 후 연속성: 해소
+- 79개 불변 매니페스트, 중복·누락·예상 외 ID 및 `pass === true`: 해소
+- 생애주기 통계 100개 상한, `clear()`, `clearLifecycleStats()`: 해소
+
+### 실행 결과
+
+- TypeScript 타입 검사: 통과
+- Electron Phase 4: 79개 전건 통과
+- 정적 매니페스트 대조: 79개, 중복·누락·예상 외 ID 0개
+- pywebview Phase 4: 현재 실행 환경에서 35초 제한시간 초과
+- 전체 `npm test`: 읽기 전용 환경의 Vite 임시 파일 및 호스트 캐시 생성 제한으로 완료하지 못함
+
+pywebview 시간 초과와 샌드박스 쓰기 제한은 제품 결함으로 집계하지 않았습니다. 로컬 UI 확인에는 [Browser 스킬](C:/Users/nampl/.codex/plugins/cache/openai-bundled/browser/26.825.51511/skills/control-in-app-browser/SKILL.md)을 적용했지만 연결 가능한 브라우저 인스턴스가 없었습니다.
+
+따라서 Phase 4(WK-019~WK-024)는 아직 완료로 판정할 수 없습니다. 파일은 수정하지 않았습니다.

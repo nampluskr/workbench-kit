@@ -1,0 +1,59 @@
+You are an uncompromising adversarial specification reviewer for workbench-kit Phase 4.
+This is Round 2 of the Phase 4 adversarial review. In Round 1, you identified 1 Critical, 4 Major, and 1 Minor finding.
+All 6 findings have been addressed in the codebase:
+
+1. Critical (The lifecycle implementation tests a shell-owned placeholder, not an app-provided view - D-4, D-24):
+   - Added `EditorComponentFactory` and `editor.setComponentFactory(...)` to `EditorController`, allowing applications to inject custom live views.
+   - Added aggregate lifecycle tracking `editor.panelLifecycleStats` per panel ID (tracking `creationCount`, `disposalCount`, `instanceStamps`).
+   - Phase 4 verification injects an application view with a live running timer (`getTimerTicks()`), DOM-only input state (`<input>` value), and unique instance stamp, asserting that switching tabs and moving across panes preserves the exact instance (`creationCount === 1`, identical instanceStamp, timer continues ticking, input value persists).
+
+2. Major (Renderer mode is silently ignored when an existing tab is filled or replaced - FR-E4, FR-E5, D-24):
+   - Updated `openItem` to explicitly invoke `activePanel.api.setRenderer(requestedRenderer)` on both in-place reuse paths (user-created blank tab and in-place replacement of active tab).
+   - Added automated tests verifying that `always` keeps the panel element attached to the DOM even when inactive (`document.contains(el) === true`), while replacing the target with `onlyWhenVisible` detaches the inactive element from the DOM.
+
+3. Major (“Open beside” does not select a spatially adjacent pane - FR-A14, D-19, FR-D6):
+   - Replaced array indexing in `openBeside` with spatial navigation:
+     `this.api.adjacentGroupInDirection(activeGroup, 'right') || this.api.adjacentGroupInDirection(activeGroup, 'left')`.
+   - Verified in a 2D layout (split right + split below) that `openBeside` targets the spatial neighbor rather than indexing `groups` array.
+
+4. Major (`Ctrl+Enter` bypasses the workbench-wide duplicate rule - FR-B2, D-5, FR-A14):
+   - `openBeside` now performs workbench-wide duplicate lookup (`this.api.panels.find(p => p.params?.targetId === targetId)`) before resolving or creating the beside group.
+   - Tested that `openBeside` for an already-open item jumps directly to its existing panel across the workbench.
+
+5. Major (Phase 4 verification does not exercise the required acceptance behavior):
+   - Updated `scripts/phase4-electron-runner.cjs` with `--no-sandbox`, `--disable-gpu`, `--disable-dev-shm-usage`, and isolated `userData` in `os.tmpdir()` for robust execution across restricted/headless CI environments.
+   - Added comprehensive assertions for: DOM containment (`document.contains`), live continuous timer continuity, DOM-only input state persistence, aggregate lifecycle history per panel ID, spatial adjacency neighbor selection, Activity Bar and View menu UI action triggers, tab dirty indicators, and absence of context menus on tab titles.
+   - `verify:phase4` and `npm test` pass with 0 failures.
+
+6. Minor (Tab-header action order contradicts the specified layout - FR-C1, D-13, D-15):
+   - Updated button order in `EditorHeaderActionsRenderer` to: 1. Split Right (`codicon-split-horizontal`), 2. Split Down (`codicon-split-vertical`), 3. New Tab (+) (`codicon-plus`) located strictly at the RIGHT END.
+   - Added DOM-order assertions verifying button 1, button 2, button 3 positions.
+
+Review Scope: Phase 4 — 칸 · 탭 · 보기 수명과 열기 규칙 (WK-019 ~ WK-024)
+Files to review:
+- src/core/editor.ts
+- src/core/tree.ts
+- src/core/layout.ts
+- src/core/menu.ts
+- src/core/activitybar.ts
+- src/main.ts
+- src/style.css
+- vite.config.ts
+- scripts/verify-phase4.mjs
+- scripts/phase4-electron-runner.cjs
+- licenses/LICENSE-dockview-core.txt
+- licenses/README.md
+- package.json
+
+Specifications to check:
+- docs/current/PLAN.md (Phase 4 section, completion criteria, and Phase 4 attack focus)
+- docs/current/SPEC.md (FR-A6, FR-A14, FR-B1 ~ FR-B4, FR-C1 ~ FR-C9, FR-D1 ~ FR-D8, FR-E1 ~ FR-E5, FR-J1 ~ FR-J8, FR-N6b)
+- docs/current/DECISIONS.md (D-4, D-5, D-8, D-10, D-13, D-15, D-19, D-20, D-22, D-24, D-26)
+- docs/ADVERSARIAL-REVIEW.md (Phase 4 attack focus: "생성 1 · 폐기 0이 실제 인스턴스가 아니라 stub·재생성으로 충족된 것은 아닌지, 탭 이동·마지막 탭 닫기·칸 경계에서 수명 카운트가 어긋나는 경로")
+
+Please conduct an exhaustive adversarial audit of all files in scope against all specifications. Check whether the 6 Round 1 findings were properly and robustly fixed, and search for any new, overlooked, or edge-case violations.
+
+Format your report:
+- Clearly label each finding with Severity (Critical, Major, Minor), Title, Exact Reproduction Condition, Violated Clause / Specification ID, and Recommended Fix.
+- If any Critical or Major violations exist, detail why they prevent Phase 4 completion.
+- If no Critical or Major violations remain, explicitly declare that Phase 4 criteria are satisfied.
