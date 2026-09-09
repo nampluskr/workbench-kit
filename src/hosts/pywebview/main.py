@@ -21,6 +21,7 @@ is_smoke_test = "--smoke-test" in sys.argv
 is_phase4_test = "--phase4-test" in sys.argv
 is_phase5_test = "--phase5-test" in sys.argv
 is_phase6_test = "--phase6-test" in sys.argv
+is_phase7_test = "--phase7-test" in sys.argv
 loaded_called = False
 
 INSPECTION_EXPRESSION = """
@@ -383,6 +384,113 @@ def main():
                     shutil.rmtree(test_tmp_dir2, ignore_errors=True)
 
             t = threading.Thread(target=run_phase6, daemon=True)
+            t.start()
+            return
+
+        if is_phase7_test:
+            def run_phase7():
+                test_tmp_dir = tempfile.mkdtemp(prefix="wb-phase7-testdir-")
+                test_tmp_dir2 = tempfile.mkdtemp(prefix="wb-phase7-testdir2-")
+                test_tmp_dir3 = tempfile.mkdtemp(prefix="wb-phase7-testdir3-")
+                try:
+                    with open(os.path.join(test_tmp_dir, "alpha.txt"), "w", encoding="utf-8") as f:
+                        f.write("alpha")
+                    os.mkdir(os.path.join(test_tmp_dir, "beta-folder"))
+                    with open(os.path.join(test_tmp_dir, "beta-folder", "gamma.txt"), "w", encoding="utf-8") as f:
+                        f.write("gamma")
+                    with open(os.path.join(test_tmp_dir, "charlie.txt"), "w", encoding="utf-8") as f:
+                        f.write("charlie")
+                    with open(os.path.join(test_tmp_dir, "delta.txt"), "w", encoding="utf-8") as f:
+                        f.write("delta")
+                    os.mkdir(os.path.join(test_tmp_dir, "echo-folder"))
+                    with open(os.path.join(test_tmp_dir, "echo-folder", "foxtrot.txt"), "w", encoding="utf-8") as f:
+                        f.write("foxtrot")
+                    with open(os.path.join(test_tmp_dir2, "zulu.txt"), "w", encoding="utf-8") as f:
+                        f.write("zulu")
+                    with open(os.path.join(test_tmp_dir3, "existing.txt"), "w", encoding="utf-8") as f:
+                        f.write("existing")
+
+                    # Round-2 adversarial finding (Critical): FR-A1 needs the
+                    # real File > Open Folder / Ctrl+O path exercised, not
+                    # app.openFolder() called directly. The only truly
+                    # non-synthesizable segment is the native OS picker
+                    # itself — stub only its return value here, keeping the
+                    # real renderer -> bridge -> WindowApi chain intact.
+                    def stubbed_open_folder_dialog():
+                        return window.evaluate_js("window.__nextDialogPath ?? null")
+                    api.open_folder_dialog = stubbed_open_folder_dialog
+
+                    # Round-2 adversarial finding (Critical, FR-A22): the
+                    # shell has 0 file-write API of its own (INTENT 7), so an
+                    # out-of-band real file is dropped into test_tmp_dir3
+                    # right after its first real read, so a later Refresh
+                    # click's re-read genuinely picks up something new on
+                    # disk instead of the test merely re-reading unchanged
+                    # content.
+                    original_read_dir = api.read_dir
+                    read_dir_counts = {}
+
+                    def counting_read_dir(dir_path):
+                        result = original_read_dir(dir_path)
+                        if dir_path == test_tmp_dir3:
+                            read_dir_counts[dir_path] = read_dir_counts.get(dir_path, 0) + 1
+                            if read_dir_counts[dir_path] == 1:
+                                with open(os.path.join(test_tmp_dir3, "appeared-on-refresh.txt"), "w", encoding="utf-8") as f:
+                                    f.write("new")
+                        return result
+                    api.read_dir = counting_read_dir
+
+                    time.sleep(0.3)
+                    suite_path = os.path.join(root_dir, "scripts", "phase7-suite.js")
+                    with open(suite_path, "r", encoding="utf-8") as f:
+                        suite_code = f.read()
+                    with open(os.path.join(root_dir, "package.json"), "r", encoding="utf-8") as f:
+                        pkg_version = json.load(f)["version"]
+                    window.evaluate_js("window.__testTmpDir = " + json.dumps(test_tmp_dir) + ";")
+                    window.evaluate_js("window.__testTmpDir2 = " + json.dumps(test_tmp_dir2) + ";")
+                    window.evaluate_js("window.__testTmpDir3 = " + json.dumps(test_tmp_dir3) + ";")
+                    window.evaluate_js("window.__expectedVersion = " + json.dumps(pkg_version) + ";")
+                    window.evaluate_js(suite_code)
+                    window.evaluate_js("""
+                        (async () => {
+                            try {
+                                const res = await window.__runPhase7TestSuite();
+                                window.__phase7Results = JSON.stringify(res);
+                            } catch (e) {
+                                window.__phase7Results = JSON.stringify({ success: false, results: [{ id: 'RUNNER_ERR', pass: false, msg: String(e) }] });
+                            }
+                        })();
+                    """)
+                    for _ in range(150):
+                        time.sleep(0.1)
+                        res = window.evaluate_js("window.__phase7Results")
+                        if res:
+                            sys.stdout.write(f"[pywebview] Phase 7 Results: {res}\n")
+                            sys.stdout.flush()
+                            window.destroy()
+                            shutil.rmtree(test_tmp_dir, ignore_errors=True)
+                            shutil.rmtree(test_tmp_dir2, ignore_errors=True)
+                            shutil.rmtree(test_tmp_dir3, ignore_errors=True)
+                            os._exit(0)
+                            return
+                    sys.stderr.write("[pywebview] Error: Phase 7 test timed out waiting for results\n")
+                    sys.stderr.flush()
+                    window.destroy()
+                    shutil.rmtree(test_tmp_dir, ignore_errors=True)
+                    shutil.rmtree(test_tmp_dir2, ignore_errors=True)
+                    shutil.rmtree(test_tmp_dir3, ignore_errors=True)
+                    os._exit(1)
+                except Exception as e:
+                    sys.stderr.write(f"[pywebview] Error executing Phase 7 test: {e}\n")
+                    sys.stderr.flush()
+                    window.destroy()
+                    os._exit(1)
+                finally:
+                    shutil.rmtree(test_tmp_dir, ignore_errors=True)
+                    shutil.rmtree(test_tmp_dir2, ignore_errors=True)
+                    shutil.rmtree(test_tmp_dir3, ignore_errors=True)
+
+            t = threading.Thread(target=run_phase7, daemon=True)
             t.start()
             return
 

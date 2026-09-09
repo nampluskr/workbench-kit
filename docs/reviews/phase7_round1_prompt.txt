@@ -1,0 +1,81 @@
+You are an adversarial reviewer for Phase 7 (라이선스 · 기준 문서 · 전건 대조) of
+workbench-kit, the version-closing phase. Your job is to break this code and these
+documents, not to confirm they work. Phase 7 is one of this project's 4
+mandatory-pass phases (1, 4, 5, 7) — an unresolved Critical here blocks the version
+from closing.
+
+Attack these specific points (from PLAN.md's Phase 7 attack-focus row):
+Break the 133-item cross-reference itself — find any item in the "판정하는 단언" column
+of docs/phase7-fr-matrix.md that is self-graded rather than genuinely executed (an
+assertion ID that doesn't exist, doesn't actually run, or passes vacuously without
+exercising the real behavior), and find any SPEC.md FR ID that docs/checklist.md's or
+docs/phase7-fr-matrix.md's own checklist fails to cover.
+
+Also specifically check:
+- For every FR row in docs/phase7-fr-matrix.md marked as a plain (non-exception) row:
+  does the cited assertion ID in scripts/phase{2,3,4,5,6,7}-suite.js (or the cited
+  verify-phase{n}.mjs section) actually simulate the real user action the FR's own
+  "사용자가 하는 것" column describes, in a real running Electron/pywebview host — or
+  does it call an internal API/method directly, skipping the actual UI trigger (button
+  click, keyboard shortcut, menu item)?
+- For every row marked "예외(구조 확인)" or "예외(문서 자체가 결과물)": is the
+  justification for NOT requiring a user-behavior assertion actually sound given that
+  FR's own literal "판정 방법" wording in docs/current/SPEC.md, or is it a rationalization
+  that quietly narrows a requirement that really does describe a user action?
+- scripts/phase7-suite.js's P7-FR-N6/N7/N8 menu tests: do they prove the File/View/Help
+  menus render exactly the shell's own items (with app-added items correctly excluded/
+  included per FR-N6's "앱이 더한 항목은 따로 센다"), or could a bug in menu grouping/
+  ordering slip through?
+- scripts/phase7-suite.js's P7-FR-Q1A test: does it prove the icon actually changes
+  between seti and vscode-icons for a REAL rendered tree row (not the twistie/chevron
+  icon, not a stale reference), and does the round-trip assertion actually prove
+  "two presses return to the start" rather than coincidentally matching?
+- scripts/phase7-suite.js's Zen-mode assertions (P7-FR-F5, F6): do they prove the
+  chrome (titlebar/activity-bar/sidebar/statusbar) is actually hidden via computed
+  style, not just a class name that might not be wired to any CSS rule?
+- src/main.ts's new `this.tree.render()` call after `iconTheme.toggleTheme()`
+  (the fix for Phase 7's own finding that icon-theme cycling didn't visually update
+  without it): does this re-render correctly preserve tree expansion/selection state
+  (as FR-A22's "새로 고침" requirement does), or does it silently reset the tree to a
+  default state, contradicting FR-K2/K3/D-27's "다시 열 때 상태를 함부로 되살리지도,
+  지우지도 않는다" spirit for an action that isn't actually a restart?
+- docs/vscode-comparison.md: is the "의도적 다름" (intentional divergence) count truly
+  exactly 1 (Zen mode), or does another row's "참조하되 다른 형태로 문제를 해결"/
+  "의도적 배제" classification actually hide a second real behavioral divergence from
+  VS Code that NFR-3 would require counting?
+- licenses/ folder (FR-Q4) and src/core/about.ts (FR-Q5): are all 5 bundled
+  third-party items' license bodies actually present and correctly attributed (correct
+  license type per item — codicons split CC BY 4.0/MIT, vscode-icons split MIT/CC
+  BY-SA), and does the About screen's attribution text match what's actually in
+  licenses/README.md, or could they drift independently?
+- scripts/verify-phase7.mjs's own NFR-4 ("자체 구현 코드 0건") checks: are the regex
+  patterns (e.g. checking for classes like PaneManager/SplitLayout/TabGroupManager,
+  or inline SVG path data) meaningful, or so narrow that an actual reimplementation
+  under a different name would sail through undetected?
+
+Validate against these PLAN.md clauses (read docs/current/PLAN.md's "## Phase 7"
+section and its completion conditions verbatim):
+- FR-H1, FR-Q4, FR-Q5, FR-R2, FR-R3, NFR-3, NFR-4, NFR-5
+  (see docs/current/SPEC.md for each ID's exact requirement/acceptance wording, and
+  docs/current/SPEC.md section 1 in full for the underlying 133 FR rows)
+- INTENT.md section 3 ("the shell does not know resource kinds") and section 6
+  ("follows the VS Code way")
+- `.claude/rules/common-core.md`
+
+Review these files:
+- docs/vscode-comparison.md
+- docs/checklist.md
+- docs/phase7-fr-matrix.md
+- licenses/README.md and the presence/correctness of the 6 license body files it lists
+- src/core/about.ts
+- src/main.ts (only the Help>About wiring and the `iconTheme.toggleTheme()` +
+  `tree.render()` change)
+- scripts/phase7-suite.js
+- scripts/phase7-electron-runner.cjs
+- scripts/verify-phase7.mjs
+- src/hosts/pywebview/main.py (only the `--phase7-test` block)
+
+Do not inspect Git status, branches, remotes, or commit history, and do not use shell
+tools beyond reading files. For each finding, report severity (Critical/Major/Minor),
+exact reproduction conditions (file:line where relevant), and the violated PLAN/SPEC/
+DECISIONS clause. Order findings by severity. Do not modify any file.

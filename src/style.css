@@ -1107,6 +1107,23 @@ html, body, #app {
   color: var(--menu-hover-fg);
 }
 
+/* 10b. Help > 정보 overlay (FR-Q5, D-23, WK-037) */
+.workbench-about-dialog {
+  max-width: 420px;
+}
+
+.about-dialog-title {
+  font-size: 15px;
+  font-weight: 600;
+  margin-bottom: 15px;
+}
+
+.about-dialog-attribution p {
+  font-size: 13px;
+  margin: 0 0 10px;
+  line-height: 1.5;
+}
+
 .dv-drop-target-container {
   position: absolute;
   z-index: 9999;

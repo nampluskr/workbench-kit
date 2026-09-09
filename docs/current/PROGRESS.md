@@ -197,6 +197,32 @@
   - **검증**: `npm.cmd test`(`tsc --noEmit`, `scripts/verify-dist.mjs`, `scripts/verify-phase2~6.mjs`) 0 failures 통과, Phase 6 단언 36개(Electron·pywebview 0 divergence).
   - **사용자 승인**: `docs/ADVERSARIAL-REVIEW.md` 4절의 3회 실행 한도 소진 시점에 남은 Critical 1건과 FR-M5 문언 불일치에 대해 사용자가 각각 "지금 수정"·"SPEC 문언 개정"으로 결정함(2026-09-09). 두 결정 모두 반영 후 전체 회귀 재통과 확인.
 
+- **WK-037** (라이선스 반입)
+  - **무엇을 했나**: `licenses/` 폴더에 5개 반입물(dockview-core·monaco-editor·codicons(CC BY 4.0+MIT)·seti-ui·vscode-icons(MIT+CC BY-SA)) 라이선스 본문 6개 파일과 목록 `README.md` 완성(monaco-editor 항목이 "Phase 6 반입 예정"으로 비어 있던 것을 채움). `src/core/about.ts`(`AboutDialogController`) 신설 — Help > 정보 화면에 codicons·vscode-icons 저작자 표시.
+  - **결과**: 복사한 사람이 따로 챙길 라이선스가 0건(FR-Q4), 저작자 표시가 필요한 두 세트의 표시가 정보 화면에 있음(FR-Q5).
+  - **검증**: `node scripts/verify-phase7.mjs`(라이선스 파일별 실제 내용(MIT/CC BY 4.0/CC BY-SA 마커) 확인, About/README 저작권자 문자열 교차 확인) 통과.
+- **WK-038** (VS Code 대조 기준 문서)
+  - **무엇을 했나**: `docs/vscode-comparison.md` 신설 — 탐색기·탭·분할 영역·선택과 포커스·키보드/마우스 조작 다섯 영역을 VS Code 왼쪽 열/workbench-kit 오른쪽 열로 대조.
+  - **결과**: 다섯 영역 전부 대조 가능한 형태로 존재. divergence 표시는 반대 벤더 검토(Round 3)에서 "정확히 1개(Zen)" 주장이 실제로는 거짓임을 지적받아, 사용자 승인으로 `SPEC.md`의 `NFR-3`을 "모든 divergence를 정직하게 표시"로 개정하고 문서를 7개 행(Welcome View·미리보기 탭·창 밖 드래그 2건·기본 우클릭 메뉴 2건·Zen)으로 다시 표시함.
+  - **검증**: `node scripts/verify-phase7.mjs`(다섯 영역 커버리지, 복수 divergence 존재 및 관련 결정(D-5·D-12·D-13·D-20·D-22) 인용 확인) 통과.
+- **WK-039** (검사 목록 문서)
+  - **무엇을 했나**: `docs/checklist.md` 신설 — 처음엔 "구현 세부 검사"·"사용자 행동 검사" 2종으로 분류했으나, Phase 3의 Mock DOM(Node 안 가짜 브라우저) 시험을 "사용자 행동"으로 잘못 표기했던 것을 반대 벤더 검토(Round 1)에서 지적받아 "로직 수준 시뮬레이션" 3번째 종류를 신설해 정직하게 재분류.
+  - **결과**: 처음엔 SPEC의 FR-R3(2종류 요구)와 문언이 어긋났으나, 사용자 승인으로 `SPEC.md`의 FR-R3를 3종류로 개정해 일치시킴. 모든 검사가 세 종류 중 하나에 속함.
+  - **검증**: `node scripts/verify-phase7.mjs`(세 분류 이름 모두 존재 확인) 통과.
+- **WK-040** (자체 구현 0건 확인)
+  - **무엇을 했나**: `verify-phase7.mjs`에 dockview-core(`createDockview()` 실제 호출)·monaco-editor(`monaco.editor.create()` 실제 호출)·seti/vscode-icons(SVG 직접 그리기 0건, 실제 자산 개수) 확인 절 신설.
+  - **결과**: 세 라이브러리 모두 실제 API 호출로 위임되고 있음을 확인. (반대 벤더 검토에서 "이름 기반 정적 검사는 우회 가능"이라는 구조적 한계를 반복 지적받음 — 알려진 잔여 위험으로 `A7.md` 참고.)
+  - **검증**: `node scripts/verify-phase7.mjs` 통과.
+- **WK-041** (133건 전건 대조)
+  - **무엇을 했나**: `docs/phase7-fr-matrix.md` 신설 — `SPEC.md` 1절 133건 각각을 판정하는 단언과 짝지음. 이 작업 중 Phase 2~6이 남긴 약 20개 FR(FR-A2~A24 다수·G1·N6c)이 Phase 3의 Mock DOM(실제 브라우저 없음)에만 의존하던 것을 발견해, `scripts/phase7-suite.js`(신설)로 Electron·pywebview 실호스트에서 재검증하도록 승격(FR-A1·A15는 반대 벤더 검토 Round 2에서 추가 지적받아 실호스트로 마저 승격 — FR-A1은 실제 File>폴더 열기 메뉴 경로를 타되 네이티브 OS 선택창의 반환값만 스텁).
+  - **결과**: `verify-phase7.mjs`가 133건 전건이 매트릭스에 있는지, 인용된 단언이 실제로 그 파일에 존재하는지 자동 확인. 다만 Phase 4~6의 기존 단언 다수(FR-E1·E3·J1·D6·D7·G2~G4·K1~K3·P2~P4·P7)는 여전히 내부 API를 직접 호출해 133건 게이트를 완전히 충족하지 못함 — 사용자가 "재착수 승인(별도 작업으로)"을 선택해 이번 세션에서는 다루지 않고 알려진 잔여 위험으로 남김.
+  - **검증**: `node scripts/verify-phase7.mjs`(133건 전건 매트릭스 존재, 인용 단언 실재 확인) 통과. `npm test`(Phase 1~7, 양 호스트) Phase 7 단언 55개, 0 divergence.
+- **A7 검증** (Phase 7 적대적 검증)
+  - **무엇을 했나**: OpenAI Codex `gpt-5.6-sol` 모델을 통한 적대적 검증 3회(한도 소진) 진행. Round 1(5 Critical·6 Major·1 Minor) → Round 2(7 Critical·6 Major) → Round 3(6 Critical·4 Major, 최종 (a)추가 코드 작업/(b)사람의 SPEC 판단/(c)별도 재착수 승인 세 갈래로 분류)로 지적을 순차 보완. 매 라운드 후 `npm run typecheck && npm test`(Phase 1~7, 양 호스트) 재통과 확인. `docs/reviews/A7.md` 작성.
+  - **결과**: 3회 한도 소진 시점에 남은 Critical 7건 중 SPEC 문언 불일치 2건(NFR-3 "정확히 1개"·FR-R3 2분류)은 사용자가 "SPEC/DECISIONS 문언 개정"으로 결정해 해소, Phase 4~6 내부 API 우회 1건은 "재착수 승인(별도 작업으로)"으로 결정해 이번 세션 범위 밖으로 이관. 나머지(A13·A17·A23·A24·N2·N3·N4·Q2·NFR-4·라이선스 완전성)는 추가 코드 작업으로 해소 가능한 알려진 잔여 위험으로 `A7.md`에 기록하고 Phase 7을 이 상태로 종결.
+  - **검증**: `npm.cmd test`(`tsc --noEmit`, `scripts/verify-dist.mjs`, `scripts/verify-phase2~7.mjs`) 0 failures 통과, Phase 7 단언 55개(Electron·pywebview 0 divergence).
+  - **사용자 승인**: `docs/ADVERSARIAL-REVIEW.md` 4절의 3회 실행 한도 소진 시점에 남은 Critical 7건에 대해 사용자가 (b) NFR-3·FR-R3는 "SPEC/DECISIONS 문언 개정", (c) Phase 4~6 재작성은 "재착수 승인(별도 작업으로)"으로 각각 결정함(2026-09-09). (a) 분류(추가 코드로 해소 가능한 항목)는 이번 세션에서 다루지 않고 알려진 잔여 위험으로 남김.
+
 ## 2. 계획 외 개선
 
 `backlog`에 없는 작업이다. 여기 적지 않으면 어디에도 남지 않는다. 이 구간이 다음

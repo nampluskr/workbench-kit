@@ -1,0 +1,139 @@
+This is round 2 (of a 3-round max) for Phase 7 (라이선스 · 기준 문서 · 전건 대조) of
+workbench-kit, one of this project's 4 mandatory-pass phases. Round 1 found 5 Critical,
+6 Major, 1 Minor. Verify each round-1 finding directly against the current code — do
+not assume anything is fixed. Still try to break this.
+
+What changed since round 1, mapped to round-1 findings:
+
+1. Critical — matrix validated only that an FR label appears, not that citations
+   resolve. Fix: scripts/verify-phase7.mjs section 5b now parses every
+   `scripts/phase{n}-suite.js:ID` citation out of docs/phase7-fr-matrix.md and confirms
+   that literal ID string is actually defined as a record() call in that file (a
+   fabricated citation now fails the build). This does not independently re-verify
+   PASS/FAIL — that is still enforced by each phase's REQUIRED_PHASE{n}_ASSERTIONS
+   exhaustive manifest (every emitted ID must be pre-declared, present, and passing in
+   both hosts) which the full `npm test` chain already runs.
+
+2. Critical — ~20 "plain" FR rows (FR-A1-A5, A8-A12, A15-A17, A19-A24, G1, N6c) were
+   backed only by verify-phase3.mjs's Mock DOM Environment (a Node-side global.document
+   shim, 0 real browser/host participating), mislabeled as user-behavior. Fix:
+   - docs/checklist.md now has a 3rd category, "로직 수준 시뮬레이션" (logic-level
+     simulation), and Phase 3's Mock DOM section is reclassified into it, explicitly
+     NOT counted as user-behavior evidence.
+   - scripts/phase7-suite.js gained real-host coverage (Electron AND pywebview, real
+     DOM, real KeyboardEvent/MouseEvent dispatch against the actual rendered tree) for
+     FR-A2, A3, A4, A5, A8, A9, A10, A11, A12, A16, A17, A19, A20, A21, A22, A23, G1,
+     N6c — all of section 8/9 in the file. docs/phase7-fr-matrix.md's rows for these
+     now cite the new phase7-suite.js assertions, not the old mock-DOM ones.
+   - FR-A15 is the one exception left on the mock-DOM (logic-level simulation) citation
+     — it is an absence proof ("no means exists to change root from inside the tree"),
+     and moving it to a real host does not change what kind of proof it is. Please
+     assess whether this exception is sound or whether it too needs a real-host version.
+   - FR-A1 (File > Open Folder) still cites app.openFolder() rather than a literal File
+     menu click + native OS folder-picker interaction. The reasoning: File > Open
+     Folder's own production code path (handleOpenFolderDialog() ->
+     promptOpenFolderDialog() -> host bridge -> app.openFolder(selectedPath)) ends at a
+     REAL native OS dialog with no synthesizable trigger, the same category of
+     limitation already accepted for FR-N2 (real window drag) and FR-N3 (real window
+     resize). Please assess whether this reasoning actually holds for FR-A1 the same
+     way it holds for FR-N2/N3, or whether FR-A1 is meaningfully different.
+
+3. Critical — several phase7-suite.js assertions passed independently of the required
+   behavior (P7-FR-N3-DEFERRED hardcoded true; P7-FR-Q2 hardcoded true; N4 click-only
+   checks). Fixes:
+   - P7-FR-N3-DEFERRED removed entirely. FR-N3 is now judged by a new Node-side
+     structural check in verify-phase7.mjs (section 2b): confirms neither host's window
+     -creation call sets resizable: false / resizable=False. This is genuinely the
+     entire workbench-kit-owned surface for this FR — real edge-drag resize is 100% OS
+     chrome with 0 JS event path to intercept, so there is nothing further to
+     automate (same class as FR-N2).
+   - P7-FR-Q2 now actually drives all 3 color themes x 2 icon-theme states in a real
+     loop, confirming each combination applies the just-set color theme and that
+     exactly 2 distinct icon-theme classes appear across all 6 combinations (proving
+     neither axis clobbers the other), instead of a bare `true`.
+   - P7-FR-N4-MINIMIZE-CLICK/MAXIMIZE-CLICK messages were reworded to be honest about
+     their actual scope (proves the click reaches the real host bridge without error;
+     does NOT independently prove the OS window state changed, since the sandboxed
+     renderer cannot observe that). No Electron-runner-side win.isMinimized()/
+     isMaximized() cross-check was added this round — flagged as still open below.
+
+4. Critical — other plain rows call internals instead of the FR's UI action (FR-E1,
+   E3, J1, D6, D7, P2, P3, P4, G2-G4, K1-K3, P7, scattered across scripts/
+   phase4-suite.js, phase5-suite.js, phase6-suite.js). NOT fixed this round — these
+   suites belong to Phase 4/5/6, already closed with their own adversarial sign-off
+   (docs/reviews/A4.md, A5.md, A6.md) as frozen contracts. Rewriting them was judged too
+   large and too risky to attempt inside one Phase 7 round without explicit
+   authorization to reopen those closed phases. This is recorded as an open residual
+   risk in docs/phase7-fr-matrix.md's tally section and will need either a dedicated
+   follow-up effort or an explicit accept-as-is decision. Please continue treating this
+   as unresolved and say so plainly in your verdict — it is not something this round
+   claims to have fixed.
+
+5. Critical — vscode-comparison.md's "exactly 1 divergence" claim; round 1 named 5
+   specific rows (Welcome View absence, preview/pinned-tab absence, drag-out-of-window
+   no-op, no default context menus, an unspecified Ctrl+\ equivalent) as hidden
+   divergences under other labels ("참조하되 다른 형태로 문제를 해결", "의도적 배제").
+   NOT changed this round — this is a genuine interpretive question about what NFR-3's
+   "divergence" means, and I do not think either side should decide it unilaterally.
+   Please give your judgment directly: does NFR-3's "동작을 다르게 둔 것" (intentionally
+   different BEHAVIOR) cover a VS Code feature that workbench-kit does not implement AT
+   ALL (already governed by INTENT/BRIEF's explicit feature-scope decisions and the
+   SPEC's own excluded-items table, X-9/X-11), or is it specifically about a feature
+   that exists on both sides but behaves differently for the same user action/trigger
+   (which is what Zen mode is — F11 exists on both sides, does something different)?
+   If you conclude feature-absence also counts, please say explicitly whether that means
+   NFR-3's SPEC wording itself ("정확히 1개") needs a human-authored change, similar to
+   how you resolved Phase 6's FR-M5 ambiguity in that phase's round 2.
+
+Major/Minor fixes made this round:
+6. Menu tests (N6/N7/N8) now compare visible label text (not just ids), and N6 counts
+   app-added rows separately instead of silently absorbing them. N5 was split into
+   "0 permanent menu bar" (checked before the menu ever opens) and "exactly 3 groups"
+   (checked once opened).
+7. Icon-theme test (Q1A) now tracks one row's data-id explicitly across all 3
+   before/after/round-trip reads, instead of re-querying ".tree-icon" generically.
+8. Zen test (F5) now also checks the tab/editor area (#main-area) stays visible and
+   window.outerWidth/outerHeight are unchanged; F6 now checks all 4 chrome pieces are
+   restored (not just the titlebar).
+9. NFR-4 checks broadened: now require the real library's own entry point/factory to
+   actually be called (createDockview(), monaco.editor.create()), not just imported;
+   broadened the reimplementation-class-name blocklist; extended the inline-SVG scan to
+   vscode-icons.ts (was seti.ts only) and added an asset-count check for vscode-icons.
+10. checklist.md now has a scripts/verify-phase7.mjs section (was missing entirely).
+11. License/About checks now verify actual license-family content per file (MIT vs CC
+    BY 4.0 vs CC BY-SA, via regex against real file bodies) instead of only filename
+    existence, and cross-check About's copyright-holder strings against
+    licenses/README.md instead of independently re-typed values that could drift.
+12. F1 now checks computed display + a real increase in the editor area's rendered
+    width, not just a `.hidden` class name; F2/F3/F4 use computed display instead of
+    class-name checks; N9 now checks a real "workbench-kit vX.Y.Z · <branch>" string
+    matches the actually-running host, plus a new N9-PATH check that selecting a real
+    tree row updates the status bar's path zone to that row's real target; M4 now
+    tracks one persistent icon's glyph class across all 3 themes and requires its
+    computed color to actually differ.
+
+Full regression (npm run typecheck && npm test, all Phase 1-7, both hosts) currently
+passes with 0 failures after all the above changes.
+
+Review these files:
+- docs/vscode-comparison.md
+- docs/checklist.md
+- docs/phase7-fr-matrix.md
+- licenses/README.md
+- src/core/about.ts
+- src/main.ts (only the icon-theme render() fix and Help>About wiring — unchanged
+  since round 1)
+- scripts/phase7-suite.js
+- scripts/phase7-electron-runner.cjs
+- scripts/verify-phase7.mjs
+- src/hosts/pywebview/main.py (only the `--phase7-test` block, including its expanded
+  test-folder fixture)
+
+Do not inspect Git status, branches, remotes, or commit history, and do not use shell
+tools beyond reading files. For each finding, report severity (Critical/Major/Minor),
+exact reproduction conditions (file:line where relevant), and the violated PLAN/SPEC/
+DECISIONS clause. Order findings by severity. Do not modify any file. Conclude with an
+explicit verdict on whether Phase 7 has any remaining unresolved Critical — this is
+round 2 of a 3-round cap, so also state plainly which open items (if any) would still
+need a 3rd round, a human decision, or a separate follow-up effort rather than further
+code changes in this round.

@@ -666,7 +666,7 @@
     },
     {
       "id": "WK-037",
-      "status": "todo",
+      "status": "done",
       "priority": "P7",
       "category": "문서",
       "title": "반입물 라이선스와 저작자 표시",
@@ -678,12 +678,12 @@
         "WK-032"
       ],
       "doc": "PLAN.md#phase-7",
-      "done_at": null,
+      "done_at": "2026-09-09",
       "note": "FR-Q4 · FR-Q5 · C-5. 복사한 사람이 따로 챙길 것이 0건이어야 한다"
     },
     {
       "id": "WK-038",
-      "status": "todo",
+      "status": "done",
       "priority": "P7",
       "category": "문서",
       "title": "VS Code 대조 기준 문서",
@@ -695,12 +695,12 @@
         "WK-036"
       ],
       "doc": "PLAN.md#phase-7",
-      "done_at": null,
+      "done_at": "2026-09-09",
       "note": "FR-R2 · NFR-3. divergence가 2개 이상이면 미충족이다"
     },
     {
       "id": "WK-039",
-      "status": "todo",
+      "status": "done",
       "priority": "P7",
       "category": "문서",
       "title": "검사 목록 문서 — 두 종류를 가른다",
@@ -711,12 +711,12 @@
         "WK-038"
       ],
       "doc": "PLAN.md#phase-7",
-      "done_at": null,
+      "done_at": "2026-09-09",
       "note": "FR-R3 · NFR-5. 검사 통과만으로 기능 연결이 검증됐다고 보지 않는다"
     },
     {
       "id": "WK-040",
-      "status": "todo",
+      "status": "done",
       "priority": "P7",
       "category": "검증",
       "title": "자체 구현 0건 확인",
@@ -727,12 +727,12 @@
         "WK-037"
       ],
       "doc": "PLAN.md#phase-7",
-      "done_at": null,
+      "done_at": "2026-09-09",
       "note": "NFR-4. 반입물을 감싸는 얇은 층은 자체 구현이 아니다. 판정 기준을 문서에 적는다"
     },
     {
       "id": "WK-041",
-      "status": "todo",
+      "status": "done",
       "priority": "P7",
       "category": "검증",
       "title": "133건 전건 대조",
@@ -744,7 +744,7 @@
         "WK-040"
       ],
       "doc": "PLAN.md#phase-7",
-      "done_at": null,
+      "done_at": "2026-09-09",
       "note": "FR-H1 · NFR-5 · C-3(Windows에서 판정). 이번 버전의 마감 게이트다"
     },
     {
@@ -797,7 +797,7 @@
     },
     {
       "id": "WK-045",
-      "status": "todo",
+      "status": "done",
       "priority": "P7",
       "category": "검증",
       "title": "Phase 7 적대적 검증",
@@ -808,7 +808,7 @@
         "WK-041"
       ],
       "doc": "PLAN.md#phase-7",
-      "done_at": null,
+      "done_at": "2026-09-09",
       "note": "필수 통과. 공격 초점은 전건 통과가 자기 채점으로 만들어진 항목"
     }
   ]

@@ -1,6 +1,7 @@
 import { createWorkbenchLayout, WorkbenchLayoutElements } from './core/layout';
 import { setupWindowControls, closeWindow } from './core/window';
 import { ConfirmDialogController } from './core/dialog';
+import { AboutDialogController } from './core/about';
 import { StatusMessageController } from './core/statusmessage';
 import { TextEditorView } from './core/texteditor';
 import { MenuController } from './core/menu';
@@ -61,6 +62,7 @@ export class WorkbenchApp {
   /** Shell-internal picker for the File menu's "recent folder" item (D-16: a list, not just the most recent). Always enabled — unlike `contextMenu`, this is not the user-toggleable right-click feature (D-22). */
   private recentFoldersMenu: ContextMenuController;
   public confirmDialog: ConfirmDialogController;
+  public aboutDialog: AboutDialogController;
   public statusMessages: StatusMessageController;
   /** App-supplied item providers for the right-click device (FR-G6). Empty by default (D-22). */
   public contextMenuItemsForTreeNode: (nodeId: string) => ContextMenuItem[] = () => [];
@@ -105,6 +107,11 @@ export class WorkbenchApp {
     this.confirmDialog = new ConfirmDialogController(this.layout.root);
     this.editor.setDialogController(this.confirmDialog);
     this.statusMessages = new StatusMessageController(this.layout.statusbarMessage);
+
+    // Help > About (FR-Q5, D-23, WK-037): required attribution for the two
+    // CC-licensed icon sets.
+    this.aboutDialog = new AboutDialogController(this.layout.root, 'workbench-kit v0.1.0');
+    this.menu.setAction('help:about', () => this.aboutDialog.show());
 
     // Initialize TreeController and Explorer view titlebar (FR-A, D-9, D-30)
     this.tree = new TreeController(this.layout.sidebarContent, this.iconTheme);
@@ -165,8 +172,15 @@ export class WorkbenchApp {
     this.menu.setAction('view:cycle-color-theme', () => this.theme.cycleTheme());
     this.activityBar.setAction('activity:cycle-color-theme', () => this.theme.cycleTheme());
 
-    // Bind icon theme cycling (FR-Q1a: seti <-> vscode-icons, View menu only)
-    this.menu.setAction('view:cycle-icon-theme', () => this.iconTheme.toggleTheme());
+    // Bind icon theme cycling (FR-Q1a: seti <-> vscode-icons, View menu only).
+    // Phase 7 finding: toggling the theme alone only flips internal state —
+    // already-rendered tree rows keep resolving icons at render time, so
+    // without an explicit re-render the visible icons would not actually
+    // change until some unrelated refresh happened to redraw the tree.
+    this.menu.setAction('view:cycle-icon-theme', () => {
+      this.iconTheme.toggleTheme();
+      this.tree.render();
+    });
 
     // Bind Tree item opening rules (FR-B1 ~ FR-B4, FR-A6, FR-A14, D-5).
     // Which kind a node opens as is an app-layer decision (isContainer is a

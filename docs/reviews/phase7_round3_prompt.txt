@@ -1,0 +1,115 @@
+This is round 3 — the LAST round allowed under docs/ADVERSARIAL-REVIEW.md's 3-attempt
+cap — for Phase 7 (라이선스 · 기준 문서 · 전건 대조) of workbench-kit, one of this
+project's 4 mandatory-pass phases. Round 2 found 7 Critical, 6 Major. Verify each
+finding directly against the current code — do not assume anything is fixed. Still try
+to break this.
+
+What changed since round 2, mapped to round-2 findings:
+
+1. Critical — matrix citation parser only matched fully-qualified
+   `scripts/phaseN-suite.js:ID` tokens, missing bare IDs listed after the first
+   qualified one in the same cell (e.g. `` `file:ID1` `` · `` `ID2` `` · `` `ID3` ``).
+   Fix: scripts/verify-phase7.mjs section 5b now parses every backtick token in a row,
+   tracks the "current file" from the last qualified citation seen, and resolves bare
+   P{n}-FR-*-shaped tokens against it too. Checked-citation count assertion raised from
+   50+ to 100+ to prove this actually widened coverage.
+
+2. Critical — ~20 FR rows backed only by Phase 3's Mock DOM (no real host). Fix:
+   scripts/phase7-suite.js gained real-host FR-A1 and FR-A15 (both were explicitly
+   flagged as fixable in round 2):
+   - FR-A1: now goes through the REAL File > 폴더 열기 menu click ->
+     handleOpenFolderDialog() -> promptOpenFolderDialog() -> host bridge -> IPC chain.
+     Only the native OS picker's return value is stubbed (window.__nextDialogPath,
+     read back by a real dialog:open-folder IPC handler in the Electron runner / a
+     monkey-patched WindowApi.open_folder_dialog in pywebview's test mode) — the same
+     technique already used for Phase 6's real cross-process relaunch check. Opens P,
+     then Q via this real path, and proves P disappears from the tree entirely.
+   - FR-A15: promoted to this real host — checks the real rendered DOM has 0 "go up to
+     parent" affordance, and that real ArrowUp/ArrowLeft/Home keydowns never change
+     tree.getRoot().
+
+3. Critical — several assertions passed independently of the required behavior:
+   - FR-A22 (Refresh): added P7-FR-A22-NEWROW alongside the existing state-preservation
+     check. The shell has 0 file-write API (INTENT 7), so the Electron runner's
+     fs:read-dir handler / pywebview's WindowApi.read_dir now drop a real file into a
+     3rd dedicated test folder right after its first real read; clicking the real
+     Refresh button (a 2nd read) must show exactly 1 new row.
+   - FR-Q2: the 3x2 combination loop now also checks, in every one of the 6
+     combinations, that the sidebar and editor bounding boxes never overlap and the
+     tracked tree row's text color never equals its background (NFR-6's "0 overlaps
+     또는 읽을 수 없는 화면").
+   - FR-N4: an Electron-side win.isMinimized()/isMaximized() check (requiring
+     win.show()) was attempted but caused the whole runner to hang (ETIMEDOUT) in this
+     environment — reverted as not worth the reliability risk to the whole mandatory
+     gate. FR-N4 remains at the renderer-side "click reaches the real host bridge
+     without error" level only. Please assess whether this reliability trade-off was
+     the right call, or whether some other way to observe real N4 state exists.
+
+4. Critical — Phase 4/5/6 internal-API-bypass rows (FR-E1, E3, J1, D6, D7, G2-G4,
+   K1-K3, P2-P4, P7). NOT changed this round — same reasoning as round 2: rewriting
+   already-closed Phase 4/5/6 suites needs an explicit human decision to reopen them,
+   which has not been given. This is unresolved and known.
+
+5. Critical — "exactly 1 divergence" in vscode-comparison.md. NOT changed — round 2
+   gave a clear verdict (feature absence counts, NFR-3's "정확히 1개" wording needs a
+   human-authored change or the missing behaviors need implementing). No code or SPEC
+   change was made in response. Please re-confirm this verdict stands, since this will
+   be escalated to the user as-is.
+
+Major fixes made this round:
+6. N5-GROUPS now checks actual category labels (["File","View","Help"]), not just a
+   count of 3. N6 now checks a real .menu-separator exists between the 5 shell items
+   and any app-added ones, at the right position, and requires appFileRowCount > 0.
+7. FR-A9/A11/A18 now check the actual selected/toggled ids (contiguous range, exact
+   Ctrl-clicked pair, exact Shift-click range), not just counts. A18 also presses a 2nd
+   time and proves the -1 toggle-back, not just the +1.
+8. NFR-4 checks: kept the round-1 broadening (this round did not add more — round 2
+   correctly noted a perfect anti-evasion static check is unbounded; no further code
+   change was made here, flagged as accepted rather than "fixed").
+9. License/About checks: kept as round-1 left them (content-family regex + copyright-
+   holder cross-check) — round 2's critique that partial-match regexes admit truncated
+   files stands; no further change was made this round (same "diminishing returns on a
+   static check" reasoning as NFR-4).
+10. F1 already checked computed display + editor-width increase (round 1). F2/F3 now
+    also assert restoration on the 2nd toggle. F4 now checks both directions
+    (hide-statusbar-only AND hide-titlebar-only), not just one. F5/F6 already covered
+    all 4 chrome pieces + editor-area visibility + window-size invariance (Electron
+    only — pywebview's window.outerWidth/outerHeight was found unreliable there,
+    jumping to an unrelated value that only coincidentally matched the configured size
+    once Zen hid the chrome; this is flagged as a host-measurement limitation, not
+    fixed further).
+11. N9 now compares against the actual current package.json version (injected by the
+    runner/main.py at test time), not just a well-formed semver pattern — a future
+    drift between package.json and main.ts's hardcoded display string would now be
+    caught.
+
+Full regression (npm run typecheck && npm test, all Phase 1-7, both hosts) currently
+passes with 0 failures after all the above changes.
+
+Review these files:
+- docs/vscode-comparison.md
+- docs/checklist.md
+- docs/phase7-fr-matrix.md
+- licenses/README.md
+- src/core/about.ts
+- src/main.ts (only the icon-theme render() fix and Help>About wiring — unchanged
+  since round 1)
+- scripts/phase7-suite.js
+- scripts/phase7-electron-runner.cjs
+- scripts/verify-phase7.mjs
+- src/hosts/pywebview/main.py (only the `--phase7-test` block)
+
+Do not inspect Git status, branches, remotes, or commit history, and do not use shell
+tools beyond reading files. For each finding, report severity (Critical/Major/Minor),
+exact reproduction conditions (file:line where relevant), and the violated PLAN/SPEC/
+DECISIONS clause. Order findings by severity. Do not modify any file.
+
+This is the last round under the 3-round cap. Conclude with:
+1. An explicit verdict on whether Phase 7 has any remaining unresolved Critical.
+2. A clean, final enumeration of exactly which open items (if any) are (a) further
+   code/test work a future round could still do, versus (b) genuine SPEC/PLAN/DECISIONS
+   wording questions that only a human can resolve, versus (c) a separate follow-up
+   effort (e.g. reopening Phase 4-6's frozen suites) requiring explicit authorization
+   before any code changes. This enumeration will be handed directly to the user, so
+   please make it precise and complete rather than repeating prose from earlier
+   findings.

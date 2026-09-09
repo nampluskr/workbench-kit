@@ -263,7 +263,10 @@ VS Code의 세로 띠는 사이드바에 어떤 뷰를 띄울지 고르는 자�
 dockview가 2차원 격자 배치를 이미 구현하고 있고 그 코드가 VS Code에서 나왔다(D-24).
 검증된 구현을 가져다 쓴다면, 1차원으로 억지로 좁혀 VS Code와 다르게 동작하게 만들
 이유가 없다. 이 껍데기의 기준은 "VS Code 방식을 따른다"이고(INTENT 6절), 분할도
-그 방식을 따른다. 이 껍데기가 VS Code와 의도적으로 다른 것은 Zen 모드 하나뿐이다(D-12).
+그 방식을 따른다. 분할 자체(2차원 격자·경계 드래그·그룹 이동)는 VS Code와 같고,
+이 껍데기가 VS Code와 다르게 둔 전체 목록은 `docs/vscode-comparison.md`가 정본이다
+(Zen 모드(D-12) 외에 창 분리 배제(D-13), Welcome View 미채택 등도 있다 — NFR-3,
+2026-09-09 A7 리뷰 이후 개정).
 
 **배제한 대안**
 
@@ -480,7 +483,8 @@ VS Code의 미리보기 탭·고정 탭은 두지 않는다.
 
 **근거**
 
-VS Code 동작을 기본으로 삼는다(이 껍데기의 divergence는 Zen 모드 하나뿐 — D-12).
+VS Code 동작을 기본으로 삼는다 — 이 절이 다루는 분할·경계·그룹 이동은 VS Code와
+같다(전체 divergence 목록은 `docs/vscode-comparison.md`가 정본, NFR-3).
 VS Code는 좌우·상하로 나누고, 각 편집기 그룹 오른쪽 위에 분할 아이콘을 두며, 탭을
 가장자리로 끌어 새 그룹을 만든다. 그대로 따른다.
 
@@ -1043,7 +1047,8 @@ Electron과 pywebview가 **똑같이** 읽는다. 갈래마다 다른 빌드를 
 
 **근거**
 
-VS Code 동작을 기본으로 삼는다(divergence는 Zen 하나뿐 — D-12). VS Code에는 편집기
+VS Code 동작을 기본으로 삼는다 — 이 절이 다루는 칸 닫힘·최소 한 칸 유지는 VS Code와
+같다(전체 divergence 목록은 `docs/vscode-comparison.md`가 정본, NFR-3). VS Code에는 편집기
 그룹을 닫는 전용 버튼이 없다 — 그룹은 비면 사라지고(`workbench.editor.closeEmptyGroups`
 기본값), 마지막 그룹 하나는 늘 남는다. 그대로 따른다.
 
