@@ -1,229 +1,140 @@
-# User Test Notes — workbench-kit
+# User Test Notes — workbench-kit: Window and Editor
 
 > 기록 시작일: 2026-09-10  
 > 상태: 사용자 테스트 진행 중  
-> 범위: 코드 수정 없이 사용자 지적·요청, 확인 질문, 두 호스트의 실제 화면 관찰 결과를 기록한다.
+> 범위: 코드 수정 없이 `Title Bar`, `Status Bar`, `Editor Area`, `Focus Area`와 Selection 관련 사용자 요청·확인 결과를 기록한다.  
+> 관련 문서: Shell·Activity Bar·Explorer·Layout·Language·Menu 기록은 [user-test-notes.md](./user-test-notes.md)를 참조한다.
 
-## 테스트 환경과 확인 기준
+## `Title Bar`와 `Status Bar` 정보 배치
 
-| 항목 | 기록 |
-| --- | --- |
-| 비교 대상 | Electron 호스트, pywebview 호스트 |
-| 공통 산출물 | 두 호스트 모두 현재 `dist/` 산출물을 읽어 실행 중 |
-| 화면 관찰 시점 | 2026-09-10, 사용자가 두 호스트 창을 동시에 연 상태. 현재 화면 캡처로 `Explorer (View)`, `Editor Area`, `Title Bar`를 다시 대조했다. |
-| 실런타임 점검 | Electron·pywebview에서 `verify:dist`, `verify:phase4`, `verify:phase7`을 실행했다. 두 호스트가 같은 `dist/`를 렌더링하며 기존 검증 항목에서 차이가 0개임을 확인했다. |
-| 기록 원칙 | 사용자 요청, 실제 화면 관찰, 사용자 의도·기대 결과, 재검증 결과를 서로 섞지 않는다. 확인 전 항목은 추정하지 않는다. |
-| UI 용어 | UI 요소는 `docs/refs/vscode-ui-reference.md`에서 정의한 VS Code 공통 용어로 통일한다. |
-
-## `Activity Bar` Actions
-
-### UT-ACT-001 — `Activity Bar` Actions의 제거와 상·하단 배치
+### UT-CHR-001 — `Title Bar` 프로그램 정보의 좌측 정렬
 
 | 구분 | 내용 |
 | --- | --- |
-| 사용자 요청 | `Activity Bar`에서 `Split Editor Right`와 `Split Editor Down` 아이콘을 제거한다. `Toggle Title Bar` 아이콘은 `Activity Bar` 맨 위로 옮기고, `Toggle Status Bar` 아이콘은 맨 아래로 옮긴다. |
-| 현재 구현 점검 | 현재 `Activity Bar` 상단에는 `[Toggle Primary Side Bar] [Toggle Title Bar] [Toggle Status Bar] [Split Editor Right] [Split Editor Down] [Zen Mode]`가 있고, 하단에는 `[Color Theme]`이 있다. `Zen Mode`와 `Color Theme`은 UT-CHR-002에 따라 `Title Bar` 우측으로 이동하는 대상으로 이미 기록되어 있다. |
-| 제거 대상 | `Split Editor Right`와 `Split Editor Down` Actions를 `Activity Bar`에서 제거한다. `Split Editor` 기능 자체와 `Editor Tab Bar` 또는 메뉴에서 제공하는 진입 경로는 제거하지 않는다. |
-| 상단 배치 | `Toggle Title Bar`를 `Activity Bar`의 첫 번째 Action으로 배치한다. `Toggle Primary Side Bar`를 포함해 상단에 남는 다른 Actions보다 위에 표시한다. |
-| 하단 배치 | `Toggle Status Bar`를 `Activity Bar`의 마지막 Action으로 배치한다. 하단에 남는 다른 Actions가 있더라도 그 아래, 즉 맨 아래에 표시한다. |
-| 사용자의 의도 | 전역 레이아웃 표시를 제어하는 `Title Bar`와 `Status Bar` Actions를 각각 화면의 위·아래 방향과 대응되는 위치에 두고, Editor 분할 Actions는 `Activity Bar`에서 제거해 역할을 단순화한다. |
-| 기대 결과 | `Activity Bar` 맨 위에는 `Toggle Title Bar`, 맨 아래에는 `Toggle Status Bar`가 표시된다. `Split Editor Right`, `Split Editor Down`, `Zen Mode`, `Color Theme` 아이콘은 `Activity Bar`에 표시되지 않는다. `Toggle Primary Side Bar`를 비롯해 유지되는 다른 Actions는 두 끝점 사이에 배치된다. 각 Action의 아이콘과 `Tooltip`은 기존 제품 UI 언어 및 VS Code 아이콘 원칙을 따른다. |
-| 재검증 기준 | 두 호스트에서 `Activity Bar`의 맨 위와 맨 아래 Action을 확인한다. `Split Editor Right`와 `Split Editor Down` 아이콘이 없고, UT-CHR-002에 따라 `Zen Mode`와 `Color Theme`도 중복 표시되지 않는지 확인한다. `Toggle Title Bar`와 `Toggle Status Bar`를 각각 클릭해 해당 영역만 숨김·표시되는지 확인하고, `Split Editor` 기능은 `Editor Tab Bar` 또는 메뉴의 기존 진입 경로에서 계속 동작하는지 확인한다. |
+| 사용자 요청 | `Title Bar`에 표시되는 프로그램 이름 `workbench-kit`을 햄버거 아이콘 바로 오른쪽으로 옮겨 좌측 정렬한다. 표시 형식은 `Workbench-Kit v0.1 (YYYY-MM-DD) - {Host Name}`이며, 날짜는 마지막 커밋일(마지막 코드 수정일자)이다. `{Host Name}`은 Electron 호스트에서는 `Electron`, pywebview 호스트에서는 `PyWebView`로 표시한다. |
+| 실제 화면 관찰 | 현재 화면과 실런타임 검사에서 두 호스트의 `Title Bar` 햄버거 아이콘은 좌측, `workbench-kit`은 중앙, 창 버튼 3개는 우측에 있음을 확인했다. 햄버거 아이콘 옆에는 아직 지정한 프로그램·버전·날짜·호스트 정보 형식이 표시되지 않는다. |
+| 현재 판정 | 요청한 위치와 표시 형식과 다름. |
+| 사용자의 의도 | 확인 완료. 프로그램·버전·마지막 커밋일(마지막 코드 수정일자)·호스트 정보를 햄버거 아이콘 옆에서 한 줄로 확인한다. |
+| 기대 결과 | `Title Bar`에서 햄버거 아이콘 바로 오른쪽에 프로그램 정보가 좌측 정렬로 표시된다. Electron은 `Workbench-Kit v0.1 (마지막 커밋일) - Electron`, pywebview는 `Workbench-Kit v0.1 (마지막 커밋일) - PyWebView` 형식을 쓴다. |
+| 재검증 기준 | 두 호스트의 `Title Bar`에서 프로그램 정보가 햄버거 아이콘 바로 오른쪽에 좌측 정렬되는지, 표시한 날짜가 마지막 커밋일(마지막 코드 수정일자)인지, 버전·날짜·호스트 이름의 대소문자와 구분 기호가 지정 형식과 정확히 같은지 확인한다. |
 | 재검증 결과 | 미실시. |
 
-## `Primary Side Bar`의 `Explorer (View)`
-
-### UT-EXP-001 — `Explorer (View)` 제목
+### UT-CHR-002 — `Color Theme`·`Zen Mode` Actions의 `Title Bar` 우측 배치
 
 | 구분 | 내용 |
 | --- | --- |
-| 사용자 요청 | `Explorer (View)` 제목의 루트 폴더 이름을 `EXPLORER`로 바꾼다. |
-| 실제 화면 관찰 | 현재 두 호스트 창에서 `Explorer (View)` 제목에 `WORKBENCH-KIT`이 표시되고, `File Tree` 최상단에는 열린 `Root Folder` `workbench-kit`이 보인다. |
-| 현재 판정 | 요청과 다름. |
-| 사용자의 의도 | 확인 완료. 열린 `Root Folder`는 `File Tree` 최상단에서 이미 보이므로, `Explorer (View)` 제목에 같은 루트 폴더명을 별도로 중복 표시할 필요가 없다. |
-| 기대 결과 | `Explorer (View)` 제목에는 고정 제목 `EXPLORER`만 표시한다. 열린 `Root Folder`명은 `File Tree` 최상단에서 확인한다. |
-| 재검증 기준 | 두 호스트의 `Explorer (View)` 제목이 정확히 `EXPLORER`로 보이고, 제목에는 `Root Folder`명이 중복 표시되지 않는지 확인한다. |
+| 사용자 요청 | `_clones/tab-explorer-templates`와 같은 방식으로 `Color Theme` 전환과 `Zen Mode` 전환 아이콘을 `Activity Bar`에서 `Title Bar` 우측으로 옮긴다. |
+| 참조 구현 확인 | `_clones/tab-explorer-templates`의 `Title Bar` 우측 `Window Controls`에는 왼쪽부터 `[Zen Mode] [Color Theme] [Minimize] [Maximize/Restore] [Close]` 순서로 Actions가 배치되어 있다. `Zen Mode` Action은 활성 상태를 시각적으로 표시하고, `Color Theme` Action은 현재 Theme에 맞춰 아이콘 표시를 갱신한다. |
+| 현재 구현 점검 | 현재 workbench-kit의 `Zen Mode` Action은 `Activity Bar` 상단에, `Color Theme` Action은 `Activity Bar` 하단에 있다. `Title Bar` 우측에는 `[Minimize] [Maximize/Restore] [Close]`만 배치되어 있다. |
+| 현재 판정 | 두 전환 Actions의 위치가 참조 프로젝트 및 사용자 요청과 다르다. |
+| 사용자의 의도 | 확인 완료. 전역 화면 상태를 바꾸는 `Color Theme`과 `Zen Mode` Actions를 창 제어 영역 가까이에 모으고, `Activity Bar`에서는 제거한다. |
+| 기대 결과 | 두 호스트의 `Title Bar` 우측에 `[Zen Mode] [Color Theme] [Minimize] [Maximize/Restore] [Close]` 순서로 아이콘이 표시된다. `Activity Bar`에는 `Zen Mode`와 `Color Theme` Actions가 중복 표시되지 않는다. `Zen Mode` 아이콘은 현재 활성 여부를, `Color Theme` 아이콘은 현재 Theme 상태를 시각적으로 반영한다. 각 `Tooltip`과 접근성 이름은 제품 UI 언어 원칙에 따라 영어로 표시한다. 기존 `F11`과 Theme 전환 명령도 같은 상태를 변경한다. |
+| 재검증 기준 | Electron과 pywebview에서 `Title Bar` 우측 아이콘 순서와 `Activity Bar`의 중복 제거를 확인한다. 아이콘과 `Tooltip`을 이용해 `Zen Mode`와 모든 `Color Theme`을 각각 전환하고 상태 표시가 즉시 갱신되는지 확인한다. `Minimize`, `Maximize/Restore`, `Close`의 위치와 동작이 유지되는지 확인하고, `F11` 및 메뉴 명령으로 바꾼 상태도 같은 아이콘에 반영되는지 확인한다. |
 | 재검증 결과 | 미실시. |
 
-### UT-EXP-002 — `Explorer (View)`의 `View Toolbar / View Actions`
+### UT-STS-001 — `Status Bar` 우측 정보 제한
 
 | 구분 | 내용 |
 | --- | --- |
-| 사용자 요청 | `Explorer (View)`의 `View Toolbar / View Actions`를 VS Code 방식으로 바꾼다. 최종 순서는 `[New File] [New Folder] [Refresh] [Collapse All]`이며, VS Code 아이콘을 그대로 사용한다. |
-| 현재 상태 — 사용자 확인 | 현재 순서는 `[Preset Info] [Collapse All] [Refresh]`이다. |
-| 실제 화면 관찰 | 현재 두 호스트 창과 실런타임 검사에서 `Explorer (View)` `View Toolbar / View Actions`에 `[Preset Info] [Collapse All] [Refresh]` 3개가 있음을 확인했다. `Collapse All`과 `Refresh`는 실제 클릭 결과도 두 호스트에서 통과했다. |
-| 현재 판정 | 요청한 명령 구성과 다름. |
-| 사용자의 의도 | 확인 완료. 현재의 `Preset Info`를 제거하고, `Explorer (View)`에서 파일과 폴더를 만들 수 있는 `View Actions`를 추가한다. `Refresh`와 `Collapse All`은 유지하되 VS Code 순서로 배치한다. |
-| 기대 결과 | 두 호스트의 `Explorer (View)` `View Toolbar / View Actions`에 `[New File] [New Folder] [Refresh] [Collapse All]` 4개가 왼쪽에서 오른쪽 순서로 표시된다. `New File` 또는 `New Folder`를 누르면 이름을 입력하고, 현재 선택된 `File Tree` 폴더 아래에 각각 파일 또는 폴더를 생성한다. |
-| 재검증 기준 | 두 호스트에 4개 `View Actions`가 위 순서와 VS Code 아이콘으로 표시되고, `Preset Info`는 표시되지 않는지 확인한다. 현재 선택된 `File Tree` 폴더를 기준으로 파일과 폴더를 각각 하나씩 생성해 이름과 위치를 확인한 뒤, `Refresh`와 `Collapse All`도 한 번씩 실행해 결과를 확인한다. |
+| 사용자 요청 | `Status Bar` 우측에는 `Presets` 정보만 남긴다. |
+| 실제 화면 관찰 | 실런타임 검사에서 `Status Bar` 우측 기본 정보가 Electron에서는 `workbench-kit v0.1.0 · Electron`, pywebview에서는 `workbench-kit v0.1.0 · pywebview`임을 확인했다. 그 옆에는 `Presets: file, folder`도 표시된다. |
+| 현재 판정 | `Presets` 외에 프로그램·버전·호스트 정보가 함께 있으므로 요청과 다르다. |
+| 사용자의 의도 | 확인 완료. 프로그램 버전·호스트 정보는 `Title Bar`로 옮기고, `Status Bar` 우측은 `Presets` 정보만 표시해 간결하게 유지한다. |
+| 기대 결과 | Electron과 pywebview 모두 `Status Bar` 우측에 `Presets` 정보만 표시된다. 프로그램 이름·버전·날짜·호스트 이름 등 다른 제품 제공 정보는 `Status Bar` 우측에 표시되지 않는다. |
+| 재검증 기준 | 두 호스트에서 `Status Bar` 우측 영역을 확인해 `Presets` 정보만 있는지, 프로그램·버전·날짜·호스트 정보와 그 밖의 항목이 없는지 확인한다. |
 | 재검증 결과 | 미실시. |
 
-### UT-EXP-003 — `Primary Side Bar` 너비 조절
+## `Editor Area` 파일 선택
+
+### UT-EDT-001 — `File Tree` 파일·폴더 선택의 VS Code `Preview Tab` 동작
 
 | 구분 | 내용 |
 | --- | --- |
-| 사용자 요청 | `Primary Side Bar`의 너비를 사용자가 조절할 수 있게 한다. 초기 너비는 현재 폭으로 한다. 최소 너비는 `Explorer (View)` 제목 `EXPLORER`와 `View Toolbar / View Actions`의 4개 아이콘을 모두 표시할 수 있는 폭으로 하고, 우측 최대 확장 폭은 VS Code와 같은 수준으로 한다. 앱을 다시 열면 사용자가 조절한 폭은 유지하지 않고 초기 너비를 적용한다. |
-| 실제 화면 관찰 | 현재 화면에서 `Primary Side Bar`와 `Editor Area`를 구분하는 세로 경계선은 보인다. 현재 구현은 `Primary Side Bar` 너비를 240px로 고정하며, 이 경계에 너비 조절용 드래그 장치가 없다. |
-| 현재 판정 | 요청한 너비 조절을 지원하지 않는다. |
-| 사용자의 의도 | 확인 완료. `Explorer (View)` 제목과 4개 `View Actions`가 잘리지 않는 범위까지는 `Primary Side Bar`를 줄일 수 있어야 하며, 필요하면 VS Code와 같은 수준까지 넓혀 사용할 수 있어야 한다. 조절한 폭을 설정으로 보존할 필요는 없고, 앱을 다시 열면 항상 현재 화면의 초기 폭으로 시작해야 한다. |
-| 기대 결과 | `Primary Side Bar`와 `Editor Area` 사이 경계선을 드래그해 폭을 조절할 수 있다. 최소 폭에서는 `EXPLORER`와 `[New File] [New Folder] [Refresh] [Collapse All]`이 모두 보이고, 최대 폭은 VS Code와 같은 사용성 수준까지 확장된다. 앱을 다시 열면 `Primary Side Bar` 폭은 현재의 초기값으로 되돌아온다. |
-| 재검증 기준 | 두 호스트에서 경계선을 좌우로 드래그했을 때 `Primary Side Bar` 폭이 연속적으로 바뀌는지 확인한다. 최소 폭에서 `Explorer (View)` 제목과 4개 `View Actions`가 잘리지 않는지, 최대 폭에서 VS Code와 동등한 수준까지 확장되는지 확인한다. 폭을 바꾼 뒤 앱을 닫고 다시 열어 현재 초기 폭으로 복원되는지 확인한다. |
+| 사용자 요청 | `File Tree`에서 파일과 폴더를 한 번 클릭했을 때 모두 VS Code 방식의 `Preview Tab`으로 연다. 파일과 폴더 모두 `Preview Tab` 제목을 더블클릭하거나 `File Tree`에서 선택한 상태로 `Enter`를 누르면 `Pinned Tab`으로 확정한다. 단, `File Tree`의 폴더 항목을 마우스로 더블클릭하면 `Pinned Tab`으로 확정하지 않고 해당 폴더를 여는 동작을 수행한다. |
+| 현재 기준과의 차이 | 현재 `docs/vscode-comparison.md`는 `Preview Tab`·`Pinned Tab`을 사용하지 않고 파일 선택이 활성 `Tab` 내용을 바꾸는 방식이라고 기록한다. 이번 요청은 이 의도적 차이를 VS Code 방식으로 변경하는 요구다. |
+| 파일 한 번 클릭 | `File Tree`에서 파일을 한 번 클릭하면 `Editor Area`의 `Editor Tab Bar`에 `Preview Tab`으로 연다. `Preview Tab` 제목은 이탤릭으로 표시한다. 이미 열린 `Preview Tab`이 있으면 VS Code와 같이 해당 `Preview Tab`을 새로 선택한 파일로 대체한다. |
+| 파일 더블클릭 | `File Tree`에서 파일을 더블클릭하면 해당 파일 선택을 확정해 `Pinned Tab`으로 연다. `Tab` 제목의 이탤릭 표시를 해제한다. |
+| 폴더 한 번 클릭 | `File Tree`에서 폴더를 한 번 클릭하면 파일과 같은 규칙으로 이탤릭 `Preview Tab`에 연다. 기존 `Preview Tab`이 있으면 새로 선택한 폴더로 대체한다. |
+| 폴더 더블클릭 | `File Tree`의 폴더 항목을 더블클릭하면 `Pinned Tab`으로 전환하지 않는다. 해당 폴더를 열어 하위 항목을 표시하는 폴더 열기 동작을 수행한다. |
+| `File Tree`에서 `Enter` | 파일 또는 폴더를 `File Tree`에서 선택한 상태로 `Enter`를 누르면 해당 `Preview Tab`을 `Pinned Tab`으로 확정하고, `Tab` 제목의 이탤릭 표시를 해제한다. |
+| `Preview Tab` 제목 더블클릭 | 이탤릭으로 표시된 파일 또는 폴더의 `Preview Tab` 제목을 더블클릭하면 선택을 확정해 `Pinned Tab`으로 바꾸고, `Tab` 제목의 이탤릭 표시를 해제한다. 이 규칙은 `File Tree`의 폴더 항목 마우스 더블클릭과 구분한다. |
+| 실제 화면 관찰 | 두 호스트의 실런타임 검사에서 현재 파일 선택은 활성 `Tab` 내용을 바꾸며, 다른 파일을 선택해도 `Tab` 수가 1개로 유지됨을 확인했다. 파일과 폴더는 같은 열기 규칙을 쓰며, 이탤릭 `Preview Tab`과 더블클릭 확정 `Pinned Tab` 구분은 없다. |
+| 현재 판정 | 요청한 VS Code `Preview Tab`·`Pinned Tab` 동작을 지원하지 않는다. |
+| 사용자의 의도 | 확인 완료. 파일과 폴더 모두 단일 선택에서는 임시 탐색용 `Preview Tab` 규칙을 사용하고, `Preview Tab` 제목 더블클릭 또는 `File Tree`의 `Enter` 입력으로 `Pinned Tab`을 확정한다. 파일 항목의 마우스 더블클릭은 `Pinned Tab`으로 전환하지만, 폴더 항목의 마우스 더블클릭은 폴더를 여는 동작으로 사용한다. |
+| 기대 결과 | Electron과 pywebview에서 파일과 폴더를 한 번 클릭하면 같은 이탤릭 `Preview Tab`을 공유하고 새 단일 선택으로 대체된다. 파일 또는 폴더를 선택한 뒤 `Enter`를 누르거나 해당 `Preview Tab` 제목을 더블클릭하면 `Pinned Tab`이 된다. 파일 항목을 마우스로 더블클릭해도 `Pinned Tab`이 되지만, 폴더 항목을 마우스로 더블클릭하면 탭을 고정하지 않고 폴더가 열린다. |
+| 재검증 기준 | 두 호스트에서 파일 A와 폴더 A를 차례로 한 번 클릭해 동일한 이탤릭 `Preview Tab`이 선택 대상에 따라 대체되는지 확인한다. 파일 B를 마우스로 더블클릭해 이탤릭이 해제된 `Pinned Tab`을 확인한다. 폴더 B를 `File Tree`에서 마우스로 더블클릭해 `Pinned Tab` 전환 없이 하위 항목이 열리는지 확인한다. 파일 C와 폴더 C를 각각 한 번 클릭한 뒤 `Enter`를 눌러 `Pinned Tab`으로 전환되는지 확인한다. 마지막으로 파일과 폴더를 각각 `Preview Tab`으로 연 뒤 해당 `Tab` 제목을 더블클릭해 `Pinned Tab`으로 전환되는지 확인한다. |
 | 재검증 결과 | 미실시. |
 
-### UT-EXP-004 — `File Tree` 하위 폴더의 들여쓰기와 세로 정렬선
+### UT-EDT-002 — `Editor Tab Bar`의 `[+]` 배치
 
 | 구분 | 내용 |
 | --- | --- |
-| 사용자 요청 | `Explorer (View)`의 `File Tree`에서 하위 폴더를 펼칠 때 계층 들여쓰기를 적용한다. 세로 정렬선은 제거하지 않는다. |
-| 원인 — 사용자 확인 | 문제의 세로선은 `Activity Bar`와 `Primary Side Bar`의 구분선이 아니라 `File Tree`의 세로 정렬선이다. 하위 폴더가 열릴 때 들여쓰기가 적용되지 않아, 세로 정렬선이 `Primary Side Bar` 좌측 경계에 붙은 추가 선처럼 보인다. |
-| 재현 조건 — 사용자 확인 | `Explorer (View)`의 `File Tree`에서 폴더를 `v` 모양으로 아래로 연다. 하위 폴더 항목에 들여쓰기가 적용되지 않아 세로 정렬선이 좌측 경계에 나타난다. |
-| 실제 화면 관찰 | 현재 두 호스트 화면에서 `Activity Bar`와 `Primary Side Bar` 사이의 기본 세로 경계선과 펼쳐진 `Root Folder`를 확인했다. 현재 화면에서는 `Root Folder`와 바로 아래 항목의 시작 위치 차이가 충분히 드러나지 않아, 세로 `Indent Guides`가 좌측 경계에 붙은 추가 선처럼 보인다. 구현에는 깊이별 들여쓰기 계산이 있으나, 이 시각적 결과를 판정하는 기존 자동 검사는 없다. |
-| 현재 판정 | 사용자 화면에서 현상 확인. 들여쓰기의 실제 시각적 위치를 보완한 뒤 재검증 필요. |
-| 사용자의 의도 | 확인 완료. `File Tree`의 폴더 계층을 들여쓰기로 명확히 구분하고, 세로 정렬선은 각 계층의 들여쓰기 위치에서 계층 구조를 보조하도록 유지한다. |
-| 기대 결과 | 폴더를 펼치면 하위 폴더와 파일이 상위 폴더보다 오른쪽으로 들여쓰기된다. 세로 정렬선은 `Primary Side Bar`의 좌측 경계가 아니라 해당 `File Tree` 계층의 들여쓰기 위치에 나타난다. |
-| 재검증 기준 | 두 호스트에서 두 단계 이상 중첩된 `File Tree` 폴더를 펼치고 접는다. 각 하위 항목이 상위 항목보다 들여쓰기되고, 세로 정렬선이 각 계층의 들여쓰기 위치에만 나타나는지 확인한다. |
+| 사용자 요청 | `Editor Tab Bar`의 탭 추가 아이콘 `[+]`을 마지막 `Tab` 제목 바로 오른쪽에 붙인다. 탭이 하나도 없으면 `Editor Tab Bar` 맨 왼쪽에 `[+]`만 표시한다. 현재 우측 끝에 있는 탭 추가 아이콘을 이 위치로 옮긴다. 배치는 JupyterLab 방식과 같게 한다. |
+| 현재 상태 — 사용자 확인 | 탭 추가 아이콘 `[+]`이 `Editor Tab Bar` 우측 끝에 있다. |
+| 실제 화면 관찰 | 현재 화면과 두 호스트의 실런타임 검사에서 `[+]`이 `Split Right`, `Split Down` 다음인 `Editor Actions` 우측 끝에 있음을 확인했다. `[+]`을 클릭하면 `Untitled` `Tab`이 생성되지만, `[+]` 위치는 마지막 `Tab` 옆이 아니라 계속 우측 끝이다. |
+| 현재 판정 | 요청한 JupyterLab 방식의 배치를 지원하지 않는다. |
+| 사용자의 의도 | 확인 완료. 탭 추가 동작을 우측 여백에 분리하지 않고 현재 열린 탭들의 연속된 흐름에 붙여, 새 `Tab`이 생성될 위치를 명확히 한다. |
+| 기대 결과 | `Editor Tab Bar`에 `Tab`이 하나 이상 있으면 `[+]`은 항상 마지막 `Tab` 제목 바로 오른쪽에 표시된다. `Tab`이 0개이면 `[+]`만 맨 왼쪽에 표시된다. `[+]` 뒤의 남은 `Editor Tab Bar` 공간에는 탭 추가 아이콘이 다시 나타나지 않는다. |
+| 재검증 기준 | Electron과 pywebview에서 `Tab`이 0개·1개·2개 이상인 상태를 각각 만든다. 0개에서는 `[+]`만 왼쪽에 있는지, 1개 이상에서는 `[+]`이 마지막 `Tab` 바로 오른쪽에 있는지, 우측 끝에는 중복 `[+]`이 없는지 확인한다. `Tab`을 추가·닫을 때마다 `[+]` 위치가 마지막 `Tab`을 따라 즉시 바뀌는지 확인한다. |
 | 재검증 결과 | 미실시. |
 
-### UT-EXP-005 — `Explorer (View)` 아이콘의 Color Theme·File Icon Theme 적용
+### UT-EDT-003 — `Split Editor` 격자와 `Tab` 관리
 
 | 구분 | 내용 |
 | --- | --- |
-| 사용자 요청 | `Explorer (View)`의 아이콘 색상이 현재 `Color Theme`에 맞게 변경되도록 한다. `Light Color Theme`과 `Dark Color Theme` 사이를 전환했을 때 각 배경에서 아이콘이 명확하게 보여야 한다. 또한 `File Tree`의 폴더·파일 아이콘은 `_clones/tab-explorer-templates`의 VS Code 아이콘과 동일하게 적용하며, `Built-in`과 `vscode-icons` 두 `File Icon Theme`을 사용한다. |
-| 현재 상태 — 사용자 확인 | `Light Color Theme`과 `Dark Color Theme` 사이에서 변경해도 `Explorer (View)`의 아이콘 색상이 바뀌지 않는다. 현재 `File Tree`의 폴더·파일 아이콘도 `_clones/tab-explorer-templates`에 표시되는 VS Code 아이콘과 다르다. |
-| 참조 기준 점검 | `_clones/tab-explorer-templates`는 `Built-in`에서 VS Code Seti 글꼴 glyph를 사용하고, `vscode-icons`에서 파일 종류별 SVG를 사용한다. 파일명·복합 확장자·확장자·language ID 순으로 아이콘을 해석하고, 열린 폴더와 닫힌 폴더를 서로 다른 아이콘으로 표시한다. 이 프로젝트의 적용 결과는 해당 참조 프로젝트의 실제 자산과 매핑 결과를 기준으로 대조한다. |
-| 구현 상태 점검 | 현재 구현에는 Dark·Light·Gray Theme별 전경색 변수와 File Icon Theme의 Color Theme 전달 경로가 있고, `seti`와 `vscode-icons` Resolver도 존재한다. `View Actions`는 상위 전경색을 상속하고 File Icon Resolver도 Color Theme별 색상을 계산하도록 구성되어 있다. 그러나 사용자가 실제 창에서 확인한 결과는 Theme 전환 후 아이콘 색상이 반영되지 않으며, 폴더·파일 아이콘의 실제 모양도 참조 프로젝트와 일치하지 않는다. |
-| 적용 원칙 | `Color Theme`과 `File Icon Theme`은 독립적으로 동작한다. `Color Theme`은 아이콘의 가시성과 전경색을 결정하고, `File Icon Theme`은 `Built-in` 또는 `vscode-icons`의 자산과 파일 종류별 매핑을 결정한다. |
-| 현재 판정 | Theme별 색상 정의와 두 File Icon Resolver 경로는 존재하지만, 실제 색상과 폴더·파일 아이콘 표시 결과가 사용자 요청 및 참조 프로젝트와 일치하지 않는다. |
-| 사용자의 의도 | `Explorer (View)`의 `View Actions`, `Twistie (chevron)`, 폴더·파일 아이콘이 현재 `Color Theme`의 배경과 충분한 대비를 이루도록 한다. `File Tree`의 폴더·파일 아이콘은 `_clones/tab-explorer-templates`에서 확인한 `Built-in` 또는 `vscode-icons`의 자산과 매핑을 그대로 사용한다. |
-| 기대 결과 | `Light Color Theme`에서는 어두운 전경색, `Dark Color Theme`에서는 밝은 전경색이 적용되어 `Explorer (View)`의 모든 아이콘을 명확히 식별할 수 있다. `Built-in`을 선택하면 참조 프로젝트와 같은 Seti glyph가, `vscode-icons`를 선택하면 같은 파일 종류별 SVG가 표시된다. 열린·닫힌 폴더 상태와 파일명·확장자별 아이콘도 참조 프로젝트와 일치한다. Theme를 전환하면 앱을 다시 열지 않아도 즉시 갱신되며 Electron과 pywebview에서 같은 결과가 나온다. |
-| 재검증 기준 | 두 호스트에서 `Light Color Theme`과 `Dark Color Theme`, `Built-in`과 `vscode-icons`를 조합해 확인한다. 각 조합에서 `View Actions`, 펼침·접힘 `Twistie (chevron)`, 열린·닫힌 폴더 아이콘, 대표 파일명과 단일·복합 확장자의 파일 아이콘을 `_clones/tab-explorer-templates` 화면과 대조한다. `Built-in`의 Seti glyph와 `vscode-icons`의 SVG 자산·매핑이 참조와 일치하는지, Theme 전환 직후 색상과 아이콘이 즉시 갱신되는지 확인한다. |
+| 사용자 요청 | `Editor Area`의 `Split Editor`와 `Editor Group`을 VS Code와 같은 방식으로 사용한다. 오른쪽·아래쪽 분할로 2차원 격자가 만들어진 상태에서 `Editor Group` 사이 구분선을 보이고, 선택한 `Tab`을 다른 `Editor Group`으로 이동하며, 같은 `Editor Group` 안에서 `Tab` 순서를 바꿀 수 있어야 한다. 오른쪽 또는 아래쪽에 새 `Editor Group`을 만들 때는 빈 그룹이 아니라 이탤릭 제목의 `Untitled` `Preview Tab`이 추가된 상태로 생성한다. |
+| 현재 상태 — 사용자 확인 | `Split Editor`는 오른쪽·아래쪽에 생성되지만 새 `Editor Group`은 `Tab`이 없는 상태로 만들어진다. 이 빈 그룹을 닫으려면 먼저 `Tab`을 추가한 뒤 그 `Tab`을 닫아야 한다. 또한 `Editor Group` 사이 구분선이 보이지 않고, 선택한 `Tab` 이동도 정상 동작하지 않는다. |
+| 현재 기준과의 차이 | 현재 문서는 Dockview가 2차원 `Editor Group` 격자, 그룹 사이 `Tab` 이동, `Tab` 순서 변경, 경계 드래그를 관리한다고 정의한다. 이번 사용자 테스트에서는 이 정의와 실제 사용 결과가 일치하지 않는 것으로 기록한다. |
+| Dockview 사용 원칙 | Dockview가 제공하는 그리드 관리와 `Tab` 관리 기능을 임의로 제한하지 않고 그대로 사용한다. `Editor Group`의 2차원 배치, 구분선, 크기 조절, 그룹 간 `Tab` 이동, 그룹 안 `Tab` 순서 변경을 별도 제한 규칙으로 막지 않는다. |
+| 실제 화면 관찰 | 두 호스트의 실런타임 검사에서는 오른쪽·아래쪽 분할, 2차원 `Editor Group` 격자, 그룹 사이 크기 조절용 `Sash`, 같은 그룹 내 `Tab` 순서 변경, 다른 그룹으로의 `Tab` 이동이 모두 동작했다. 그러나 사용자가 실제 창에서 확인한 결과는 `Editor Group` 구분선이 눈에 보이지 않고 선택한 `Tab` 이동도 원활하지 않았다. |
+| 현재 판정 | Dockview의 내부 기능 경로는 두 호스트에서 존재하고 자동 조작은 통과한다. 다만 새 `Editor Group`이 빈 상태로 생성되는 동작, 실제 사용 화면의 구분선 가시성, 포인터 기반 `Tab` 이동 사용성은 요청을 충족하지 못하므로 보완 및 사람의 재검증이 필요하다. |
+| 사용자의 의도 | 확인 완료. `Editor Area`를 단순히 빈 분할만 생성하는 화면으로 두지 않고, 새 `Editor Group`을 만든 직후부터 `Untitled` `Preview Tab`을 포함한 정상적인 작업 영역으로 사용한다. 새 그룹을 제거하기 위해 사용자가 별도로 `Tab`을 만든 뒤 닫아야 하는 불필요한 절차를 없앤다. 격자 안의 `Editor Group`과 `Tab`은 VS Code처럼 자유롭게 관리한다. |
+| 기대 결과 | 오른쪽·아래쪽 `Split Editor`를 실행하면 새 `Editor Group`이 이탤릭 제목의 `Untitled` `Preview Tab`을 포함한 상태로 생성된다. 사용자는 별도로 `Tab`을 추가하지 않고 이 `Preview Tab`을 닫아 해당 `Editor Group`까지 닫을 수 있다. 분할을 반복하면 `Editor Area`에 2차원 격자가 생기고 인접 그룹의 경계가 분명히 보인다. `Tab`은 같은 그룹 안에서 순서를 바꾸거나 다른 그룹으로 이동할 수 있다. Electron과 pywebview에서 같은 결과가 나온다. |
+| 재검증 기준 | 두 호스트에서 `Tab`이 열린 상태로 오른쪽 분할과 아래쪽 분할을 각각 실행한다. 생성된 각 `Editor Group`에 처음부터 제목이 `Untitled`이고 이탤릭으로 표시된 `Preview Tab`이 있는지 확인한다. 별도로 `Tab`을 추가하지 않고 이 `Preview Tab`을 닫았을 때 해당 그룹도 함께 닫히는지 확인한다. 다시 2차원 격자를 만들고 각 그룹의 경계선과 크기 조절을 확인한다. 선택한 `Tab`을 같은 그룹 안에서 드래그해 순서를 바꾸고, 다른 그룹으로 드래그해 이동한 뒤 제목·보기·활성 상태가 유지되는지 확인한다. |
 | 재검증 결과 | 미실시. |
 
-### UT-EXP-006 — `Explorer (View)` Scrollbar의 Color Theme 적용
+## `Focus Area` 전환과 Selection 표시
+
+> 참조 기준: `_clones/tab-explorer-templates`의 `TreeModel`, `TabManager`, 실제 렌더링 코드와 Selection Focus 자동 검증. 선택 상태와 키보드 Focus를 서로 독립적으로 유지하는 방식을 workbench-kit에 적용한다.
+
+### UT-FCS-001 — `Explorer (View)`와 `Editor Group` 사이의 `Focus Area` 전환
 
 | 구분 | 내용 |
 | --- | --- |
-| 사용자 요청 | `Explorer (View)`의 `Scrollbar`에도 현재 `Color Theme`의 색상을 적용한다. |
-| 현재 상태 — 사용자 확인 | `Explorer (View)`의 `Scrollbar` 색상이 `Light Color Theme`과 `Dark Color Theme`에 맞게 변경되지 않는다. |
-| 구현 상태 점검 | 현재 스타일에는 `Explorer (View)` `Scrollbar`의 Track과 Thumb에 대한 Theme별 명시적 스타일이 없다. 따라서 `Explorer (View)`의 Theme 색상 체계와 별개인 기본 Scrollbar 표시가 나타날 수 있다. |
-| 현재 판정 | `Explorer (View)` `Scrollbar`에 제품의 `Color Theme`이 적용되지 않아 요청과 다르다. |
-| 사용자의 의도 | `File Tree`를 스크롤할 때 보이는 `Scrollbar`가 `Explorer (View)` 배경과 자연스럽게 어울리면서도 조작 위치를 식별할 수 있어야 한다. |
-| 기대 결과 | `Light Color Theme`과 `Dark Color Theme` 각각에 맞는 `Scrollbar` Track과 Thumb 색상이 적용된다. Thumb의 기본·hover·active 상태가 Theme 안에서 구분되며, Theme를 전환하면 색상이 즉시 갱신된다. Electron과 pywebview에서 같은 결과가 나온다. |
-| 재검증 기준 | 두 호스트에서 `File Tree` 항목을 충분히 늘려 세로 `Scrollbar`를 표시한다. `Light Color Theme`과 `Dark Color Theme`을 각각 적용해 Track과 Thumb의 기본·hover·active 색상을 확인하고, Theme 전환 직후 색상이 갱신되는지 확인한다. 가로 `Scrollbar`가 나타나는 조건에서도 같은 기준을 적용한다. |
+| 사용자 요청 | `_clones/tab-explorer-templates`에서 확인한 방식으로 `Explorer (View)`와 `Editor Group` 사이의 선택 영역 전환을 적용한다. |
+| 참조 구현 확인 | `Explorer (View)`의 빈 영역을 클릭하면 기존 `File Tree` 항목을 새로 선택하거나 열지 않고 `File Tree`로 Focus가 이동한다. 파일·폴더 행 클릭은 이 빈 영역 클릭과 별도의 항목 선택 동작이다. `Editor Group`의 `Tab` 또는 Editor 콘텐츠를 클릭하면 해당 그룹이 Active Editor Group이 되고 Focus가 이동한다. |
+| 키보드 전환 | `Tab`은 화면에 보이는 `File Tree`와 각 `Editor Group`을 순서대로 순환하고 마지막 영역 다음에는 처음 영역으로 돌아간다. `Shift+Tab`은 반대 방향으로 순환한다. `Ctrl+Tab`과 `Ctrl+Shift+Tab`은 Active Editor Group 안에서만 `Tab`을 전환하며 `Focus Area` 순환과 구분한다. |
+| 상태 유지 원칙 | `Focus Area`만 전환할 때 `File Tree`의 Selection, 각 `Editor Group`의 Active Tab, 열린 `Tab` 목록은 바뀌지 않는다. Selection은 유지하고 현재 Focus가 있는 영역만 `Focus Ring`으로 구분한다. |
+| 특수 상태 | `Explorer (View)`가 숨겨진 상태와 `Zen Mode`에서는 숨겨진 영역을 순환 대상에서 제외한다. `Split Editor` 상태에서는 현재 보이는 모든 `Editor Group`을 순환 대상에 포함한다. |
+| 기대 결과 | 마우스와 키보드로 `Explorer (View)`와 여러 `Editor Group` 사이를 전환할 수 있으며, 영역 전환만으로 선택 파일·폴더나 Active Tab이 임의로 바뀌지 않는다. Electron과 pywebview에서 같은 결과가 나온다. |
+| 재검증 기준 | 두 호스트에서 `File Tree` 항목 하나와 각 `Editor Group`의 Active Tab을 서로 다르게 선택한다. `Explorer (View)` 빈 영역, 각 `Editor Group`의 `Tab`과 콘텐츠를 차례로 클릭해 Focus 이동과 Selection 유지를 확인한다. 이어서 `Tab`과 `Shift+Tab`으로 모든 표시 영역을 양방향 순환하고, `Ctrl+Tab`으로 Active Editor Group 내부의 탭만 바뀌는지 확인한다. `Explorer (View)` 숨김과 `Zen Mode`에서도 숨겨진 영역을 건너뛰는지 확인한다. |
 | 재검증 결과 | 미실시. |
 
-## 공통 레이아웃 치수
-
-### UT-LYT-001 — 주요 VS Code UI 영역 30px 고정
+### UT-FCS-002 — `Explorer (View)`의 선택 항목 표시
 
 | 구분 | 내용 |
 | --- | --- |
-| 사용자 요청 | `Title Bar`, `Status Bar`, `Activity Bar`, `Explorer (View)`의 제목·`View Toolbar / View Actions`, `Editor Tab Bar`를 모두 30px로 고정한다. |
-| 적용 대상 | `Title Bar`(높이), `Status Bar`(높이), `Activity Bar`(너비), `Explorer (View)`의 제목·`View Toolbar / View Actions` 영역(높이), `Editor Tab Bar`(높이). |
-| 실제 화면 관찰 | 현재 산출물의 적용값은 `Title Bar` 높이 30px, `Status Bar` 높이 22px, `Activity Bar` 너비 50px, `Explorer (View)` 제목·`View Toolbar / View Actions` 높이 35px, `Editor Tab Bar` 높이 35px다. 화면 캡처에서도 영역별 크기 차이가 보인다. |
-| 현재 판정 | `Title Bar`만 30px다. 나머지 네 영역은 요청한 30px와 다르다. |
-| 사용자의 의도 | 확인 완료. 창 최대화·복원, 테마 변경, 시스템 디스플레이 배율 변경에도 지정한 치수를 CSS 픽셀 기준으로 고정한다. |
-| 기대 결과 | `Title Bar`, `Status Bar`, `Explorer (View)` 제목·`View Toolbar / View Actions`, `Editor Tab Bar`의 높이가 각각 정확히 30 CSS px이다. 세로 영역인 `Activity Bar`의 너비도 정확히 30 CSS px이다. 창 최대화·복원, 테마 변경, 시스템 디스플레이 배율 변경 후에도 값이 변하지 않는다. 두 호스트에서 같은 치수로 보인다. |
-| 재검증 기준 | 두 호스트에서 창을 최대화·복원하고, 모든 테마와 시스템 디스플레이 배율 변경 상태를 각각 확인한다. 각 상태에서 개발자 도구 또는 화면 측정 도구로 `Title Bar`, `Status Bar`, `Explorer (View)` 제목·`View Toolbar / View Actions`, `Editor Tab Bar`의 높이와 `Activity Bar`의 너비를 측정해 모든 값이 30 CSS px인지 확인한다. |
+| 사용자 요청 | `_clones/tab-explorer-templates`에서 확인한 방식으로 `File Tree`의 선택 파일·폴더를 표시한다. |
+| 참조 구현 확인 | `File Tree`의 Selection은 단일 `Tree Cursor`로 관리되며 Active Tab과 독립적이다. 선택된 행은 Selection 배경을 계속 유지하고, `File Tree`에 Focus가 있을 때만 선택 행 안쪽에 1px `Focus Ring`을 추가한다. Focus가 다른 영역으로 이동하면 `Focus Ring`만 없어지고 Selection 배경은 남는다. |
+| 빈 영역 클릭 | `Explorer (View)`의 빈 영역을 클릭하면 기존 선택 행을 유지한 채 `File Tree`로 Focus를 옮기고 해당 선택 행에 `Focus Ring`을 표시한다. 선택된 항목이 아직 없으면 처음 보이는 행을 `Tree Cursor`로 선택한다. 새 `Preview Tab`을 열거나 Active Tab을 변경하지 않는다. |
+| 독립 상태 원칙 | Active Tab을 변경해도 `Tree Cursor`가 해당 파일·폴더로 자동 이동하지 않는다. 방향키로 `Tree Cursor`를 이동할 때도 항목을 여는 입력 전에는 Active Tab이 바뀌지 않는다. 선택 행이 Viewport 밖으로 이동하면 해당 행이 다시 보이도록 Scroll 위치를 맞춘다. |
+| 시각 표시 | 선택 행 배경은 Editor 콘텐츠 배경과 같은 계열을 사용한다. hover 표시는 Selection과 구분하며, `Focus Ring`은 현재 `Focus Area`를 판별할 수 있는 대비를 갖는다. 이 규칙은 모든 `Color Theme`에 동일하게 적용한다. |
+| 기대 결과 | 사용자는 `File Tree`에서 어떤 항목이 선택되어 있는지 항상 확인할 수 있고, 동시에 Explorer와 Editor 중 어느 영역에 Focus가 있는지도 `Focus Ring` 유무로 구분할 수 있다. |
+| 재검증 기준 | 두 호스트의 각 `Color Theme`에서 파일과 폴더를 각각 선택한다. Explorer에 Focus가 있을 때 Selection 배경과 1px `Focus Ring`이 함께 보이는지, Editor로 Focus를 옮겼을 때 Selection 배경은 유지되고 `Focus Ring`만 사라지는지 확인한다. Explorer 빈 영역 클릭으로 기존 Selection과 탭 상태를 유지한 채 `Focus Ring`이 복원되는지 확인한다. Active Tab 전환과 방향키 이동이 서로의 Selection을 강제로 동기화하지 않는지도 확인한다. |
 | 재검증 결과 | 미실시. |
 
-## 표시 언어와 UI 용어
-
-### UT-LNG-001 — 제품 제공 UI 텍스트의 영어 통일
+### UT-FCS-003 — `Editor Group`의 Active Tab 표시
 
 | 구분 | 내용 |
 | --- | --- |
-| 사용자 요청 | `Menu Bar`와 모든 메뉴 항목, 화면의 UI 라벨·버튼·상태 메시지, 마우스를 올렸을 때 나타나는 `Tooltip`, 그 밖의 제품 제공 용어를 한국어가 아닌 영어로 표시한다. 실제 파일·폴더명과 사용자 데이터는 원문을 유지한다. |
-| 적용 대상 | `Menu Bar`, 드롭다운 메뉴, `Context Menu`, `View Actions`, 버튼, 다이얼로그, 상태 메시지, 빈 상태 안내, `Tooltip` 등 제품이 표시하는 모든 텍스트 UI. |
-| 실제 화면 관찰 | 실런타임 검사에서 `File` 메뉴의 `폴더 열기`, `최근 폴더`, `탭 닫기`, `폴더 닫기`, `끝내기`, `View` 메뉴의 한국어 항목 10개, `Help > 정보`가 두 호스트에 표시됨을 확인했다. `Title Bar` 프로그램명, `Explorer (View)` 제목, `View Actions` 등 일부 UI는 영어다. `Tooltip` 전체는 점검하지 않았다. `File Tree`의 실제 파일·폴더명은 사용자 데이터이므로 이 언어 점검 대상에서 제외한다. |
-| 현재 판정 | 제품 제공 UI에 한국어가 있으므로 요청과 다르다. 전체 `Tooltip` 언어는 추가 점검이 필요하다. |
-| 사용자의 의도 | 확인 완료. 제품이 제공하는 모든 UI 용어의 표시 언어를 영어로 일관되게 유지한다. 실제 파일·폴더명과 사용자 데이터는 제품 UI가 아니므로 원문을 보존한다. |
-| 기대 결과 | 사용자에게 보이는 제품 제공 텍스트 UI에서 한국어가 나타나지 않는다. 메뉴와 `Tooltip`을 포함한 같은 기능의 명칭은 두 호스트에서 같은 영어 표현을 쓴다. 실제 파일·폴더명과 사용자 데이터는 바꾸지 않는다. |
-| 재검증 기준 | Electron과 pywebview에서 모든 `Menu Bar` 메뉴·드롭다운·`Context Menu`·`View Actions`·다이얼로그·상태 메시지·빈 상태 안내를 열고, 각 버튼과 아이콘 위에 마우스를 올려 `Tooltip`을 확인한다. 제품 제공 텍스트 중 한국어가 0개인지, 두 호스트의 영어 표현이 같은지 확인한다. 실제 파일·폴더명과 사용자 데이터가 변경되지 않았는지도 확인한다. |
+| 사용자 요청 | `_clones/tab-explorer-templates`에서 확인한 방식으로 각 `Editor Group`의 선택된 `Tab`과 현재 Focus가 있는 그룹을 표시한다. |
+| 참조 구현 확인 | 각 `Editor Group`은 Active Tab을 하나씩 독립적으로 유지한다. 모든 그룹의 Active Tab은 활성 배경과 전경색으로 표시하며, 현재 Focus가 있는 Active Editor Group의 Active Tab에만 안쪽 1px `Focus Ring`을 추가한다. 다른 그룹으로 Focus가 이동해도 각 그룹의 Active Tab 표시는 유지되고 `Focus Ring`만 현재 그룹으로 이동한다. |
+| Tab 상태 표시 | Active Tab의 배경은 해당 Editor 콘텐츠 배경과 같은 계열로 연결하고 제목은 활성 전경색으로 표시한다. Inactive Tab은 흐린 전경색으로 구분한다. `Preview Tab` 제목은 이탤릭, `Pinned Tab` 제목은 일반 글꼴로 표시하며 Selection 및 Focus 표시와 함께 유지한다. |
+| 전환 동작 | `Tab` 또는 Editor 콘텐츠를 클릭하면 해당 그룹이 Active Editor Group이 되고 Focus가 이동한다. 다른 `Tab`을 클릭하면 그 탭이 해당 그룹의 Active Tab이 된다. `Focus Area` 전환만으로 Active Tab은 변경하지 않는다. |
+| 기대 결과 | 여러 `Editor Group`이 있는 상태에서 각 그룹의 Active Tab과 현재 Focus가 있는 Active Editor Group을 동시에 구분할 수 있다. `Preview Tab`과 `Pinned Tab` 상태도 이 표시 체계 안에서 명확하게 유지된다. |
+| 재검증 기준 | 두 호스트의 각 `Color Theme`에서 둘 이상의 `Editor Group`을 만들고 그룹마다 서로 다른 Active Tab을 선택한다. 모든 그룹의 Active Tab 배경이 유지되는지, 현재 Focus가 있는 그룹의 Active Tab에만 1px `Focus Ring`이 보이는지 확인한다. 마우스 및 `Tab`·`Shift+Tab`으로 Focus를 옮겨 `Focus Ring`만 이동하고 Active Tab은 유지되는지 확인한다. 각 그룹에서 Preview·Pinned·Inactive Tab의 글꼴과 전경색도 구분되는지 확인한다. |
 | 재검증 결과 | 미실시. |
 
-#### 확인된 메뉴 표기
+## 확인 대기 질문
 
-| 현재 표기 | 목표 표기 | 위치 |
-| --- | --- | --- |
-| `정보` | `About` | `Menu Bar` > `Help` |
-
-## `Menu Bar` 표시
-
-### UT-MNU-001 — `File`·`View`·`Help`의 VS Code 하위 메뉴 표시
-
-| 구분 | 내용 |
-| --- | --- |
-| 사용자 요청 | `Menu Bar`의 `File`, `View`, `Help` 우측 하위 메뉴 표시를 현재의 텍스트 삼각형에서 VS Code와 같은 `Twistie (chevron)` 아이콘으로 바꾼다. ASCII 문자 `>`를 쓰지 않는다. |
-| 현재 상태 — 사용자 확인 | `File`, `View`, `Help` 우측에 삼각형 하위 메뉴 표시가 있다. |
-| 실제 화면 관찰 | 실런타임 검사에서 두 호스트의 `Menu Bar`에 `File`, `View`, `Help`가 같은 순서로 표시되고 하위 메뉴가 열리는 것을 확인했다. 현재 하위 메뉴 표시는 텍스트 삼각형 `▶`다. `File Tree`의 폴더 펼침 표시는 ASCII 문자가 아닌 별도의 `Twistie (chevron)` 아이콘이다. |
-| 현재 판정 | 현재 텍스트 삼각형은 요청한 VS Code `Menu Bar` 표시와 다르다. |
-| 사용자의 의도 | 확인 완료. `Menu Bar`의 하위 메뉴 진입 표시는 텍스트 문자가 아니라 VS Code 메뉴에 사용되는 `Twistie (chevron)` 아이콘을 그대로 따른다. |
-| 기대 결과 | Electron과 pywebview 모두 `File`, `View`, `Help` 우측에 동일한 `Twistie (chevron)` 아이콘이 표시된다. 현재의 텍스트 삼각형 `▶`과 ASCII `>`는 표시되지 않는다. |
-| 재검증 기준 | 두 호스트에서 `Menu Bar`를 열고 `File`, `View`, `Help` 항목 각각의 우측 표시를 VS Code `Menu Bar` 화면과 대조한다. 세 항목에 동일한 `Twistie (chevron)` 아이콘이 사용되고 텍스트 삼각형 `▶`이나 ASCII `>`가 남아 있지 않은지 확인한다. |
-| 재검증 결과 | 미실시. |
-
-### UT-MNU-002 — `File`·`View` 메뉴 항목과 순서
-
-| 구분 | 내용 |
-| --- | --- |
-| 사용자 요청 | `Menu Bar`의 `File`과 `View` 항목을 아래 목표 구조와 순서로 변경한다. 사용자가 전달한 숫자는 순서를 설명하기 위한 것이므로 실제 메뉴의 라벨에는 표시하지 않는다. `Help` 메뉴는 기존 확정 내용을 유지한다. |
-| 참조 구현 확인 | `_clones/tab-explorer-templates`의 `File` 메뉴는 Open Folder, Recent Folders, Split Editor, Move Tab, Close Tab, Close All Tabs, Exit 구조이고, `View` 메뉴는 Color Theme, Icon Theme, Zen Mode, Show Sidebar, Show Status Bar 구조다. 이번 목표 구조는 이 표현 방식을 기준으로 workbench-kit에 필요한 항목을 재구성한 사용자 확정안이다. |
-| 현재 구현 점검 | 현재 workbench-kit의 `File` 메뉴는 `[폴더 열기] [최근 폴더] [탭 닫기] [폴더 닫기] [끝내기]`이고, `View` 메뉴는 한국어 라벨의 영역 Toggle, Zen Mode, Theme 전환, Split Editor, Active Group Tab 닫기, Context Menu Toggle로 구성되어 있다. 목표 구조·순서·영어 표시와 다르다. |
-| `Recent Folders` | `Recent Folders` 아래에 최근 경로 목록을 표시한다. 목록이 없으면 `(Empty)`를 표시하고, 우측에는 경로 삭제 Action을 제공한다. |
-| `Color Theme` | `White`, `Gray`, `Dark`를 이 순서로 표시한다. |
-| `Icon Theme` | `VS Code Built-in`, `VS Code Icons`를 이 순서와 표기로 표시한다. `Simple`은 표시하지 않는다. 아이콘 자산과 매핑 기준은 UT-EXP-005를 따른다. |
-| 닫기 Actions | `Close Active Tab`은 현재 Active Tab 하나를 닫으며 기존 `Close Tab` 동작과 같다. `Close Editor Group`은 Active Tab이 속한 `Editor Group` 전체를 닫는다. `Close All Tabs`는 열린 모든 Tab을 닫는다. `Close Split`이라는 표현은 사용하지 않는다. |
-| Keyboard Shortcut 표시 | VS Code 방식으로 `Keyboard Shortcut`이 정의된 메뉴 항목의 우측에 단축키를 정렬해 표시한다. 확정된 표기는 `Open Folder... — Ctrl+O`, `Close Active Tab — Ctrl+W`, `Exit — Alt+F4`, `Zen Mode — F11`, `Show Sidebar — Ctrl+B`다. 그 밖의 항목에는 임의의 단축키나 빈 단축키 텍스트를 표시하지 않는다. 메뉴 표기와 실제 키 입력 동작은 일치해야 한다. |
-| 구분선 | `File`에는 `Open Folder...` 다음, `Recent Folders` 영역 다음, `Close All Tabs` 다음에 구분선을 표시한다. `View`에는 `Color Theme` 영역 다음, `Icon Theme` 영역 다음, `Show Status Bar` 다음에 구분선을 표시한다. |
-| 기존 항목 이동 | `Preset Info`는 UT-EXP-002에 따라 `Explorer (View)`의 `View Actions`에서 제거하고 `View` 메뉴에 표시한다. `Split Right`와 `Split Down`은 UT-ACT-001에 따라 `Activity Bar`에서 제거하되 `File` 메뉴에서 제공한다. |
-| `Help` 유지 | `Help`는 `About` 단일 항목을 사용한다. `About`을 선택하면 현재와 같은 방식으로 별도의 정보 창을 연다. 제품 UI 영어 표시 원칙에 따라 `정보`라는 한국어 라벨은 표시하지 않는다. |
-| 현재 판정 | 현재 메뉴는 목표 항목, 순서, 그룹, 영어 표기를 충족하지 않는다. |
-| 기대 결과 | Electron과 pywebview에서 `File`과 `View` 메뉴가 아래 목표 구조와 같은 순서로 표시된다. 메뉴 라벨 앞에는 순서 번호를 표시하지 않는다. `Keyboard Shortcut`이 정의된 항목은 단축키가 우측 정렬로 표시되고, 정의되지 않은 항목에는 단축키가 표시되지 않는다. 현재 선택된 Color Theme, Icon Theme, 표시 상태를 나타내는 기존 상태 표시는 해당 메뉴 항목과 함께 정상 동작한다. |
-| 재검증 기준 | 두 호스트에서 `File`과 `View` 메뉴를 열어 아래 구조와 위에서 아래 순서를 대조한다. 각 Action을 실행하고 표시된 `Keyboard Shortcut`도 직접 입력해 같은 결과가 나오는지 확인한다. 단축키가 정의된 모든 항목의 우측 표기와 실제 동작이 일치하는지, 정의되지 않은 항목에 임의 표기가 없는지 확인한다. 최근 경로 표시·삭제, Theme 선택 상태, UI 영역 표시 상태가 메뉴를 다시 열었을 때 갱신되는지 확인한다. 메뉴 항목에 숫자 접두사가 없는지와 `Help > About`이 유지되는지도 확인한다. |
-| 재검증 결과 | 미실시. |
-
-#### 목표 메뉴 구조
-
-`File`
-
-- `Open Folder...` — `Ctrl+O`
-- 구분선
-- `Recent Folders`
-  - 목록이 없으면 `(Empty)`
-  - 우측 경로 삭제 Action
-- 구분선
-- `Split Right`
-- `Split Down`
-- `Close Active Tab` — `Ctrl+W`
-- `Close Editor Group`
-- `Close All Tabs`
-- 구분선
-- `Exit` — `Alt+F4`
-
-`View`
-
-- `Color Theme`
-  - `White`
-  - `Gray`
-  - `Dark`
-- 구분선
-- `Icon Theme`
-  - `VS Code Built-in`
-  - `VS Code Icons`
-- 구분선
-- `Zen Mode` — `F11`
-- `Show Sidebar` — `Ctrl+B`
-- `Show Title Bar`
-- `Show Status Bar`
-- 구분선
-- `Preset Info`
-
-`Help`
-
-- `About`
-  - 현재와 같은 별도의 정보 창 열기
-
-## 분할 문서
-
-`Title Bar`, `Status Bar`, `Editor Area`, `Focus Area`와 Selection 관련 기록은 [user-test-notes-editor.md](./user-test-notes-editor.md)에서 이어진다.
+현재 확인 대기 질문 없음.
