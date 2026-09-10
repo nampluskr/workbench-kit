@@ -226,4 +226,4 @@
 
 ## 분할 문서
 
-`Title Bar`, `Status Bar`, `Editor Area`, `Focus Area`와 Selection 관련 기록은 [user-test-notes-editor.md](./user-test-notes-editor.md)에서 이어진다.
+`Title Bar`, `Status Bar`, `Editor Area`, `Focus Area`와 Selection 관련 기록은 [user-tests-editor.md](./user-tests-editor.md)에서 이어진다.

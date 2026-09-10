@@ -3,7 +3,7 @@
 > 기록 시작일: 2026-09-10  
 > 상태: 사용자 테스트 진행 중  
 > 범위: 코드 수정 없이 `Title Bar`, `Status Bar`, `Editor Area`, `Focus Area`와 Selection 관련 사용자 요청·확인 결과를 기록한다.  
-> 관련 문서: Shell·Activity Bar·Explorer·Layout·Language·Menu 기록은 [user-test-notes.md](./user-test-notes.md)를 참조한다.
+> 관련 문서: Shell·Activity Bar·Explorer·Layout·Language·Menu 기록은 [user-tests-shell.md](./user-tests-shell.md)를 참조한다.
 
 ## `Title Bar`와 `Status Bar` 정보 배치
 
