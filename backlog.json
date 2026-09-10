@@ -1,0 +1,548 @@
+{
+  "$schema_version": "1",
+  "meta": {
+    "version": "v0.2",
+    "id_seed": "WK-049",
+    "updated": "2026-09-10",
+    "context_doc": "SPEC.md",
+    "note": "workbench-kit v0.2 작업 SSOT. priority P{n} = PLAN.md의 Phase 번호. deps는 권장 순서다. summary가 완료 조건이고, note 앞머리의 FR/NFR 번호가 SPEC.md 역참조다. 계약은 SPEC.md, 근거는 DECISIONS.md, Phase 순서와 적대적 검증 게이트는 PLAN.md. v0.1에서 대체되는 요구는 SPEC.md 0.1절 표를 본다. NFR-4(검증 단위를 작게 쪼갠다)는 task가 아니라 PLAN의 Phase 구성으로 판정한다 — 한 Phase가 반대 벤더 검토 3회 안에 미해결 Critical 0건으로 닫히는지로 본다. backlog CLI는 콘솔 인코딩 때문에 PYTHONIOENCODING=utf-8 없이 list를 실행하면 죽는다."
+  },
+  "enums": {
+    "status": [
+      "todo",
+      "in_progress",
+      "blocked",
+      "done"
+    ],
+    "priority": [
+      "P1",
+      "P2",
+      "P3",
+      "P4",
+      "P5",
+      "P6",
+      "P7"
+    ],
+    "category": [
+      "환경",
+      "빌드",
+      "껍데기",
+      "탐색기",
+      "칸·탭",
+      "확장점",
+      "편집",
+      "문서",
+      "검증"
+    ]
+  },
+  "tasks": [
+    {
+      "id": "WK-049",
+      "status": "todo",
+      "priority": "P1",
+      "category": "칸·탭",
+      "title": "임시 자리 열기와 대체 규칙",
+      "summary": "완료: 한 번 클릭하면 임시 자리에 열리고 다른 것을 한 번 클릭하면 같은 자리가 대체된다. 파일과 폴더가 같은 규칙을 쓰고, 한 칸의 임시 자리가 언제나 최대 1개다",
+      "where": "칸·탭 수명",
+      "doc": "PLAN.md#phase-1",
+      "note": "FR-P1 · FR-P2 · FR-P3 · FR-P10. 껍데기가 파일인지 폴더인지 아는 코드를 두지 않는다",
+      "parent": null,
+      "deps": [],
+      "done_at": null
+    },
+    {
+      "id": "WK-050",
+      "status": "todo",
+      "priority": "P1",
+      "category": "칸·탭",
+      "title": "확정 경로 — 더블클릭 두 갈래",
+      "summary": "완료: 파일 더블클릭과 임시 자리 제목 더블클릭이 확정하고, 트리에서 폴더 더블클릭은 확정하지 않고 펼친다. 그때 임시 자리는 임시인 채로 남는다",
+      "where": "칸·탭 수명",
+      "doc": "PLAN.md#phase-1",
+      "note": "FR-P4 · FR-P5 · FR-P6. 대상이 아니라 조작한 자리로 가른다 (D-2)",
+      "parent": null,
+      "deps": [
+        "WK-049"
+      ],
+      "done_at": null
+    },
+    {
+      "id": "WK-051",
+      "status": "todo",
+      "priority": "P1",
+      "category": "탐색기",
+      "title": "트리 키 — 오른쪽 화살표와 Enter",
+      "summary": "완료: 오른쪽 화살표가 폴더를 펼치고 파일에는 아무 일도 하지 않는다. Enter는 고른 것을 확정하며, 아직 열려 있지 않으면 바로 확정된 자리로 연다",
+      "where": "탐색기 트리",
+      "doc": "PLAN.md#phase-1",
+      "note": "FR-T1 · FR-T2 · FR-T3 · FR-P7. v0.1 FR-A6의 Enter 뜻을 대체한다",
+      "parent": null,
+      "deps": [
+        "WK-049"
+      ],
+      "done_at": null
+    },
+    {
+      "id": "WK-052",
+      "status": "todo",
+      "priority": "P1",
+      "category": "칸·탭",
+      "title": "확정 뒤 새 임시 자리",
+      "summary": "완료: 확정된 자리가 있는 상태에서 다른 것을 한 번 클릭하면 자리 수가 늘고 그중 정확히 1개가 임시다",
+      "where": "칸·탭 수명",
+      "doc": "PLAN.md#phase-1",
+      "note": "FR-P8. v0.1 FR-B3의 '탭 개수가 늘지 않는다'를 대체한다",
+      "parent": null,
+      "deps": [
+        "WK-049"
+      ],
+      "done_at": null
+    },
+    {
+      "id": "WK-053",
+      "status": "todo",
+      "priority": "P2",
+      "category": "껍데기",
+      "title": "임시와 확정의 시각 구분",
+      "summary": "완료: 세 색 테마 각각에서 임시 자리와 확정된 자리의 제목 글꼴 기울기가 실측으로 다르고, 두 제목 모두 배경과 대비를 갖는다",
+      "where": "시각 체계",
+      "doc": "PLAN.md#phase-2",
+      "note": "FR-P9",
+      "parent": null,
+      "deps": [
+        "WK-049"
+      ],
+      "done_at": null
+    },
+    {
+      "id": "WK-054",
+      "status": "todo",
+      "priority": "P2",
+      "category": "껍데기",
+      "title": "영역 순환 — Tab과 Ctrl+Tab의 구분",
+      "summary": "완료: Tab·Shift+Tab이 보이는 트리와 각 칸을 양방향 순환하고, Ctrl+Tab은 현재 칸 안에서만 자리를 전환한다. 숨겨진 영역은 순환에서 빠진다",
+      "where": "포커스",
+      "doc": "PLAN.md#phase-2",
+      "note": "FR-F1 · FR-F2 · FR-F4",
+      "parent": null,
+      "deps": [],
+      "done_at": null
+    },
+    {
+      "id": "WK-055",
+      "status": "todo",
+      "priority": "P2",
+      "category": "껍데기",
+      "title": "영역 전환이 상태를 바꾸지 않는다",
+      "summary": "완료: 영역을 한 바퀴 순환해도 트리 선택과 각 칸의 활성 자리가 그대로다. 탐색기 빈 영역 클릭은 선택을 유지한 채 포커스만 옮기고 새 자리를 열지 않는다",
+      "where": "포커스",
+      "doc": "PLAN.md#phase-2",
+      "note": "FR-F3 · FR-F5",
+      "parent": null,
+      "deps": [
+        "WK-053"
+      ],
+      "done_at": null
+    },
+    {
+      "id": "WK-056",
+      "status": "todo",
+      "priority": "P2",
+      "category": "껍데기",
+      "title": "선택 배경과 포커스 표시의 분리",
+      "summary": "완료: 선택 배경은 포커스가 떠나도 남고 포커스 표시만 현재 영역으로 옮겨 간다. 칸이 여럿이면 모든 칸의 활성 자리 표시가 유지되고 포커스 표시가 정확히 1개다. 세 테마 모두에서 성립한다",
+      "where": "시각 체계",
+      "doc": "PLAN.md#phase-2",
+      "note": "FR-F6 · FR-F10 · FR-F11",
+      "parent": null,
+      "deps": [
+        "WK-053"
+      ],
+      "done_at": null
+    },
+    {
+      "id": "WK-057",
+      "status": "todo",
+      "priority": "P2",
+      "category": "탐색기",
+      "title": "트리 커서와 활성 자리의 독립",
+      "summary": "완료: 활성 자리를 바꿔도 트리 커서가 따라 움직이지 않고, 방향키로 커서를 옮겨도 활성 자리가 바뀌지 않는다. 커서가 화면 밖으로 나가면 다시 보이도록 스크롤된다",
+      "where": "탐색기 트리",
+      "doc": "PLAN.md#phase-2",
+      "note": "FR-F7 · FR-F8 · FR-F9",
+      "parent": null,
+      "deps": [],
+      "done_at": null
+    },
+    {
+      "id": "WK-058",
+      "status": "todo",
+      "priority": "P3",
+      "category": "껍데기",
+      "title": "상단 바 우측 다섯 배치와 상태 표시",
+      "summary": "완료: 상단 바 오른쪽이 왼쪽부터 Zen·색 테마·최소화·최대화/복원·닫기 순서다. Zen 아이콘이 활성 여부를, 테마 아이콘이 현재 테마를 나타내고, F11과 메뉴로 바꾼 상태도 같은 아이콘에 반영된다",
+      "where": "창 껍데기",
+      "doc": "PLAN.md#phase-3",
+      "note": "FR-C1 · FR-C2 · FR-C3 · FR-C11. v0.1 FR-N1의 상단 바 구성을 대체한다",
+      "parent": null,
+      "deps": [],
+      "done_at": null
+    },
+    {
+      "id": "WK-059",
+      "status": "todo",
+      "priority": "P3",
+      "category": "껍데기",
+      "title": "세로 띠 정리와 위아래 방향 맞춤",
+      "summary": "완료: 세로 띠에 Zen·색 테마·분할 아이콘이 각각 0개이고, 맨 위가 상단 바 토글 맨 아래가 하단 바 토글이다. 칸 머리와 메뉴의 분할 경로는 그대로 동작한다",
+      "where": "창 껍데기",
+      "doc": "PLAN.md#phase-3",
+      "note": "FR-C4 · FR-C5 · FR-C6. v0.1 FR-N11을 대체한다",
+      "parent": null,
+      "deps": [],
+      "done_at": null
+    },
+    {
+      "id": "WK-060",
+      "status": "todo",
+      "priority": "P3",
+      "category": "껍데기",
+      "title": "상단 바 프로그램 정보 한 줄",
+      "summary": "완료: 햄버거 바로 오른쪽에 프로그램 정보가 한 줄로 좌측 정렬되고 형식이 SPEC FR-C7과 정확히 같다. 날짜가 마지막 커밋일이고 갈래 표기가 두 갈래에서 각각 정확하다",
+      "where": "창 껍데기",
+      "doc": "PLAN.md#phase-3",
+      "note": "FR-C7 · FR-C8 · FR-C9",
+      "parent": null,
+      "deps": [],
+      "done_at": null
+    },
+    {
+      "id": "WK-061",
+      "status": "todo",
+      "priority": "P3",
+      "category": "껍데기",
+      "title": "하단 바 오른쪽을 앱에게 넘긴다",
+      "summary": "완료: 하단 바 오른쪽에 껍데기가 놓은 프로그램·버전·갈래 정보가 0개이고 프리셋 정보만 남는다",
+      "where": "창 껍데기",
+      "doc": "PLAN.md#phase-3",
+      "note": "FR-C10. v0.1 FR-N9를 대체한다",
+      "parent": null,
+      "deps": [
+        "WK-060"
+      ],
+      "done_at": null
+    },
+    {
+      "id": "WK-062",
+      "status": "todo",
+      "priority": "P4",
+      "category": "껍데기",
+      "title": "File 메뉴 구조",
+      "summary": "완료: File의 항목 목록·순서·구분선 위치가 SPEC FR-M1·FR-M6과 정확히 같고 그 밖의 껍데기 항목이 0개다. Recent Folders가 저장된 경로를 모두 보이고 비면 (Empty)가 보이며 행마다 삭제가 동작한다",
+      "where": "메뉴",
+      "doc": "PLAN.md#phase-4",
+      "note": "FR-M1 · FR-M6 · FR-M7. v0.1 FR-N6을 대체한다",
+      "parent": null,
+      "deps": [],
+      "done_at": null
+    },
+    {
+      "id": "WK-063",
+      "status": "todo",
+      "priority": "P4",
+      "category": "껍데기",
+      "title": "View 메뉴 구조",
+      "summary": "완료: View의 항목 목록·순서·구분선이 SPEC FR-M2·FR-M6과 같다. Color Theme 셋과 Icon Theme 둘이 목표 표기·순서이고 Simple이 0건이다. Preset Info가 View에 있고 눌러서 동작한다",
+      "where": "메뉴",
+      "doc": "PLAN.md#phase-4",
+      "note": "FR-M2 · FR-M6 · FR-M8 · FR-M9 · FR-M12. v0.1 FR-N7을 대체한다",
+      "parent": null,
+      "deps": [],
+      "done_at": null
+    },
+    {
+      "id": "WK-064",
+      "status": "todo",
+      "priority": "P4",
+      "category": "껍데기",
+      "title": "단축키 표시와 실제 동작의 일치",
+      "summary": "완료: 단축키가 정의된 다섯 항목에만 오른쪽 정렬 표기가 있고 나머지에는 0건이다. 표기한 키를 직접 눌렀을 때 메뉴를 누른 것과 같은 결과가 난다",
+      "where": "메뉴",
+      "doc": "PLAN.md#phase-4",
+      "note": "FR-M4 · FR-M5",
+      "parent": null,
+      "deps": [
+        "WK-062"
+      ],
+      "done_at": null
+    },
+    {
+      "id": "WK-065",
+      "status": "todo",
+      "priority": "P4",
+      "category": "껍데기",
+      "title": "하위 메뉴 표시와 Help",
+      "summary": "완료: File·View·Help의 하위 메뉴 표시가 같은 chevron 아이콘이고 텍스트 삼각형과 ASCII 꺾쇠가 0건이다. Help는 About 하나이고 눌러서 정보 창이 열린다",
+      "where": "메뉴",
+      "doc": "PLAN.md#phase-4",
+      "note": "FR-M11 · FR-M3",
+      "parent": null,
+      "deps": [],
+      "done_at": null
+    },
+    {
+      "id": "WK-066",
+      "status": "todo",
+      "priority": "P4",
+      "category": "칸·탭",
+      "title": "세 닫기 명령",
+      "summary": "완료: Close Active Tab·Close Editor Group·Close All Tabs가 각각 활성 자리 하나·그 칸 전체·열린 자리 전부를 닫는다. 세로 띠와 우클릭에는 칸 닫기 항목이 계속 0개다",
+      "where": "칸·탭 수명",
+      "doc": "PLAN.md#phase-4",
+      "note": "FR-M10. v0.1 FR-D8·FR-J6의 '세 자리 모두 0개'를 대체한다 (D-5)",
+      "parent": null,
+      "deps": [
+        "WK-062"
+      ],
+      "done_at": null
+    },
+    {
+      "id": "WK-067",
+      "status": "todo",
+      "priority": "P4",
+      "category": "칸·탭",
+      "title": "분할로 생기는 칸의 임시 자리",
+      "summary": "완료: 오른쪽·아래쪽 분할로 만든 새 칸이 Untitled 임시 자리를 갖고 생기고, 별도로 자리를 추가하지 않고 그 자리만 닫으면 칸도 함께 닫힌다",
+      "where": "칸·탭 수명",
+      "doc": "PLAN.md#phase-4",
+      "note": "FR-P11 · FR-P12",
+      "parent": null,
+      "deps": [
+        "WK-049"
+      ],
+      "done_at": null
+    },
+    {
+      "id": "WK-068",
+      "status": "todo",
+      "priority": "P5",
+      "category": "탐색기",
+      "title": "탐색기 제목 고정",
+      "summary": "완료: 탐색기 제목이 폴더를 열기 전과 연 뒤 모두 EXPLORER이고 루트 폴더명이 제목에 0건이다",
+      "where": "탐색기 뷰",
+      "doc": "PLAN.md#phase-5",
+      "note": "FR-X1",
+      "parent": null,
+      "deps": [],
+      "done_at": null
+    },
+    {
+      "id": "WK-069",
+      "status": "todo",
+      "priority": "P5",
+      "category": "탐색기",
+      "title": "뷰 제목줄 액션 넷",
+      "summary": "완료: 뷰 제목줄에 New File·New Folder·Refresh·Collapse All 넷이 이 순서로 보이고 프리셋 정보가 0개다",
+      "where": "탐색기 뷰",
+      "doc": "PLAN.md#phase-5",
+      "note": "FR-X2 · FR-X3. v0.1 FR-A20의 '정확히 둘'을 대체한다 (D-6)",
+      "parent": null,
+      "deps": [],
+      "done_at": null
+    },
+    {
+      "id": "WK-070",
+      "status": "todo",
+      "priority": "P5",
+      "category": "확장점",
+      "title": "만들기 인라인 입력 장치",
+      "summary": "완료: New File·New Folder가 이름을 받는 입력 행을 띄우고 Enter로 앱 호출이 1건 생기며 껍데기 쪽 생성 동작이 0회다. Escape면 입력 행이 사라지고 앱 호출이 0건이다",
+      "where": "탐색기 뷰",
+      "doc": "PLAN.md#phase-5",
+      "note": "FR-X4. 껍데기는 파일을 만들지 않는다 — v0.1 D-30의 이 절반은 그대로 지킨다",
+      "parent": null,
+      "deps": [
+        "WK-069"
+      ],
+      "done_at": null
+    },
+    {
+      "id": "WK-071",
+      "status": "todo",
+      "priority": "P5",
+      "category": "탐색기",
+      "title": "탐색기 폭 조절",
+      "summary": "완료: 경계를 끌어 폭이 연속으로 바뀌고, 최소 폭에서 제목과 네 액션이 잘리지 않으며, 앱을 다시 열면 초기 폭으로 시작한다",
+      "where": "탐색기 뷰",
+      "doc": "PLAN.md#phase-5",
+      "note": "FR-X5 · FR-X6 · FR-X7. 조절한 폭을 저장하지 않는다 (D-8)",
+      "parent": null,
+      "deps": [
+        "WK-069"
+      ],
+      "done_at": null
+    },
+    {
+      "id": "WK-072",
+      "status": "todo",
+      "priority": "P5",
+      "category": "탐색기",
+      "title": "트리 들여쓰기와 세로 정렬선",
+      "summary": "완료: 두 단계 이상 중첩된 폴더에서 하위 항목이 상위보다 들여쓰기되고, 세로 정렬선이 각 계층의 들여쓰기 위치에 있다. 탐색기 왼쪽 경계에 붙은 선이 0개다",
+      "where": "탐색기 트리",
+      "doc": "PLAN.md#phase-5",
+      "note": "FR-X8 · FR-X9. 설계 변경이 아니라 v0.1 구현이 화면에서 어긋난 것을 고친다",
+      "parent": null,
+      "deps": [],
+      "done_at": null
+    },
+    {
+      "id": "WK-073",
+      "status": "todo",
+      "priority": "P6",
+      "category": "껍데기",
+      "title": "아이콘 색의 테마 전파",
+      "summary": "완료: 색 테마를 바꾸면 뷰 액션·chevron·폴더·파일 아이콘의 색이 모두 따라 바뀌고 세 테마 각각에서 배경과 대비를 갖는다. 앱을 다시 열지 않아도 즉시 반영된다",
+      "where": "시각 체계",
+      "doc": "PLAN.md#phase-6",
+      "note": "FR-X10 · FR-X14",
+      "parent": null,
+      "deps": [],
+      "done_at": null
+    },
+    {
+      "id": "WK-074",
+      "status": "todo",
+      "priority": "P6",
+      "category": "껍데기",
+      "title": "스크롤바 테마 적용",
+      "summary": "완료: 트리 스크롤바의 트랙과 손잡이에 테마 색이 적용되고 손잡이의 기본·hover·active가 서로 구분된다. 가로 스크롤바도 같다",
+      "where": "시각 체계",
+      "doc": "PLAN.md#phase-6",
+      "note": "FR-X11",
+      "parent": null,
+      "deps": [],
+      "done_at": null
+    },
+    {
+      "id": "WK-075",
+      "status": "todo",
+      "priority": "P6",
+      "category": "탐색기",
+      "title": "파일 아이콘을 참조 구현과 맞춘다",
+      "summary": "완료: 두 아이콘 테마 각각에서 대표 파일명·단일 확장자·복합 확장자의 아이콘이 참조 구현의 것과 같고 열린 폴더와 닫힌 폴더가 다르다",
+      "where": "시각 체계",
+      "doc": "PLAN.md#phase-6",
+      "note": "FR-X12 · FR-X13. 확장자 매핑표를 직접 만들지 않는다 (D-11 · NFR-6)",
+      "parent": null,
+      "deps": [],
+      "done_at": null
+    },
+    {
+      "id": "WK-076",
+      "status": "todo",
+      "priority": "P6",
+      "category": "껍데기",
+      "title": "공통 치수 30px",
+      "summary": "완료: 상단 바 높이·하단 바 높이·세로 띠 너비·탐색기 제목줄 높이·탭 줄 높이가 모두 30 CSS px이고, 최대화·복원과 테마 변경과 시스템 배율 변경 후에도 그대로다",
+      "where": "시각 체계",
+      "doc": "PLAN.md#phase-6",
+      "note": "FR-D1 · FR-D2",
+      "parent": null,
+      "deps": [],
+      "done_at": null
+    },
+    {
+      "id": "WK-077",
+      "status": "todo",
+      "priority": "P6",
+      "category": "문서",
+      "title": "치수 divergence 기록",
+      "summary": "완료: 이 치수가 VS Code와 다르다는 것이 기준 문서에 의도된 차이로 기록되어 있다",
+      "where": "기준 문서",
+      "doc": "PLAN.md#phase-6",
+      "note": "FR-D3 · NFR-5",
+      "parent": null,
+      "deps": [
+        "WK-076"
+      ],
+      "done_at": null
+    },
+    {
+      "id": "WK-078",
+      "status": "todo",
+      "priority": "P7",
+      "category": "껍데기",
+      "title": "제품 UI 텍스트 영어 통일",
+      "summary": "완료: 메뉴·우클릭·뷰 액션·다이얼로그·상태 문구·빈 상태 안내·도움말 풍선을 모두 열어 수집한 제품 텍스트에 한글이 0건이다. 같은 기능의 이름이 두 갈래에서 같고 실제 파일·폴더 이름은 그대로 보인다",
+      "where": "전 영역",
+      "doc": "PLAN.md#phase-7",
+      "note": "FR-L1 · FR-L2 · FR-L3. 언어를 바꾸는 장치는 만들지 않는다 (X-1)",
+      "parent": null,
+      "deps": [
+        "WK-063"
+      ],
+      "done_at": null
+    },
+    {
+      "id": "WK-079",
+      "status": "todo",
+      "priority": "P7",
+      "category": "검증",
+      "title": "이름 기반 정적 검사 보강",
+      "summary": "완료: 라이브러리를 직접 구현하지 않았는지 확인하는 검사가 지정한 파일·클래스 이름 밖에서도 성립한다",
+      "where": "검증 스크립트",
+      "doc": "PLAN.md#phase-7",
+      "note": "NFR-7. A7 이월분 중 이번 버전에서 다루는 유일한 항목이다 (사람 결정 2026-09-10)",
+      "parent": null,
+      "deps": [],
+      "done_at": null
+    },
+    {
+      "id": "WK-080",
+      "status": "todo",
+      "priority": "P7",
+      "category": "검증",
+      "title": "v0.1 회귀 대조",
+      "summary": "완료: SPEC 0.1절에서 대체한 10건 말고는 v0.1의 검사가 이번 산출물에서 그대로 통과한다. 통과하지 못하는 항목은 대체 목록에 있는지로 회귀와 의도된 변경을 가른다",
+      "where": "검증 스크립트",
+      "doc": "PLAN.md#phase-7",
+      "note": "NFR-2. 대체 목록이 회귀와 의도된 변경의 경계다",
+      "parent": null,
+      "deps": [],
+      "done_at": null
+    },
+    {
+      "id": "WK-081",
+      "status": "todo",
+      "priority": "P7",
+      "category": "문서",
+      "title": "기준 문서 divergence 갱신",
+      "summary": "완료: 기준 문서의 divergence 표시가 실제 동작과 일치한다. 이번에 없어진 차이(임시 자리 없음)와 새로 생긴 차이(공통 치수·새 탭 버튼 위치)가 모두 반영되어 있다",
+      "where": "기준 문서",
+      "doc": "PLAN.md#phase-7",
+      "note": "NFR-5",
+      "parent": null,
+      "deps": [
+        "WK-077"
+      ],
+      "done_at": null
+    },
+    {
+      "id": "WK-082",
+      "status": "todo",
+      "priority": "P7",
+      "category": "검증",
+      "title": "69건 전건 대조와 키보드 경로",
+      "summary": "완료: SPEC 1절 69건을 Electron과 pywebview에서 각각 확인해 결과가 다른 항목이 0건이다. 1절의 모든 명령에 마우스 없이 실행하는 경로가 1개 이상 있고 그 키가 예약 키 목록 문서에 있다",
+      "where": "검증 스크립트",
+      "doc": "PLAN.md#phase-7",
+      "note": "NFR-1 · NFR-3 · NFR-8. 판정은 화면에서 한다 — 요소의 존재로 끝나는 검사를 쓰지 않는다",
+      "parent": null,
+      "deps": [
+        "WK-080"
+      ],
+      "done_at": null
+    }
+  ]
+}
