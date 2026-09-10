@@ -20,6 +20,56 @@
 
 ---
 
+## 실행 방법
+
+### 0. 공통 준비
+
+```bash
+git clone https://github.com/nampluskr/workbench-kit.git
+cd workbench-kit
+npm install
+npm run build   # dist/ 산출물 생성 — 두 갈래 모두 dist/index.html을 읽으므로 필수
+```
+
+Node.js **22 이상**이 필요하다(`package.json`의 `engines`).
+
+### 1. Electron으로 실행 (Python 불필요)
+
+```bash
+npm run start:electron
+```
+
+### 2. pywebview로 실행 (Python 필요)
+
+```bash
+pip install -r requirements.txt   # pywebview>=6.2.1
+npm run start:pywebview
+```
+
+Windows에는 WebView2 런타임이 필요하지만 Windows 10/11에는 보통 이미 설치되어
+있다. 없으면 실행 시 에러 메시지로 안내된다. Python은 3.x 아무 버전이나 된다
+(표준 라이브러리 위주).
+
+### 3. UI만 빠르게 미리보기
+
+```bash
+npm run dev
+```
+
+브라우저에서 열린다. 다만 이 방식은 Electron/pywebview의 실제 호스트 브리지
+(파일 열기 대화상자, 창 최소화/최대화 등)가 없어서 **폴더 열기 같은 실제
+파일시스템 기능은 동작하지 않고 레이아웃·테마·메뉴 등 화면 자체만** 확인하는
+용도다. 실제 동작까지 보려면 1·2번 방식을 쓴다.
+
+### 참고
+
+- 코드를 고친 뒤 Electron/pywebview로 다시 확인하려면 `npm run build`를 먼저
+  다시 실행해야 `dist/`가 갱신된다(`npm run dev`는 즉시 반영되므로 별개다).
+- 전체 검증 스위트(`npm test`)까지 돌리려면 두 갈래 모두 설치돼 있어야 한다
+  (Electron은 devDependencies에 포함, pywebview는 위 `pip install` 필요).
+
+---
+
 ## 문서
 
 | 문서 | 무엇이 있나 |
