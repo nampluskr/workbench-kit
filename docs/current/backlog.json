@@ -100,7 +100,7 @@
     },
     {
       "id": "WK-053",
-      "status": "todo",
+      "status": "done",
       "priority": "P2",
       "category": "껍데기",
       "title": "임시와 확정의 시각 구분",
@@ -112,25 +112,25 @@
       "deps": [
         "WK-049"
       ],
-      "done_at": null
+      "done_at": "2026-09-10"
     },
     {
       "id": "WK-054",
-      "status": "todo",
+      "status": "done",
       "priority": "P2",
       "category": "껍데기",
-      "title": "영역 순환 — Tab과 Ctrl+Tab의 구분",
-      "summary": "완료: Tab·Shift+Tab이 보이는 트리와 각 칸을 양방향 순환하고, Ctrl+Tab은 현재 칸 안에서만 자리를 전환한다. 숨겨진 영역은 순환에서 빠진다",
+      "title": "영역 순환 — F6과 Ctrl+Tab의 구분",
+      "summary": "완료: F6·Shift+F6이 보이는 트리와 각 칸을 양방향 순환하고, Ctrl+Tab은 현재 칸 안에서만 자리를 전환한다. 숨겨진 영역은 순환에서 빠진다. Tab은 버튼 이동과 보기 입력에 그대로 남는다",
       "where": "포커스",
       "doc": "PLAN.md#phase-2",
       "note": "FR-F1 · FR-F2 · FR-F4",
       "parent": null,
       "deps": [],
-      "done_at": null
+      "done_at": "2026-09-10"
     },
     {
       "id": "WK-055",
-      "status": "todo",
+      "status": "done",
       "priority": "P2",
       "category": "껍데기",
       "title": "영역 전환이 상태를 바꾸지 않는다",
@@ -142,11 +142,11 @@
       "deps": [
         "WK-053"
       ],
-      "done_at": null
+      "done_at": "2026-09-10"
     },
     {
       "id": "WK-056",
-      "status": "todo",
+      "status": "done",
       "priority": "P2",
       "category": "껍데기",
       "title": "선택 배경과 포커스 표시의 분리",
@@ -158,11 +158,11 @@
       "deps": [
         "WK-053"
       ],
-      "done_at": null
+      "done_at": "2026-09-10"
     },
     {
       "id": "WK-057",
-      "status": "todo",
+      "status": "done",
       "priority": "P2",
       "category": "탐색기",
       "title": "트리 커서와 활성 자리의 독립",
@@ -172,7 +172,7 @@
       "note": "FR-F7 · FR-F8 · FR-F9",
       "parent": null,
       "deps": [],
-      "done_at": null
+      "done_at": "2026-09-10"
     },
     {
       "id": "WK-058",

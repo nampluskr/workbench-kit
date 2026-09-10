@@ -23,6 +23,7 @@ is_phase5_test = "--phase5-test" in sys.argv
 is_phase6_test = "--phase6-test" in sys.argv
 is_phase7_test = "--phase7-test" in sys.argv
 is_v02_phase1_test = "--v02-phase1-test" in sys.argv
+is_v02_phase2_test = "--v02-phase2-test" in sys.argv
 loaded_called = False
 
 INSPECTION_EXPRESSION = """
@@ -253,6 +254,64 @@ def main():
                 sys.stderr.write(f"[pywebview] Error inspecting loaded DOM: {e}\n")
                 sys.stderr.flush()
                 os._exit(1)
+
+        if is_v02_phase2_test:
+            def run_v02_phase2():
+                # Same real fixture as Phase 1, plus enough files that the tree
+                # overflows its viewport for FR-F9.
+                test_tmp_dir = tempfile.mkdtemp(prefix="wb-v02p2-fixture-")
+                try:
+                    for name in ("alpha.txt", "beta.txt", "gamma.txt"):
+                        with open(os.path.join(test_tmp_dir, name), "w", encoding="utf-8") as f:
+                            f.write(name)
+                    os.makedirs(os.path.join(test_tmp_dir, "sub"), exist_ok=True)
+                    with open(os.path.join(test_tmp_dir, "sub", "inner.txt"), "w", encoding="utf-8") as f:
+                        f.write("inner")
+                    for i in range(1, 41):
+                        with open(os.path.join(test_tmp_dir, f"file-{i:02d}.txt"), "w", encoding="utf-8") as f:
+                            f.write(f"n{i}")
+
+                    time.sleep(0.3)
+                    suite_path = os.path.join(root_dir, "scripts", "v02-phase2-suite.js")
+                    with open(suite_path, "r", encoding="utf-8") as f:
+                        suite_code = f.read()
+                    window.evaluate_js("window.__testTmpDir = " + json.dumps(test_tmp_dir) + ";")
+                    window.evaluate_js(suite_code)
+                    window.evaluate_js("""
+                        (async () => {
+                            try {
+                                const res = await window.__runV02Phase2Suite();
+                                window.__v02Phase2Results = JSON.stringify(res);
+                            } catch (e) {
+                                window.__v02Phase2Results = JSON.stringify({ success: false, results: [{ id: 'RUNNER_ERR', pass: false, msg: String(e) }] });
+                            }
+                        })();
+                    """)
+                    for _ in range(400):
+                        time.sleep(0.1)
+                        res = window.evaluate_js("window.__v02Phase2Results")
+                        if res:
+                            sys.stdout.write(f"[pywebview] v0.2 Phase 2 Results: {res}\n")
+                            sys.stdout.flush()
+                            window.destroy()
+                            shutil.rmtree(test_tmp_dir, ignore_errors=True)
+                            os._exit(0)
+                            return
+                    sys.stderr.write("[pywebview] Error: v0.2 Phase 2 test timed out waiting for results\n")
+                    sys.stderr.flush()
+                    window.destroy()
+                    shutil.rmtree(test_tmp_dir, ignore_errors=True)
+                    os._exit(1)
+                except Exception as e:
+                    sys.stderr.write(f"[pywebview] Error executing v0.2 Phase 2 test: {e}\n")
+                    sys.stderr.flush()
+                    window.destroy()
+                    shutil.rmtree(test_tmp_dir, ignore_errors=True)
+                    os._exit(1)
+
+            t = threading.Thread(target=run_v02_phase2, daemon=True)
+            t.start()
+            return
 
         if is_v02_phase1_test:
             def run_v02_phase1():

@@ -18,8 +18,9 @@
     "verify:phase5": "node scripts/verify-phase5.mjs",
     "verify:phase6": "node scripts/verify-phase6.mjs",
     "verify:phase7": "node scripts/verify-phase7.mjs",
-    "test": "npm run typecheck && npm run verify:dist && npm run verify:phase2 && npm run verify:phase3 && npm run verify:phase4 && npm run verify:phase5 && npm run verify:phase6 && npm run verify:phase7 && npm run verify:v02-phase1",
-    "verify:v02-phase1": "node scripts/verify-v02-phase1.mjs"
+    "test": "npm run typecheck && npm run verify:dist && npm run verify:phase2 && npm run verify:phase3 && npm run verify:phase4 && npm run verify:phase5 && npm run verify:phase6 && npm run verify:phase7 && npm run verify:v02-phase1 && npm run verify:v02-phase2",
+    "verify:v02-phase1": "node scripts/verify-v02-phase1.mjs",
+    "verify:v02-phase2": "node scripts/verify-v02-phase2.mjs"
   },
   "engines": {
     "node": ">=22.0.0"

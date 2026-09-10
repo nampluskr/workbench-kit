@@ -566,6 +566,28 @@ export class TreeController {
     this.render();
   }
 
+  /**
+   * Gives the tree a cursor when it has none, without opening anything
+   * (v0.2 FR-F5). Focus that arrives with nothing to point at would show no
+   * focus mark at all, so the first visible row becomes the cursor.
+   */
+  public ensureCursor(): void {
+    if (!this.root) return;
+    // Something already selected under a live cursor: leave it exactly as it
+    // is — focus arriving must not re-select (FR-F5). Otherwise (nothing
+    // selected, e.g. after Escape, or a cursor pointing at a vanished node)
+    // the first visible row is the one SPEC FR-F5 names.
+    if (this.selectedIds.size > 0 && this.focusedId && this.getNodeById(this.focusedId)) return;
+    const first = this.getVisibleItems()[0];
+    if (!first) return;
+    this.focusedId = first.node.id;
+    this.selectedIds = new Set([first.node.id]);
+    this.anchorId = first.node.id;
+    this.selectionRevision++;
+    this.render();
+    this.emitSelect();
+  }
+
   public focusTree(): void {
     const listEl = this.container.querySelector('.tree-list') as HTMLElement | null;
     if (listEl) {

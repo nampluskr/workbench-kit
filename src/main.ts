@@ -7,6 +7,7 @@ import { TextEditorView } from './core/texteditor';
 import { MenuController } from './core/menu';
 import { ActivityBarController } from './core/activitybar';
 import { ViewStateManager } from './core/viewstate';
+import { FocusAreaController } from './core/focusareas';
 import { ThemeManager } from './core/theme';
 import { IconThemeManager } from './core/icontheme';
 import { SetiResolver, VscodeIconsResolver } from './icons';
@@ -347,6 +348,11 @@ export class WorkbenchApp {
       presetInfoEl.textContent = 'Presets: file, folder';
       this.layout.statusbarAppItems.appendChild(presetInfoEl);
     }
+
+    // Focus areas — F6 / Shift+F6 between the tree and each group, Ctrl+Tab
+    // inside a group, and a press on the explorer's empty space (v0.2 D-10,
+    // FR-F1 ~ FR-F5).
+    new FocusAreaController(this.layout.sidebarContent, this.tree, this.editor, this.viewState);
 
     // Global keyboard shortcuts: Ctrl+O, Ctrl+W, Ctrl+\
     if (typeof window !== 'undefined') {

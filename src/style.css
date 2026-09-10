@@ -454,12 +454,21 @@ html, body, #app {
   color: var(--menu-hover-fg);
 }
 
-.tree-row.focused {
-  outline: 1px dotted var(--text-color);
+/*
+ * Selection and focus are separate marks (v0.2 D-10, FR-F6). The selected
+ * row keeps its background wherever keyboard focus goes; the cursor's ring is
+ * drawn only while the tree itself holds focus, so the ring alone says which
+ * area is current. On a selected row the ring uses the selection foreground,
+ * because a ring in the selection colour would vanish into its background.
+ */
+.tree-list:focus .tree-row.focused {
+  /* The text colour, not the accent: the accent sits too close to the gray
+     theme's background to read as a mark (FR-F11). */
+  outline: 1px solid var(--sidebar-fg);
   outline-offset: -1px;
 }
 
-.tree-row.selected.focused {
+.tree-list:focus .tree-row.selected.focused {
   outline: 1px solid var(--menu-hover-fg);
   outline-offset: -1px;
 }
@@ -1026,6 +1035,24 @@ html, body, #app {
 .dv-groupview.dv-inactive-group > .dv-tabs-and-actions-container .dv-tabs-container > .dv-tab.dv-inactive-tab {
   background-color: var(--dv-inactivegroup-hiddenpanel-tab-background-color);
   color: var(--dv-inactivegroup-hiddenpanel-tab-color);
+}
+
+/*
+ * Every group keeps showing its active tab (the rules above); only the group
+ * that holds keyboard focus adds a ring to it (v0.2 FR-F10). Keyed off
+ * :focus-within, so there is at most one — only one element can hold focus.
+ */
+.dv-groupview:focus-within > .dv-tabs-and-actions-container .dv-tabs-container > .dv-tab.dv-active-tab {
+  /* Same reasoning as the tree cursor ring: the active tab's own foreground
+     contrasts with its background in every theme, the accent does not. */
+  outline: 1px solid var(--tab-active-fg);
+  outline-offset: -1px;
+}
+
+/* The content area takes focus only so the group can show it; the ring on the
+   active tab is the mark, not a second outline around the whole content. */
+.dv-content-container:focus {
+  outline: none;
 }
 
 .dv-tabs-and-actions-container .dv-void-container {

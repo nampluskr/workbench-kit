@@ -360,6 +360,32 @@ export class EditorController {
       this.activePanelChangeListeners.forEach((cb) => cb(event.panel));
     });
 
+    // Pressing anywhere in a group — its tab strip or its content — makes it
+    // the focus area (v0.2 FR-F10, UT-FCS-003). dockview activates the group
+    // but does not always move keyboard focus into it: a press on plain
+    // content lands on a non-focusable element, which would leave the focus
+    // mark behind in whatever area had it before. A surface that took focus
+    // itself (an editor, a button) keeps it — only focus that ended up
+    // outside the pressed group is pulled in, after the press has settled.
+    this.container.addEventListener('pointerdown', (event) => {
+      const pressed = event.target as HTMLElement | null;
+      const groupEl = pressed?.closest?.('.dv-groupview') as HTMLElement | null;
+      if (!groupEl) return;
+      // A10 Major: a press on a control acts on its own — a dirty tab's close
+      // button opens the confirmation dialog, which takes focus, and pulling
+      // focus back into the group afterwards stole it from that dialog.
+      if (pressed?.closest?.('.dv-default-tab-action, button, input, textarea, select, [contenteditable="true"]')) return;
+      setTimeout(() => {
+        if (groupEl.contains(document.activeElement)) return;
+        // Whatever the press opened in the meantime (a dialog, a menu) keeps
+        // the focus it took.
+        const holder = document.activeElement as HTMLElement | null;
+        if (holder?.closest?.('[role="dialog"], [role="alertdialog"], .workbench-confirm-overlay, .workbench-menu-dropdown, .workbench-context-menu')) return;
+        const group = this.api.groups.find((g) => g.element === groupEl || g.element.contains(groupEl));
+        if (group) this.focusGroup(group);
+      }, 0);
+    });
+
     // Double-pressing a tab title confirms it (FR-P6). Delegated from the
     // container because dockview owns — and rebuilds — the tab elements, so a
     // listener attached per tab would quietly disappear on the next relayout.
@@ -997,6 +1023,44 @@ export class EditorController {
       const closed = await this.closePanel(panel);
       if (!closed) break;
     }
+  }
+
+  /**
+   * Moves keyboard focus into a group without changing which tab it shows
+   * (v0.2 FR-F1, FR-F3). The group becomes the active one — so group-scoped
+   * commands such as Ctrl+W and Ctrl+Tab act on it — but its active panel, and
+   * every other group's, stay exactly as they were.
+   */
+  public focusGroup(group: DockviewGroupPanel): void {
+    this.setActiveGroup(group);
+    this.focusTargetOf(group)?.focus({ preventScroll: true });
+  }
+
+  /**
+   * The element a group takes keyboard focus through: its content area, made
+   * focusable on demand. dockview renders it as a plain container, and focus
+   * that cannot land inside the group cannot be shown on it either (FR-F10).
+   */
+  private focusTargetOf(group: DockviewGroupPanel): HTMLElement | null {
+    const content = group.element.querySelector('.dv-content-container') as HTMLElement | null;
+    if (content && !content.hasAttribute('tabindex')) content.setAttribute('tabindex', '-1');
+    return content;
+  }
+
+  /**
+   * Ctrl+Tab / Ctrl+Shift+Tab: the next or previous tab inside the active
+   * group only (v0.2 FR-F2). It never crosses into another group, and keyboard
+   * focus stays in the group if it was there.
+   */
+  public cycleActivePanel(direction: 1 | -1): void {
+    const group = this.getActiveGroup();
+    if (!group || group.panels.length < 2) return;
+    const panels = group.panels;
+    const current = panels.findIndex((p) => p === group.activePanel);
+    const next = panels[(current + direction + panels.length) % panels.length];
+    const hadFocus = group.element.contains(document.activeElement);
+    next.api.setActive();
+    if (hadFocus) this.focusTargetOf(group)?.focus({ preventScroll: true });
   }
 
   /**
