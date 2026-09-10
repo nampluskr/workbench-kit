@@ -5,17 +5,19 @@ export interface ActivityBarItem {
   action?: () => void;
 }
 
+/*
+ * v0.2 D-3: the Activity Bar holds only the toggles that show and hide areas,
+ * placed to match the screen — the title bar toggle first, the status bar
+ * toggle last. Zen and the colour theme moved beside the window controls;
+ * splitting stays in each group's header and in the menu.
+ */
 export const DEFAULT_ACTIVITY_BAR_TOP_ITEMS: ActivityBarItem[] = [
-  { id: 'activity:toggle-sidebar', label: '탐색기 접기/펴기', iconClass: 'codicon-files' },
   { id: 'activity:toggle-titlebar', label: '상단 바 감추기/보이기', iconClass: 'codicon-chevron-up' },
-  { id: 'activity:toggle-statusbar', label: '하단 바 감추기/보이기', iconClass: 'codicon-chevron-down' },
-  { id: 'activity:split-horizontal', label: '좌우 스플릿', iconClass: 'codicon-split-horizontal' },
-  { id: 'activity:split-vertical', label: '상하 스플릿', iconClass: 'codicon-split-vertical' },
-  { id: 'activity:zen-mode', label: 'Zen 모드', iconClass: 'codicon-screen-full' },
+  { id: 'activity:toggle-sidebar', label: '탐색기 접기/펴기', iconClass: 'codicon-files' },
 ];
 
 export const DEFAULT_ACTIVITY_BAR_BOTTOM_ITEMS: ActivityBarItem[] = [
-  { id: 'activity:cycle-color-theme', label: '테마 바꾸기', iconClass: 'codicon-color-mode' },
+  { id: 'activity:toggle-statusbar', label: '하단 바 감추기/보이기', iconClass: 'codicon-chevron-down' },
 ];
 
 export class ActivityBarController {

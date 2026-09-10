@@ -99,9 +99,12 @@ window.__runPhase7TestSuite = async function runPhase7TestSuite() {
       'P7-FR-N1',
       Boolean(titlebar && hamburgerBtn && windowTitle && winMin && winMax && winClose) &&
         Boolean(titlebarLeft && titlebarLeft.contains(hamburgerBtn)) &&
-        windowTitle.classList.contains('titlebar-center') &&
+        // v0.1 FR-N1 is replaced (SPEC 0.1): the centred title became the
+        // program information line, left-aligned after the hamburger (FR-C7).
+        titlebarLeft.contains(windowTitle) &&
+        windowTitle.classList.contains('titlebar-program-info') &&
         Boolean(titlebarRight && titlebarRight.contains(winMin) && titlebarRight.contains(winMax) && titlebarRight.contains(winClose)),
-      'Title bar has the hamburger in its left zone, the window title in its center zone, and all 3 window buttons in its right zone — exactly the 3 required positions, not just present anywhere (FR-N1)'
+      'Title bar has the hamburger and the program information in its left zone and all 3 window buttons in its right zone (v0.1 FR-N1 → v0.2 FR-C1 · FR-C7)'
     );
 
     // Structural proof of native drag-move support (FR-N2): the titlebar's
@@ -212,15 +215,21 @@ window.__runPhase7TestSuite = async function runPhase7TestSuite() {
     // The runner injects the real package.json version so a future drift
     // between the two is actually caught.
     const expectedVersion = window.__expectedVersion;
+    // v0.1 FR-N9 is replaced (SPEC 0.1): the app-info slot left the status
+    // bar (FR-C10) and the same information now reads in the title bar
+    // (FR-C7). The version is still checked against the real package.json.
+    const programInfo = document.getElementById('window-title');
+    const programText = programInfo ? programInfo.textContent : '';
+    const majorMinor = expectedVersion ? expectedVersion.split('.').slice(0, 2).join('.') : null;
     record(
       'P7-FR-N9',
       Boolean(statusbarPath) &&
-        Boolean(statusbarAppInfo) &&
-        Boolean(expectedVersion) &&
-        statusbarAppInfo.textContent.startsWith(`workbench-kit v${expectedVersion}`) &&
-        (isElectronHost ? statusbarAppInfo.textContent.includes('Electron') : true) &&
-        (isPywebviewHost ? statusbarAppInfo.textContent.includes('pywebview') : true),
-      `Status bar's right zone shows "workbench-kit v${expectedVersion}" matching the actual current package.json version (not just a well-formed semver pattern), plus the real running host branch (found: "${statusbarAppInfo ? statusbarAppInfo.textContent : null}") (FR-N9)`
+        statusbarAppInfo === null &&
+        Boolean(majorMinor) &&
+        programText.startsWith(`Workbench-Kit v${majorMinor}`) &&
+        (isElectronHost ? programText.endsWith(' - Electron') : true) &&
+        (isPywebviewHost ? programText.endsWith(' - PyWebView') : true),
+      `Status bar keeps its path slot with no app-info slot, and the title bar's program information shows "Workbench-Kit v${majorMinor}" from the real package.json plus the running host branch (found: "${programText}") (v0.1 FR-N9 → v0.2 FR-C7 · FR-C10)`
     );
 
     // ------------------------------------------------------------------------
@@ -382,12 +391,15 @@ window.__runPhase7TestSuite = async function runPhase7TestSuite() {
       'Clicking "테마 바꾸기" in the View menu cycles white -> gray -> dark -> white via document.documentElement.dataset.theme (FR-M1)'
     );
 
-    const actThemeBtn = document.querySelector('.activity-bar-item[data-item-id="activity:cycle-color-theme"]');
-    clickEl(actThemeBtn);
+    // v0.1 FR-M1's second path moved (SPEC 0.1): from the bottom of the
+    // Activity Bar to the title bar (FR-C3, D-3). The ID is kept for the v0.1
+    // matrix; the cycle it must produce is unchanged.
+    const titlebarThemeBtn = document.getElementById('titlebar-theme-btn');
+    clickEl(titlebarThemeBtn);
     record(
       'P7-FR-M1-ACTBAR',
-      document.documentElement.dataset.theme === 'gray',
-      'Clicking the Activity Bar theme button cycles the theme the same way as the View menu item (FR-M1, D-11)'
+      Boolean(titlebarThemeBtn) && document.documentElement.dataset.theme === 'gray',
+      'Clicking the title bar theme button cycles the theme the same way as the View menu item (v0.1 FR-M1 Activity Bar path → v0.2 FR-C3)'
     );
     theme.setTheme('dark');
 
@@ -395,13 +407,13 @@ window.__runPhase7TestSuite = async function runPhase7TestSuite() {
     // doesn't prove the SAME glyph survives a theme change unmodified — pick
     // one real, persistent icon and track its glyph class + computed color
     // across all 3 themes.
-    const m4Icon = document.querySelector('.activity-bar-item[data-item-id="activity:split-horizontal"] i');
+    const m4Icon = document.querySelector('.activity-bar-item[data-item-id="activity:toggle-sidebar"] i');
     const m4Glyphs = [];
     const m4Colors = [];
     for (const t of ['light', 'gray', 'dark']) {
       theme.setTheme(t);
       await wait(10);
-      const iconNow = document.querySelector('.activity-bar-item[data-item-id="activity:split-horizontal"] i');
+      const iconNow = document.querySelector('.activity-bar-item[data-item-id="activity:toggle-sidebar"] i');
       m4Glyphs.push(iconNow ? Array.from(iconNow.classList).filter((c) => c.startsWith('codicon-')).join(' ') : null);
       m4Colors.push(iconNow ? getComputedStyle(iconNow).color : null);
     }

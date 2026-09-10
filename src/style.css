@@ -201,14 +201,27 @@ html, body, #app {
   -webkit-app-region: no-drag;
 }
 
-.titlebar-center {
-  flex: 1;
-  text-align: center;
+/* v0.2 FR-C7: program information sits left-aligned right after the menu
+   button instead of centred in the bar. */
+.titlebar-left {
+  min-width: 0;
+}
+
+.titlebar-program-info {
+  min-width: 0;
   font-size: 13px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
   padding: 0 10px;
+}
+
+/* The empty stretch between the program information and the window controls
+   is what the user drags the window by (v0.1 FR-N2): it inherits the title
+   bar's drag region, while the button groups on either side opt out. */
+.titlebar-spacer {
+  flex: 1;
+  height: 100%;
 }
 
 .titlebar-btn {

@@ -2,8 +2,12 @@ export interface WorkbenchLayoutElements {
   root: HTMLElement;
   titlebar: HTMLElement;
   menuBtn: HTMLButtonElement;
+  /** The program information line, left-aligned beside the menu button (v0.2 FR-C7). */
   windowTitle: HTMLElement;
   windowControls: HTMLElement;
+  /** Zen and colour-theme actions beside the window controls (v0.2 FR-C1, D-3). */
+  titlebarZenBtn: HTMLButtonElement;
+  titlebarThemeBtn: HTMLButtonElement;
   windowMinBtn: HTMLButtonElement;
   windowMaxBtn: HTMLButtonElement;
   windowCloseBtn: HTMLButtonElement;
@@ -23,7 +27,6 @@ export interface WorkbenchLayoutElements {
   statusbar: HTMLElement;
   statusbarPath: HTMLElement;
   statusbarMessage: HTMLElement;
-  statusbarAppInfo: HTMLElement;
   statusbarAppItems: HTMLElement;
 }
 
@@ -33,9 +36,12 @@ export function createWorkbenchLayout(container: HTMLElement): WorkbenchLayoutEl
       <header id="titlebar" class="workbench-titlebar pywebview-drag-region" aria-label="Titlebar">
         <div class="titlebar-left">
           <button id="menu-hamburger-btn" class="titlebar-btn" aria-label="Menu" title="Menu"><i class="codicon codicon-menu"></i></button>
+          <span id="window-title" class="titlebar-program-info">Workbench-Kit</span>
         </div>
-        <div id="window-title" class="titlebar-center">workbench-kit</div>
+        <div class="titlebar-spacer"></div>
         <div id="window-controls" class="titlebar-right window-controls">
+          <button id="titlebar-zen-btn" class="titlebar-btn titlebar-state-btn" aria-label="Zen Mode" title="Zen Mode (F11)" aria-pressed="false"><i class="codicon codicon-screen-full"></i></button>
+          <button id="titlebar-theme-btn" class="titlebar-btn titlebar-state-btn" aria-label="Color Theme" title="Color Theme"><i class="codicon codicon-circle-large-filled"></i></button>
           <button id="window-min-btn" class="titlebar-btn window-control-btn" aria-label="Minimize" title="Minimize"><i class="codicon codicon-chrome-minimize"></i></button>
           <button id="window-max-btn" class="titlebar-btn window-control-btn" aria-label="Maximize" title="Maximize"><i class="codicon codicon-chrome-maximize"></i></button>
           <button id="window-close-btn" class="titlebar-btn window-control-btn close-btn" aria-label="Close" title="Close"><i class="codicon codicon-chrome-close"></i></button>
@@ -73,7 +79,6 @@ export function createWorkbenchLayout(container: HTMLElement): WorkbenchLayoutEl
           <span id="statusbar-message" class="statusbar-message">workbench-kit v0.1 ready</span>
         </div>
         <div id="statusbar-right" class="statusbar-item statusbar-right">
-          <span id="statusbar-app-info" class="statusbar-app-info">workbench-kit v0.1.0</span>
           <div id="statusbar-app-items" class="statusbar-app-items"></div>
         </div>
       </footer>
@@ -86,6 +91,8 @@ export function createWorkbenchLayout(container: HTMLElement): WorkbenchLayoutEl
     menuBtn: container.querySelector('#menu-hamburger-btn') as HTMLButtonElement,
     windowTitle: container.querySelector('#window-title') as HTMLElement,
     windowControls: container.querySelector('#window-controls') as HTMLElement,
+    titlebarZenBtn: container.querySelector('#titlebar-zen-btn') as HTMLButtonElement,
+    titlebarThemeBtn: container.querySelector('#titlebar-theme-btn') as HTMLButtonElement,
     windowMinBtn: container.querySelector('#window-min-btn') as HTMLButtonElement,
     windowMaxBtn: container.querySelector('#window-max-btn') as HTMLButtonElement,
     windowCloseBtn: container.querySelector('#window-close-btn') as HTMLButtonElement,
@@ -105,7 +112,6 @@ export function createWorkbenchLayout(container: HTMLElement): WorkbenchLayoutEl
     statusbar: container.querySelector('#statusbar') as HTMLElement,
     statusbarPath: container.querySelector('#statusbar-path') as HTMLElement,
     statusbarMessage: container.querySelector('#statusbar-message') as HTMLElement,
-    statusbarAppInfo: container.querySelector('#statusbar-app-info') as HTMLElement,
     statusbarAppItems: container.querySelector('#statusbar-app-items') as HTMLElement,
   };
 }

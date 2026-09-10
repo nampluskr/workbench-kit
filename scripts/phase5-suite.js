@@ -333,12 +333,15 @@ window.__runPhase5TestSuite = async function runPhase5TestSuite() {
     // ------------------------------------------------------------------------
     const appItemsEl = document.getElementById('statusbar-app-items');
     record('P5-FR-N10-APPEND', appItemsEl !== null && appItemsEl.children.length >= 1, 'App status bar item is present (FR-N10)');
+    // v0.2 replaces part of v0.1 FR-N10 (SPEC 0.1): the shell's app-info slot
+    // is gone (FR-C10, D-4), so the shell keeps two slots — path and message —
+    // and the app item still attaches with zero core changes.
     record(
       'P5-FR-N10-SLOTS',
       Boolean(document.getElementById('statusbar-path')) &&
         Boolean(document.getElementById('statusbar-message')) &&
-        Boolean(document.getElementById('statusbar-app-info')),
-      "The shell's three status bar slots remain intact (FR-N10)"
+        document.getElementById('statusbar-app-info') === null,
+      "The shell's status bar slots (path, message) remain intact, and the removed app-info slot stays gone (v0.1 FR-N10 → v0.2 FR-C10)"
     );
 
     // ------------------------------------------------------------------------

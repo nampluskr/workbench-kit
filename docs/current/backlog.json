@@ -176,7 +176,7 @@
     },
     {
       "id": "WK-058",
-      "status": "todo",
+      "status": "done",
       "priority": "P3",
       "category": "껍데기",
       "title": "상단 바 우측 다섯 배치와 상태 표시",
@@ -186,11 +186,11 @@
       "note": "FR-C1 · FR-C2 · FR-C3 · FR-C11. v0.1 FR-N1의 상단 바 구성을 대체한다",
       "parent": null,
       "deps": [],
-      "done_at": null
+      "done_at": "2026-09-10"
     },
     {
       "id": "WK-059",
-      "status": "todo",
+      "status": "done",
       "priority": "P3",
       "category": "껍데기",
       "title": "세로 띠 정리와 위아래 방향 맞춤",
@@ -200,11 +200,11 @@
       "note": "FR-C4 · FR-C5 · FR-C6. v0.1 FR-N11을 대체한다",
       "parent": null,
       "deps": [],
-      "done_at": null
+      "done_at": "2026-09-10"
     },
     {
       "id": "WK-060",
-      "status": "todo",
+      "status": "done",
       "priority": "P3",
       "category": "껍데기",
       "title": "상단 바 프로그램 정보 한 줄",
@@ -214,11 +214,11 @@
       "note": "FR-C7 · FR-C8 · FR-C9",
       "parent": null,
       "deps": [],
-      "done_at": null
+      "done_at": "2026-09-10"
     },
     {
       "id": "WK-061",
-      "status": "todo",
+      "status": "done",
       "priority": "P3",
       "category": "껍데기",
       "title": "하단 바 오른쪽을 앱에게 넘긴다",
@@ -230,7 +230,7 @@
       "deps": [
         "WK-060"
       ],
-      "done_at": null
+      "done_at": "2026-09-10"
     },
     {
       "id": "WK-062",

@@ -96,6 +96,19 @@ export class ViewStateManager {
   }
 
   private onZenEnterCallbacks: (() => void)[] = [];
+  private onZenChangeCallbacks: ((isZen: boolean) => void)[] = [];
+
+  /**
+   * Fires on every Zen transition, in both directions and whichever way it was
+   * triggered (F11, Escape, a menu row, a button), so anything showing Zen
+   * state can stay in step with it (v0.2 FR-C2, FR-C11).
+   */
+  public onZenChange(cb: (isZen: boolean) => void): () => void {
+    this.onZenChangeCallbacks.push(cb);
+    return () => {
+      this.onZenChangeCallbacks = this.onZenChangeCallbacks.filter((c) => c !== cb);
+    };
+  }
 
   public onZenEnter(cb: () => void): () => void {
     this.onZenEnterCallbacks.push(cb);
@@ -113,6 +126,7 @@ export class ViewStateManager {
       window.dispatchEvent(new CustomEvent('workbench:zen-enter'));
     }
     this.onZenEnterCallbacks.forEach((cb) => cb());
+    this.onZenChangeCallbacks.forEach((cb) => cb(true));
     const openMenus = document.querySelectorAll('.workbench-menu-dropdown');
     openMenus.forEach((menu) => menu.remove());
   }
@@ -121,5 +135,6 @@ export class ViewStateManager {
     if (!this._isZenMode) return;
     this._isZenMode = false;
     this.layout.root.classList.remove('zen-mode');
+    this.onZenChangeCallbacks.forEach((cb) => cb(false));
   }
 }

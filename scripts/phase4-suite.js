@@ -427,13 +427,15 @@ window.__runPhase4TestSuite = async function runPhase4TestSuite() {
     // 12. UI Split Action Triggers: Activity Bar & View Menu (FR-D3)
     // ------------------------------------------------------------------------
     const initialGroups = editor.getGroupCount();
-    const actSplitH = document.querySelector('.activity-bar-item[data-item-id="activity:split-horizontal"]');
-    if (!actSplitH) throw new Error('Activity bar split-horizontal button not found in DOM');
-    clickEl(actSplitH);
-    record('P4-FR-D3-ACTBAR', editor.getGroupCount() === initialGroups + 1, 'Activity Bar split-horizontal button clicked in DOM splits pane (FR-D3)');
+    // v0.2 replaces the Activity Bar path of v0.1 FR-D3 (SPEC 0.1, FR-C5, D-3):
+    // splitting is no longer offered there. The ID is kept so the v0.1 matrix
+    // row still resolves, and it now asserts that the path is gone; the tab
+    // strip and menu paths below keep their v0.1 judgement.
+    const actSplitH = document.querySelector('.activity-bar-item[data-item-id^="activity:split"]');
+    record('P4-FR-D3-ACTBAR', actSplitH === null, 'The Activity Bar offers 0 split actions (v0.1 FR-D3 Activity Bar path → v0.2 FR-C5)');
 
     clickMenuRow('view', 'view:split-vertical');
-    record('P4-FR-D3-MENU', editor.getGroupCount() === initialGroups + 2, 'View menu split-vertical item clicked in DOM splits pane (FR-D3)');
+    record('P4-FR-D3-MENU', editor.getGroupCount() === initialGroups + 1, 'View menu split-vertical item clicked in DOM splits pane (FR-D3)');
 
     // ------------------------------------------------------------------------
     // 13. Split Stress Test: 8 Consecutive Splits to 9 Panes (FR-D7)
@@ -849,15 +851,14 @@ window.__runPhase4TestSuite = async function runPhase4TestSuite() {
     // Return to empty pane
     editor.closeActiveTab();
 
-    // Path 2: Activity Bar split icon clicked in DOM
-    const actBtnRestart = document.querySelector('.activity-bar-item[data-item-id="activity:split-horizontal"]');
-    if (!actBtnRestart) throw new Error('Activity bar split icon not found in DOM');
-    clickEl(actBtnRestart);
-    record('P4-FR-J8-PATH2', editor.getGroupCount() === 2, 'Restart path 2: Activity Bar split icon creates 2nd pane from empty pane (FR-J8)');
+    // Path 2 (v0.1): the Activity Bar split icon — gone in v0.2 (SPEC 0.1,
+    // FR-C5, D-3). The ID is kept for the v0.1 matrix and now asserts absence.
+    const actBtnRestart = document.querySelector('.activity-bar-item[data-item-id^="activity:split"]');
+    record('P4-FR-J8-PATH2', actBtnRestart === null, 'Restart path 2 (Activity Bar split icon) no longer exists (v0.1 FR-J8 → v0.2 FR-C5)');
 
     // Path 3: View menu split item clicked in DOM
     clickMenuRow('view', 'view:split-vertical');
-    record('P4-FR-J8-PATH3', editor.getGroupCount() === 3, 'Restart path 3: View menu split creates 3rd pane from empty pane (FR-J8)');
+    record('P4-FR-J8-PATH3', editor.getGroupCount() === 2, 'Restart path 3: View menu split creates a 2nd pane from the empty pane (FR-J8)');
 
     // ------------------------------------------------------------------------
     // 22. Tab Dirty Indicator (FR-L1)

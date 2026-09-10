@@ -24,6 +24,10 @@ import { MenuItem } from './core/menu';
 import { ActivityBarItem } from './core/activitybar';
 import { ViewAction } from './core/sidebar';
 
+/** Injected at build time by vite.config.ts (v0.2 FR-C7, FR-C8). */
+declare const __WB_VERSION__: string;
+declare const __WB_COMMIT_DATE__: string;
+
 /**
  * Everything a real app-extension author is meant to use (FR-I1 ~ FR-I11,
  * FR-N10, FR-N12, FR-G6). Unlike `window.__workbenchApp` (a full-access
@@ -164,14 +168,38 @@ export class WorkbenchApp {
     this.activityBar.setAction('activity:toggle-sidebar', () => this.viewState.toggleSidebar());
     this.activityBar.setAction('activity:toggle-titlebar', () => this.viewState.toggleTitlebar());
     this.activityBar.setAction('activity:toggle-statusbar', () => this.viewState.toggleStatusbar());
-    this.activityBar.setAction('activity:zen-mode', () => this.viewState.toggleZenMode());
 
     // Ensure menu controller state is closed when entering Zen mode (FR-F5, D-12)
     this.viewState.onZenEnter(() => this.menu.closeMenu());
 
     // Bind theme cycling (FR-M1: White -> Gray -> Dark)
     this.menu.setAction('view:cycle-color-theme', () => this.theme.cycleTheme());
-    this.activityBar.setAction('activity:cycle-color-theme', () => this.theme.cycleTheme());
+
+    // Title bar state actions (v0.2 FR-C1 ~ FR-C3, FR-C11, D-3). Zen and the
+    // colour theme sit beside the window controls. Their icons are drawn from
+    // the state itself rather than from the click, so F11, Escape and the View
+    // menu keep them in step with no path of their own.
+    this.layout.titlebarZenBtn.addEventListener('click', () => this.viewState.toggleZenMode());
+    this.layout.titlebarThemeBtn.addEventListener('click', () => this.theme.cycleTheme());
+    const themeGlyph: Record<string, string> = {
+      light: 'codicon-circle-large-outline',
+      gray: 'codicon-color-mode',
+      dark: 'codicon-circle-large-filled',
+    };
+    const renderThemeIcon = (theme: string) => {
+      const icon = this.layout.titlebarThemeBtn.querySelector('i');
+      if (icon) icon.className = `codicon ${themeGlyph[theme] || 'codicon-color-mode'}`;
+      this.layout.titlebarThemeBtn.title = `Color Theme: ${theme}`;
+    };
+    const renderZenIcon = (isZen: boolean) => {
+      const icon = this.layout.titlebarZenBtn.querySelector('i');
+      if (icon) icon.className = `codicon ${isZen ? 'codicon-screen-normal' : 'codicon-screen-full'}`;
+      this.layout.titlebarZenBtn.setAttribute('aria-pressed', String(isZen));
+    };
+    this.theme.onThemeChange(renderThemeIcon);
+    this.viewState.onZenChange(renderZenIcon);
+    renderThemeIcon(this.theme.getTheme());
+    renderZenIcon(this.viewState.isZenMode);
 
     // Bind icon theme cycling (FR-Q1a: seti <-> vscode-icons, View menu only).
     // Phase 7 finding: toggling the theme alone only flips internal state —
@@ -320,8 +348,6 @@ export class WorkbenchApp {
     this.menu.setAction('view:close-active-tabs', () => this.editor.closeAllTabsInGroup());
 
     // Activity bar split actions (FR-D3)
-    this.activityBar.setAction('activity:split-horizontal', () => this.editor.splitActiveGroup('right'));
-    this.activityBar.setAction('activity:split-vertical', () => this.editor.splitActiveGroup('below'));
 
     // Minimal example wiring proving the app-facing extension slots (WK-048, WK-029):
     // File menu item below the shell's separator (FR-I9), a view-titlebar action left
@@ -370,15 +396,16 @@ export class WorkbenchApp {
       });
     }
 
-    // Statusbar app info: app name, version, host branch (FR-N9, D-7)
+    // Program information, one line left in the title bar (v0.2 FR-C7 ~ FR-C9,
+    // D-4). Version and last-commit date are baked in at build time; the host
+    // branch is read at run time because both branches load one build (NFR-2).
     const updateAppInfo = () => {
       const isElectron = typeof window !== 'undefined' && (Boolean(window.workbenchHost) || (navigator.userAgent && navigator.userAgent.includes('Electron')));
       const isPywebview = typeof window !== 'undefined' && (Boolean(window.pywebview) || (navigator.userAgent && navigator.userAgent.includes('pywebview')));
-      const branch = isElectron ? 'Electron' : (isPywebview ? 'pywebview' : '');
-      const text = branch ? `workbench-kit v0.1.0 · ${branch}` : 'workbench-kit v0.1.0';
-      if (this.layout.statusbarAppInfo) {
-        this.layout.statusbarAppInfo.textContent = text;
-      }
+      const branch = isElectron ? 'Electron' : (isPywebview ? 'PyWebView' : '');
+      const [major, minor] = __WB_VERSION__.split('.');
+      const base = `Workbench-Kit v${major}.${minor} (${__WB_COMMIT_DATE__})`;
+      this.layout.windowTitle.textContent = branch ? `${base} - ${branch}` : base;
     };
     updateAppInfo();
     if (typeof window !== 'undefined') {
