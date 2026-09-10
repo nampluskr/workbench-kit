@@ -251,7 +251,9 @@ window.__runV02Phase2Suite = async function runV02Phase2Suite() {
         pinnedContrast: contrast(pinnedStyle.color, effectiveBg(pinnedContent)),
         previewContrast: contrast(previewStyle.color, effectiveBg(previewContent)),
       });
-      await clickMenuRow('view', 'view:cycle-color-theme');
+      // The next theme, picked from View > Color Theme (a list since Phase 4, FR-M8).
+      await clickMenuRow('view', 'view:color-theme');
+      await clickMenuRow('view', 'view:color-theme:' + { light: 'gray', gray: 'dark', dark: 'light' }[app.theme.getTheme()]);
     }
     const themesSeen = new Set(themeRows.map((r) => r.theme)).size;
     record(
@@ -674,7 +676,9 @@ window.__runV02Phase2Suite = async function runV02Phase2Suite() {
             )
           : 0,
       });
-      await clickMenuRow('view', 'view:cycle-color-theme');
+      // The next theme, picked from View > Color Theme (a list since Phase 4, FR-M8).
+      await clickMenuRow('view', 'view:color-theme');
+      await clickMenuRow('view', 'view:color-theme:' + { light: 'gray', gray: 'dark', dark: 'light' }[app.theme.getTheme()]);
     }
     record(
       'V2P2-FR-F10',

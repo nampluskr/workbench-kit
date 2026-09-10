@@ -434,8 +434,9 @@ window.__runPhase4TestSuite = async function runPhase4TestSuite() {
     const actSplitH = document.querySelector('.activity-bar-item[data-item-id^="activity:split"]');
     record('P4-FR-D3-ACTBAR', actSplitH === null, 'The Activity Bar offers 0 split actions (v0.1 FR-D3 Activity Bar path → v0.2 FR-C5)');
 
-    clickMenuRow('view', 'view:split-vertical');
-    record('P4-FR-D3-MENU', editor.getGroupCount() === initialGroups + 1, 'View menu split-vertical item clicked in DOM splits pane (FR-D3)');
+    // The menu path moved from View to File in v0.2 (SPEC 0.1, FR-M1).
+    clickMenuRow('file', 'file:split-down');
+    record('P4-FR-D3-MENU', editor.getGroupCount() === initialGroups + 1, 'File > Split Down clicked in DOM splits pane (v0.1 FR-D3 menu path, now in File per v0.2 FR-M1)');
 
     // ------------------------------------------------------------------------
     // 13. Split Stress Test: 8 Consecutive Splits to 9 Panes (FR-D7)
@@ -763,11 +764,11 @@ window.__runPhase4TestSuite = async function runPhase4TestSuite() {
     }));
     record('P4-FR-N6b-KEY', editor.getPanelCount() === countBeforeCtrlW - 1, 'Pressing Ctrl+W dispatches keydown and closes active tab (FR-N6b)');
 
-    // File menu "탭 닫기" (FR-N6b) via DOM click
+    // File > Close Active Tab (FR-N6b; labelled "탭 닫기" in v0.1) via DOM click
     const cTabNew = editor.openItem('/workspace/cTabNew.txt', 'cTabNew.txt', { mode: 'pinned' }, cGroup);
     const countBeforeFileMenu = editor.getPanelCount();
     clickMenuRow('file', 'file:close-tab');
-    record('P4-FR-N6b-MENU', editor.getPanelCount() === countBeforeFileMenu - 1, 'File menu "탭 닫기" clicked via DOM closes active tab (FR-N6b)');
+    record('P4-FR-N6b-MENU', editor.getPanelCount() === countBeforeFileMenu - 1, 'File > Close Active Tab clicked via DOM closes active tab (FR-N6b)');
 
     // ------------------------------------------------------------------------
     // 19. Pane Disappearance & Last Empty Pane Invariants (FR-C4, FR-J1, FR-J7)
@@ -809,10 +810,12 @@ window.__runPhase4TestSuite = async function runPhase4TestSuite() {
     // ------------------------------------------------------------------------
     // 20. "활성 칸 탭 모두 닫기" (FR-J2, FR-J3, FR-J4, FR-J5)
     // ------------------------------------------------------------------------
-    // In empty pane, closeAllTabsInGroup changes nothing (FR-J4)
-    clickMenuRow('view', 'view:close-active-tabs');
+    // v0.1's View "활성 칸 탭 모두 닫기" is v0.2's File > Close Editor Group,
+    // which must give the same results (SPEC 0.1, FR-M10).
+    // In empty pane, it changes nothing (FR-J4)
+    clickMenuRow('file', 'file:close-editor-group');
     await wait(20); // closeAllTabsInGroup is async (Phase 6: dirty-confirmation gate on every panel close)
-    record('P4-FR-J4', editor.getGroupCount() === 1 && editor.getPanelCount() === 0, '"활성 칸 탭 모두 닫기" on empty pane changes nothing (FR-J4)');
+    record('P4-FR-J4', editor.getGroupCount() === 1 && editor.getPanelCount() === 0, 'File > Close Editor Group on empty pane changes nothing (v0.1 FR-J4 → v0.2 FR-M10)');
 
     // Multi-tab group close & disposal count test (FR-J2, FR-J5)
     editor.clear();
@@ -828,10 +831,10 @@ window.__runPhase4TestSuite = async function runPhase4TestSuite() {
     // Make mg1 active
     editor.setActiveGroup(mg1);
 
-    // Trigger View menu "활성 칸 탭 모두 닫기" via DOM click
-    clickMenuRow('view', 'view:close-active-tabs');
+    // Trigger File > Close Editor Group via DOM click
+    clickMenuRow('file', 'file:close-editor-group');
     await wait(20); // closeAllTabsInGroup is async (Phase 6: dirty-confirmation gate on every panel close)
-    record('P4-FR-J2', editor.getGroupCount() === 1, '"활성 칸 탭 모두 닫기" closes multi-tab group and disappears when other group exists (FR-J2)');
+    record('P4-FR-J2', editor.getGroupCount() === 1, 'File > Close Editor Group closes multi-tab group and it disappears when other group exists (v0.1 FR-J2 → v0.2 FR-M10)');
     const d1 = editor.getLifecycleStats(mt1.id).disposalCount;
     const d2 = editor.getLifecycleStats(mt2.id).disposalCount;
     const d3 = editor.getLifecycleStats(mt3.id).disposalCount;
@@ -856,9 +859,9 @@ window.__runPhase4TestSuite = async function runPhase4TestSuite() {
     const actBtnRestart = document.querySelector('.activity-bar-item[data-item-id^="activity:split"]');
     record('P4-FR-J8-PATH2', actBtnRestart === null, 'Restart path 2 (Activity Bar split icon) no longer exists (v0.1 FR-J8 → v0.2 FR-C5)');
 
-    // Path 3: View menu split item clicked in DOM
-    clickMenuRow('view', 'view:split-vertical');
-    record('P4-FR-J8-PATH3', editor.getGroupCount() === 2, 'Restart path 3: View menu split creates a 2nd pane from the empty pane (FR-J8)');
+    // Path 3: the menu split item clicked in DOM (File since v0.2, FR-M1)
+    clickMenuRow('file', 'file:split-down');
+    record('P4-FR-J8-PATH3', editor.getGroupCount() === 2, 'Restart path 3: File > Split Down creates a 2nd pane from the empty pane (FR-J8)');
 
     // ------------------------------------------------------------------------
     // 22. Tab Dirty Indicator (FR-L1)
@@ -873,18 +876,32 @@ window.__runPhase4TestSuite = async function runPhase4TestSuite() {
     // ------------------------------------------------------------------------
     // 23. Zero Commands Invariant (FR-D8, FR-J3, FR-J6)
     // ------------------------------------------------------------------------
+    // v0.1 FR-D8 / FR-J6 ("0 group-close commands anywhere") are replaced by
+    // v0.2 FR-M10 (D-5): exactly 1 in the menu, still 0 everywhere else.
     const allMenuItems = menu.getGroups().flatMap((g) => g.items);
-    const menuHasClosePane = allMenuItems.some((it) => it.label.includes('칸 닫기') || it.label.includes('칸 삭제') || it.id.includes('close-group'));
-    record('P4-FR-D8-MENU', !menuHasClosePane, 'Menu contains zero 칸 닫기/칸 삭제 items (FR-D8, FR-J6)');
+    const isGroupClose = (it) =>
+      it.label.includes('칸 닫기') || it.label.includes('칸 삭제') || it.label.includes('Close Editor Group') ||
+      it.id.includes('close-group') || it.id.includes('close-editor-group');
+    const menuGroupCloseItems = allMenuItems.filter(isGroupClose);
+    record(
+      'P4-FR-D8-MENU',
+      menuGroupCloseItems.length === 1 && menuGroupCloseItems[0].id === 'file:close-editor-group',
+      'Menu contains exactly 1 group-close item, File > Close Editor Group (v0.1 FR-D8/FR-J6 → v0.2 FR-M10)'
+    );
 
-    const actBarHasClosePane = activityBar.getItems().some((it) => it.label.includes('칸 닫기') || it.label.includes('칸 삭제') || it.id.includes('close-group'));
-    record('P4-FR-D8-ACTBAR', !actBarHasClosePane, 'Activity Bar contains zero 칸 닫기/칸 삭제 items (FR-D8, FR-J6)');
+    const actBarHasClosePane = activityBar.getItems().some(isGroupClose);
+    record('P4-FR-D8-ACTBAR', !actBarHasClosePane, 'Activity Bar contains zero group-close items (FR-D8, FR-J6, v0.2 FR-M10)');
 
-    const actBarHasCloseAll = activityBar.getItems().some((it) => it.label.includes('활성 칸 탭 모두 닫기') || it.id.includes('close-active-tabs'));
-    record('P4-FR-J3-ACTBAR', !actBarHasCloseAll, 'Activity bar contains zero "활성 칸 탭 모두 닫기" items (FR-J3)');
+    const actBarHasCloseAll = activityBar.getItems().some((it) => isGroupClose(it) || it.label.includes('활성 칸 탭 모두 닫기') || it.id.includes('close-active-tabs'));
+    record('P4-FR-J3-ACTBAR', !actBarHasCloseAll, 'Activity bar contains zero "close the group\'s tabs" items (FR-J3)');
 
-    const viewHasCloseAll = allMenuItems.some((it) => it.id === 'view:close-active-tabs');
-    record('P4-FR-J3-VIEWMENU', viewHasCloseAll, 'View menu contains "활성 칸 탭 모두 닫기" (FR-J2, FR-J3)');
+    const fileGroupItems = menu.getGroups().find((g) => g.id === 'file').items;
+    const viewGroupItems = menu.getGroups().find((g) => g.id === 'view').items;
+    record(
+      'P4-FR-J3-VIEWMENU',
+      fileGroupItems.filter(isGroupClose).length === 1 && viewGroupItems.filter(isGroupClose).length === 0,
+      'The command is only in the menu: 1 in File (Close Editor Group), 0 in View (v0.1 FR-J3 → v0.2 FR-M10, moved from View to File)'
+    );
 
     const allPassed = results.every((r) => r.pass);
     return { success: allPassed, results };

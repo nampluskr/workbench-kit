@@ -63,7 +63,10 @@ window.__runPhase7TestSuite = async function runPhase7TestSuite() {
       // Every group's rows exist in the DOM simultaneously (only the active
       // group's .menu-submenu is shown via CSS), so the listing must be
       // scoped to this category's own submenu, not a global query.
-      const rows = Array.from(document.querySelectorAll(`.menu-submenu[data-parent-group="${categoryId}"] .menu-item-row`));
+      // Direct children only: since v0.2 a row can hold its own submenu
+      // (Recent Folders, Color Theme, Icon Theme), whose rows are not items of
+      // this category.
+      const rows = Array.from(document.querySelectorAll(`.menu-submenu[data-parent-group="${categoryId}"] > .menu-item-row`));
       // Round-1 adversarial finding (Major): comparing only dataset.itemId
       // strings could pass even if the rendered label text were wrong (e.g.
       // "정보" replaced by an empty string) — return the visible label text
@@ -141,67 +144,58 @@ window.__runPhase7TestSuite = async function runPhase7TestSuite() {
       // they are — check the actual visible labels.
       `Opening the hamburger reveals exactly the 3 top-level groups with correct labels, in order: ${JSON.stringify(categoryLabels)} (FR-N5)`
     );
-    // WK-048's wiring example already adds 1 demo app item below a separator
-    // (FR-I9), so the rendered list legitimately has more than 5 rows — FR-N6
-    // is specifically about the shell's OWN 5 items appearing, in order, as
-    // a prefix, with their exact visible labels — and any app items counted
-    // separately, not silently absorbed into "close enough" (round-1
-    // adversarial finding, Major).
+    // v0.1 FR-N6 is replaced by v0.2 FR-M1 (SPEC 0.1): the shell's File list
+    // is now eight items. The ID is kept so the v0.1 matrix still resolves.
+    // App items below a separator are v0.1 FR-I9's, proven in the Phase 5
+    // suite through the app surface; this build adds none, so the rendered
+    // list must be exactly the eight, with their visible labels.
     const shellFileExpected = [
-      { id: 'file:open-folder', label: '폴더 열기' },
-      { id: 'file:open-recent', label: '최근 폴더' },
-      { id: 'file:close-tab', label: '탭 닫기' },
-      { id: 'file:close-folder', label: '폴더 닫기' },
-      { id: 'file:exit', label: '끝내기' },
+      { id: 'file:open-folder', label: 'Open Folder...' },
+      { id: 'file:open-recent', label: 'Recent Folders' },
+      { id: 'file:split-right', label: 'Split Right' },
+      { id: 'file:split-down', label: 'Split Down' },
+      { id: 'file:close-tab', label: 'Close Active Tab' },
+      { id: 'file:close-editor-group', label: 'Close Editor Group' },
+      { id: 'file:close-all-tabs', label: 'Close All Tabs' },
+      { id: 'file:exit', label: 'Exit' },
     ];
-    const fileRowsPrefix = fileRows.slice(0, 5);
-    const appFileRowCount = fileRows.length - 5;
-    // Round-2 finding: also prove there's an actual .menu-separator element
-    // between the shell's 5 items and any app-added ones, and that it sits
-    // at the right position — not just that app rows exist "somewhere".
-    const fileSubmenuChildren = Array.from(document.querySelector('.menu-submenu[data-parent-group="file"]').children);
-    const separatorIndex = fileSubmenuChildren.findIndex((el) => el.classList.contains('menu-separator'));
-    const itemsBeforeSeparator = fileSubmenuChildren.slice(0, separatorIndex).filter((el) => el.classList.contains('menu-item-row')).length;
     record(
       'P7-FR-N6',
-      JSON.stringify(fileRowsPrefix) === JSON.stringify(shellFileExpected) &&
-        appFileRowCount > 0 &&
-        separatorIndex > -1 &&
-        itemsBeforeSeparator === 5,
-      `File menu renders exactly the 5 shell items with correct visible labels, in order, as a prefix: 폴더 열기, 최근 폴더, 탭 닫기, 폴더 닫기, 끝내기, then a real .menu-separator, then ${appFileRowCount} app-added row(s) below it (FR-N6, D-31)`
+      JSON.stringify(fileRows) === JSON.stringify(shellFileExpected),
+      `File menu renders exactly the 8 shell items with their visible labels, in order (v0.1 FR-N6 → v0.2 FR-M1): ${JSON.stringify(fileRows.map((r) => r.label))}`
     );
     closeMenuIfOpen();
 
     const viewRows = openMenuCategory('view');
+    // v0.1 FR-N7 is replaced by v0.2 FR-M2 (SPEC 0.1).
     const viewExpected = [
-      { id: 'view:toggle-sidebar', label: '탐색기 접기/펴기' },
-      { id: 'view:toggle-titlebar', label: '상단 바 감추기/보이기' },
-      { id: 'view:toggle-statusbar', label: '하단 바 감추기/보이기' },
-      { id: 'view:zen-mode', label: 'Zen 모드' },
-      { id: 'view:cycle-color-theme', label: '테마 바꾸기' },
-      { id: 'view:cycle-icon-theme', label: '아이콘 테마 바꾸기' },
-      { id: 'view:split-horizontal', label: '좌우 스플릿' },
-      { id: 'view:split-vertical', label: '상하 스플릿' },
-      { id: 'view:close-active-tabs', label: '활성 칸 탭 모두 닫기' },
-      { id: 'view:toggle-context-menu', label: '우클릭 메뉴 사용' },
+      { id: 'view:color-theme', label: 'Color Theme' },
+      { id: 'view:icon-theme', label: 'Icon Theme' },
+      { id: 'view:zen-mode', label: 'Zen Mode' },
+      { id: 'view:toggle-sidebar', label: 'Show Sidebar' },
+      { id: 'view:toggle-titlebar', label: 'Show Title Bar' },
+      { id: 'view:toggle-statusbar', label: 'Show Status Bar' },
+      { id: 'view:preset-info', label: 'Preset Info' },
     ];
     record(
       'P7-FR-N7',
       JSON.stringify(viewRows) === JSON.stringify(viewExpected),
-      'View menu has exactly the 10 shell items with correct visible labels, in order (FR-N7)'
+      `View menu has exactly the 7 shell items with their visible labels, in order (v0.1 FR-N7 → v0.2 FR-M2): ${JSON.stringify(viewRows.map((r) => r.label))}`
     );
+    // v0.1's "우클릭 메뉴 사용" switch is gone from View (SPEC 0.1, v0.1 FR-G6 → v0.2
+    // FR-M2). What stays is the right-click device being off by default (D-22).
     record(
       'P7-FR-N7-CHECKBOX-OFF',
-      menu.isItemChecked('view:toggle-context-menu') === false,
-      '"우클릭 메뉴 사용" starts unchecked (FR-N7, D-22)'
+      !viewRows.some((r) => r.id === 'view:toggle-context-menu') && app.contextMenu.isEnabled() === false,
+      'View has 0 right-click switches, and the right-click menu starts disabled (D-22; v0.1 FR-N7 switch → v0.2 FR-M2)'
     );
     closeMenuIfOpen();
 
     const helpRows = openMenuCategory('help');
     record(
       'P7-FR-N8',
-      JSON.stringify(helpRows) === JSON.stringify([{ id: 'help:about', label: '정보' }]),
-      'Help menu has exactly 1 item with the correct visible label: 정보 (FR-N8)'
+      JSON.stringify(helpRows) === JSON.stringify([{ id: 'help:about', label: 'About' }]),
+      'Help menu has exactly 1 item with the correct visible label: About (v0.1 FR-N8 → v0.2 FR-M3)'
     );
     closeMenuIfOpen();
 
@@ -377,18 +371,23 @@ window.__runPhase7TestSuite = async function runPhase7TestSuite() {
     // ------------------------------------------------------------------------
     // 4. Theme cycling (FR-M1, FR-M4)
     // ------------------------------------------------------------------------
+    // v0.1 FR-M1's View menu path became a choice of three in v0.2 (SPEC 0.1,
+    // FR-M8): the same themes, in the same order, each picked from the list.
     theme.setTheme('light');
     await wait(10);
-    clickMenuRow('view', 'view:cycle-color-theme');
+    clickMenuRow('view', 'view:color-theme');
+    clickMenuRow('view', 'view:color-theme:gray');
     const afterFirstCycle = document.documentElement.dataset.theme;
-    clickMenuRow('view', 'view:cycle-color-theme');
+    clickMenuRow('view', 'view:color-theme');
+    clickMenuRow('view', 'view:color-theme:dark');
     const afterSecondCycle = document.documentElement.dataset.theme;
-    clickMenuRow('view', 'view:cycle-color-theme');
+    clickMenuRow('view', 'view:color-theme');
+    clickMenuRow('view', 'view:color-theme:light');
     const afterThirdCycle = document.documentElement.dataset.theme;
     record(
       'P7-FR-M1-MENU',
       afterFirstCycle === 'gray' && afterSecondCycle === 'dark' && afterThirdCycle === 'light',
-      'Clicking "테마 바꾸기" in the View menu cycles white -> gray -> dark -> white via document.documentElement.dataset.theme (FR-M1)'
+      'Choosing Gray, Dark, White from View > Color Theme applies white -> gray -> dark -> white via document.documentElement.dataset.theme (v0.1 FR-M1 menu path → v0.2 FR-M8)'
     );
 
     // v0.1 FR-M1's second path moved (SPEC 0.1): from the bottom of the
@@ -481,23 +480,26 @@ window.__runPhase7TestSuite = async function runPhase7TestSuite() {
     if (testDir) {
       const firstRowEl = document.querySelector('.tree-row');
       trackedRowId = firstRowEl ? firstRowEl.dataset.id : null;
+      // v0.1 FR-Q1a's toggle became a choice of two in v0.2 (SPEC 0.1, FR-M9).
       iconBefore = iconClassForTrackedRow();
-      clickMenuRow('view', 'view:cycle-icon-theme');
+      clickMenuRow('view', 'view:icon-theme');
+      clickMenuRow('view', 'view:icon-theme:vscode-icons');
       await wait(30);
       iconAfter = iconClassForTrackedRow();
-      clickMenuRow('view', 'view:cycle-icon-theme');
+      clickMenuRow('view', 'view:icon-theme');
+      clickMenuRow('view', 'view:icon-theme:seti');
       await wait(30);
       iconBackToStart = iconClassForTrackedRow();
     }
     record(
       'P7-FR-Q1A',
       Boolean(testDir) && Boolean(trackedRowId) && iconBefore !== null && iconBefore !== iconAfter && iconAfter !== null,
-      `Clicking "아이콘 테마 바꾸기" actually changes the rendered icon class for the SAME tracked row (data-id="${trackedRowId}", before: ${iconBefore}, after: ${iconAfter}) — Phase 7 finding: toggling alone did not re-render until main.ts also called tree.render() (FR-Q1, FR-Q1a)`
+      `Choosing VS Code Icons in View > Icon Theme actually changes the rendered icon class for the SAME tracked row (data-id="${trackedRowId}", before: ${iconBefore}, after: ${iconAfter}) — Phase 7 finding: switching alone did not re-render until main.ts also called tree.render() (FR-Q1, FR-Q1a → v0.2 FR-M9)`
     );
     record(
       'P7-FR-Q1A-ROUNDTRIP',
       Boolean(testDir) && iconBackToStart === iconBefore,
-      'A second press returns the SAME tracked row to its original icon class (FR-Q1a: "두 번 누르면 처음으로 돌아온다")'
+      'Choosing VS Code Built-in again returns the SAME tracked row to its original icon class (v0.1 FR-Q1a round trip → v0.2 FR-M9)'
     );
     record(
       'P7-FR-Q1A-NOT-ON-ACTBAR',
@@ -518,7 +520,8 @@ window.__runPhase7TestSuite = async function runPhase7TestSuite() {
     for (const colorT of ['light', 'gray', 'dark']) {
       for (let i = 0; i < 2; i++) {
         theme.setTheme(colorT);
-        if (i === 1) clickMenuRow('view', 'view:cycle-icon-theme');
+        clickMenuRow('view', 'view:icon-theme');
+        clickMenuRow('view', i === 1 ? 'view:icon-theme:vscode-icons' : 'view:icon-theme:seti');
         await wait(20);
         const rowIcon = iconClassForTrackedRow();
         const combo = { colorT, appliedColor: document.documentElement.dataset.theme, iconClass: rowIcon };
@@ -983,20 +986,28 @@ window.__runPhase7TestSuite = async function runPhase7TestSuite() {
     // Round-2 finding: also capture pane/tab counts around Close Folder —
     // FR-N6c's literal result requires "탭과 칸은 그대로다" (tabs/panes
     // unaffected), which the round-1 version never checked.
+    // v0.1 FR-N6c is replaced (SPEC 0.1, v0.2 FR-M1): File has no Close
+    // Folder item any more. The ID now asserts that absence; the empty tree
+    // state FR-G1 describes is reached through the shell's own clearRoot so
+    // the FR-G1 checks below still run against it.
+    const fileRowsNow = openMenuCategory('file');
+    const closeFolderRows = fileRowsNow.filter((r) => r.id === 'file:close-folder' || /close folder|폴더 닫기/i.test(r.label));
+    closeMenuIfOpen();
     const groupCountBeforeClose = app.editor.getGroupCount();
     const panelCountBeforeClose = app.editor.getPanelCount();
-    clickMenuRow('file', 'file:close-folder');
+    app.closeFolder();
     await wait(50);
     const sidebarContentEl = document.getElementById('sidebar-content');
     record(
       'P7-FR-N6C',
-      Boolean(sidebarContentEl) &&
+      closeFolderRows.length === 0 &&
+        Boolean(sidebarContentEl) &&
         sidebarContentEl.children.length === 0 &&
         sidebarContentEl.textContent.trim() === '' &&
         tree.getRoot() === null &&
         app.editor.getGroupCount() === groupCountBeforeClose &&
         app.editor.getPanelCount() === panelCountBeforeClose,
-      `Clicking the real File > 폴더 닫기 menu item returns the tree to the empty state (0 child elements, 0 text) while leaving pane/tab counts unchanged (${groupCountBeforeClose} groups, ${panelCountBeforeClose} panels) (FR-N6c)`
+      `File has 0 Close Folder items (v0.1 FR-N6c → v0.2 FR-M1), and the emptied tree shows 0 child elements and 0 text with pane/tab counts unchanged (${groupCountBeforeClose} groups, ${panelCountBeforeClose} panels)`
     );
     // Round-2 finding: also click the empty area and confirm state is
     // genuinely unchanged by it (FR-G1's literal "클릭해도 상태가 바뀌지 않는다").

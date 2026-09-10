@@ -72,7 +72,8 @@ assert(!activityBarTs.includes('칸 닫기') && !activityBarTs.includes('칸 삭
 assert(!menuTs.includes('칸 닫기') && !menuTs.includes('칸 삭제'), 'Menu contains zero 칸 닫기/칸 삭제 items (FR-D8, FR-J6)');
 
 // FR-J3: "활성 칸 탭 모두 닫기" in View menu only
-assert(menuTs.includes('view:close-active-tabs') && menuTs.includes('활성 칸 탭 모두 닫기'), 'View menu contains "활성 칸 탭 모두 닫기" (FR-J2, FR-J3)');
+// v0.1 FR-J2/FR-J3's View item became File > Close Editor Group (SPEC 0.1, v0.2 FR-M10).
+assert(menuTs.includes('file:close-editor-group') && menuTs.includes('Close Editor Group') && !menuTs.includes('view:close-active-tabs'), 'File menu contains "Close Editor Group" and View no longer has the v0.1 item (FR-J2, FR-J3 → v0.2 FR-M10)');
 assert(!activityBarTs.includes('활성 칸 탭 모두 닫기'), 'Activity bar contains zero "활성 칸 탭 모두 닫기" items (FR-J3)');
 assert(!editorTs.includes('close-all-tabs') && !editorTs.includes('tab-action-close-all'), 'Tab header actions contain zero "활성 칸 탭 모두 닫기" buttons (FR-J3)');
 

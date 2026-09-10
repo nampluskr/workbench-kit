@@ -21,7 +21,10 @@ export class ContextMenuController {
         this.hide();
       }
     });
-    document.addEventListener('keydown', (e) => this.handleKeydown(e));
+    // Capture phase (A12 Critical): while this menu is open its keys are the
+    // shell's regardless of focus (reserved-keys.md §2b). A tab view cannot
+    // block them by stopping its own keydown.
+    document.addEventListener('keydown', (e) => this.handleKeydown(e), true);
     if (typeof window !== 'undefined') {
       window.addEventListener('blur', () => this.hide());
     }
@@ -101,6 +104,10 @@ export class ContextMenuController {
 
   private handleKeydown(e: KeyboardEvent): void {
     if (!this.menuEl) return;
+    // Only the bare keys below are this menu's while it is open; a modified
+    // combo (Ctrl+Enter, Ctrl+ArrowDown, ...) belongs to the focused app
+    // (A12 R2 Major, reserved-keys.md §2b).
+    if (e.ctrlKey || e.altKey || e.shiftKey || e.metaKey) return;
 
     if (e.key === 'Escape') {
       e.preventDefault();

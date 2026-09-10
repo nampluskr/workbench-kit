@@ -68,6 +68,39 @@
 - **v0.1 회귀 처리 (Phase 3)**: 대체 목록(0.1절, 이번 Phase 전에 네 행 보완)에 따라 v0.1 단언을 v0.2 동작으로 고쳤다 — `P4-FR-D3-ACTBAR` · `P4-FR-J8-PATH2`(세로 띠 분할 경로가 **없음**을 확인, 남은 메뉴 경로의 칸 수 조정), `P5-FR-N10-SLOTS`(껍데기 자리 둘), `P7-FR-N1`(프로그램 정보가 왼쪽), `P7-FR-N9`(하단 바에 앱 정보 없음 · 상단 바 정보가 실제 `package.json` 버전과 갈래), `P7-FR-M1-ACTBAR`(상단 바 테마 버튼), `P7-FR-M4`(추적 아이콘을 남아 있는 세로 띠 아이콘으로). ID는 유지해 v0.1 매트릭스가 그대로 해석된다.
   - **검증**: `npm.cmd test` — v0.1 Phase 1~7 · v0.2 Phase 1·2·3 두 갈래 전건 0 failures.
 
+- **WK-062** (File 메뉴 구조)
+  - **무엇을 했나**: `menu.ts`를 다시 세웠다. `DEFAULT_FILE_ITEMS`가 `Open Folder...` · 구분선 · `Recent Folders`(하위 메뉴) · 구분선 · `Split Right` · `Split Down` · `Close Active Tab` · `Close Editor Group` · `Close All Tabs` · 구분선 · `Exit` 여덟 항목이다. 하위 메뉴는 `setSubmenuProvider(id, fn)`로 **열 때마다** 목록을 읽어 그린다 — `Recent Folders`는 저장된 경로를 매번 새로 읽으므로 목록이 낡지 않는다. 각 경로 행 오른쪽에 `codicon-close` 지우기 버튼(`secondaryAction`)이 있고, 비면 `(Empty)` 한 행(지우기 없음 · 비활성)이다. `main.ts`가 `file:split-right/down` → `editor.splitActiveGroup`, 세 닫기 → 각각 `closeActiveTab` · `closeAllTabsInGroup` · `closeAllTabs`를 잇는다.
+  - **결과**: `FR-M1` · `FR-M6` · `FR-M7`. v0.1 `FR-N6`(다섯 항목) · `FR-N6c`(폴더 닫기) · `FR-I9`(앱 항목 다섯 위) 대체.
+  - **검증**: `V2P4-FR-M1`(렌더된 여덟 항목의 라벨 · 순서 · 전부 보임 · 그 밖 0개) · `V2P4-FR-M6`(구분선 위치) · `V2P4-FR-M7-LIST`/`-REMOVE`/`-KEYBOARD`/`-EMPTY`(목록 · 지우기 후 재열기 · `F10`→화살표→`Delete` · `(Empty)`).
+- **WK-063** (View 메뉴 구조)
+  - **무엇을 했나**: `DEFAULT_VIEW_ITEMS`가 `Color Theme`(하위) · 구분선 · `Icon Theme`(하위) · 구분선 · `Zen Mode` · `Show Sidebar` · `Show Title Bar` · `Show Status Bar` · 구분선 · `Preset Info` 일곱이다. `Color Theme`는 `White` · `Gray` · `Dark`, `Icon Theme`는 `VS Code Built-in` · `VS Code Icons`(`Simple` 없음). 현재 값에 `codicon-check`. 순환 · 아이콘 테마 토글은 셋/둘 중 하나를 고르는 방식이 됐지만 상단 바 테마 아이콘의 흰색→회색→검정 순환은 그대로다. `우클릭 메뉴 사용` 스위치는 View에서 빠졌다(앱이 `setContextMenuEnabled`로 켠다). `Preset Info`가 뷰 제목줄에서 여기로 왔다(D-6).
+  - **결과**: `FR-M2` · `FR-M6` · `FR-M8` · `FR-M9` · `FR-M12`. v0.1 `FR-N7` · `FR-G6`(스위치) · `FR-Q1a`(토글) · `FR-D3`/`FR-J8`(메뉴 경로가 View→File) 대체.
+  - **검증**: `V2P4-FR-M2` · `V2P4-FR-M8`(고르면 화면이 그 테마로 칠해지고 그 행만 표시) · `V2P4-FR-M9`(트리 아이콘이 실제로 다시 그려지고 `Simple` 0건) · `V2P4-FR-M12`(눌러서 상태바에 프리셋 정보).
+- **WK-064** (단축키 표시와 실제 동작의 일치)
+  - **무엇을 했나**: 단축키 칸을 `shortcut`이 있는 행에만 만든다(빈 칸 0개). 다섯: `Open Folder.../Ctrl+O` · `Close Active Tab/Ctrl+W` · `Exit/Alt+F4` · `Zen Mode/F11` · `Show Sidebar/Ctrl+B`. `main.ts`에 `Ctrl+B`(→ `toggleSidebar`)와 `Alt+F4`(→ `handleExitRequest`, 메뉴와 같은 닫기 확인 경로) 전역 키를 더했다. `Alt` 없는 `F4`는 예약하지 않는다.
+  - **결과**: `FR-M4` · `FR-M5`. `docs/reserved-keys.md` 1절에 `Ctrl+B` · `Alt+F4` 행 추가.
+  - **검증**: `V2P4-FR-M4`(다섯 행에만 표기 · 라벨 오른쪽 · 행 오른쪽 끝 정렬 · 나머지 0건) · `V2P4-FR-M5-CTRLO`/`-CTRLW`/`-ALTF4`/`-F11`/`-CTRLB`(키와 메뉴 행이 같은 결과, `Alt+F4`는 실제 호스트 닫기 게이트가 저장 안 한 탭을 묻고 취소가 앱을 살려 둔다).
+- **WK-065** (하위 메뉴 표시와 Help)
+  - **무엇을 했나**: File · View · Help의 하위 메뉴 표시와 세 하위 메뉴 행 표시를 `codicon-chevron-right` `<i>`로 바꿨다(텍스트 `▶` 삭제). Help는 `About` 하나이고 누르면 `AboutDialogController`가 정보 창을 연다.
+  - **결과**: `FR-M11` · `FR-M3`. v0.1 `FR-N8` 대체.
+  - **검증**: `V2P4-FR-M11`(세 chevron이 같은 실측 글리프로 보이고 메뉴 텍스트에 `▶` · `>` 0건) · `V2P4-FR-M3`(항목 하나 · 눌러서 정보 창이 화면에).
+- **WK-066** (세 닫기 명령)
+  - **무엇을 했나**: `EditorController.closeAllTabs()`를 더했다(열린 모든 탭, 각 저장 확인, 첫 취소에서 멈춤, 마지막 칸은 빈 칸으로). `Close Editor Group`은 기존 `closeAllTabsInGroup`, `Close Active Tab`은 `closeActiveTab`. 세 자리(세로 띠 · 칸 머리 · 우클릭) 모두 칸 닫기 항목 0개.
+  - **결과**: `FR-M10`. v0.1 `FR-D8` · `FR-J6`("세 자리 모두 0개")를 "메뉴에 1개, 나머지 0개"로 대체(D-5). v0.1 `FR-J2` ~ `FR-J4`의 View 자리가 File로.
+  - **검증**: `V2P4-FR-M10-TAB`/`-GROUP`/`-ALL`(자리 3개 · 칸 2개에서 각각 실행해 자리 · 칸 수 변화가 정의와 같다) · `V2P4-FR-M10-ELSEWHERE`(세로 띠 · 칸 머리에 close 0건, 우클릭엔 앱 항목만).
+- **WK-067** (분할로 생기는 칸의 임시 자리)
+  - **무엇을 했나**: 사용자 분할 경로(`EditorHeaderActionsRenderer`의 두 버튼 · `splitActiveGroup` = File 메뉴 · `Ctrl+\`)를 새 `splitGroupForUser`로 모았다 — `addPanel` 한 번으로 새 칸과 그 안의 `Untitled` 임시 탭을 함께 만들어, 빈 칸이 잠깐도 존재하지 않는다. 낮은 수준 `splitGroup`(빈 칸)은 `openBeside`의 내부용으로 남겼다. `openItem`에 `isBlankSpot` 갈래를 더해, 대상 없는 `Untitled` 임시 자리는 확정 열기(`pinned`)도 그 자리를 재사용한다 — 그래서 분할 뒤 첫 열기가 빈 탭을 옆에 만들지 않는다.
+  - **결과**: `FR-P11` · `FR-P12`. 분할 직후 새 칸의 자리 수 1 · 제목 `Untitled` · 임시 표시. 그 자리만 닫으면 칸도 닫힌다(마지막 탭 규칙).
+  - **검증**: `V2P4-FR-P11-RIGHT`/`-DOWN`(칸 머리 버튼 · File 메뉴로 나눈 새 칸의 위치 · 자리 수 1 · `Untitled` · 기울기가 확정과 다름) · `V2P4-FR-P12`(그 자리만 닫으면 칸 수 1 줄고 마지막에 빈 칸 1개).
+- **v0.1 회귀 처리 (Phase 4)**: 대체 목록(0.1절)대로 v0.1 단언을 v0.2 동작으로 고쳤다 — `phase4-suite.js`의 메뉴 분할 경로를 View→File(`file:split-down`), `view:close-active-tabs`→`file:close-editor-group`(`FR-J2` · `FR-J4`), `FR-D8-MENU`/`FR-J3-VIEWMENU`를 "칸 닫기 명령이 메뉴에 정확히 1개(File)"로. `phase5-suite.js` `FR-I9`는 앱 표면(`addFileMenuItem`)으로 앱 항목을 넣고 확인. `phase6-suite.js` `FR-N6A-PICKER`는 `Recent Folders` 하위 메뉴에서 읽음. `phase7-suite.js` `FR-N6`(여덟 항목) · `FR-N7`(일곱 항목) · `FR-N8`(`About`) · `FR-M1`(`Color Theme` 하위 메뉴) · `FR-Q1A`(`Icon Theme` 하위 메뉴) · `FR-N6C`(File에 `Close Folder` 0개). `verify-phase3.mjs`(`file:close-folder` 미배선) · `verify-phase4.mjs`(`Close Editor Group`) · `verify-dist.mjs`(`view:icon-theme`). ID는 유지.
+  - **검증**: `npm.cmd test` — v0.1 Phase 1~7 · v0.2 Phase 1~4 두 갈래 전건 0 failures.
+
+- **A12 반대 벤더 검토 반영** (Phase 4, **필수 통과** — 3회로 한도, 3회차 미해결 Critical 0건)
+  - **Critical 2건 수정**: (1) 예약 키(`Ctrl+O/W/\/B` · `Alt+F4` · `F10` · `F11` · `Escape` · 우클릭 메뉴 키)를 버블에서 **캡처 단계**로 옮겨, 포커스가 탭 안 보기에 있고 그 보기가 `keydown`에서 `stopPropagation()`을 불러도 껍데기가 먼저 받는다(`reserved-keys.md` §1). (2) `confirmCloseAll`이 대량 닫기에서 저장 안 한 패널을 **모두 먼저** 확인하고 취소 시 아무것도 안 바꾸고 중단한다 — `isDirty`는 건드리지 않는다(중간에 지우면 뒤 패널 취소 때 앞 패널이 거짓 저장됨으로 남았다).
+  - **Major 8건 · Minor 1건 반영**: 수정자 붙은 `F11` · 메뉴 · 우클릭 메뉴 키를 앱에 넘김(`metaKey` 포함). 대량 닫기 취소 시 원상태 유지. 표기된 단축키가 열린 햄버거 메뉴를 닫음. `Delete`는 지우기 버튼이 있는 행(`Recent Folders`)에서만 예약. 하위 메뉴 화면 밖 넘침을 오른쪽 → 왼쪽 뒤집기 → 뷰포트 클램프로 처리. Git 없는 사본 날짜 폴백(A11에서 이어짐).
+  - **검증**: `V2P4-CAPTURE-KEYS` · `V2P4-FR-M10-CANCEL` · `V2P4-FR-M9`(Delete 범위). `npm.cmd test` 전건 0 failures. 기록 `docs/reviews/A12.md`.
+  - **최소 창 폭 · 세로 넘침**: A11 R1-4와 같이 이번 범위 밖으로 기록(어느 요구에도 없음).
+
 - **A10 반대 벤더 검토 반영** (Phase 2, 필수 통과 아님 — Critical 0 · Major 3 · Minor 1)
   - **제품 결함 2건 수정**: (1) `F6`이 dockview 삽입 순서로 칸을 돌던 것을 화면 읽기 순서로 바꿨다(`V2P2-FR-F1-ORDER`). (2) 저장 안 한 탭의 닫기 버튼을 실제로 누르면 칸 포커스 끌어오기가 확인 창의 포커스를 도로 빼앗던 것을, 버튼·입력칸 누르기와 확인 창·메뉴가 포커스를 가져간 경우를 제외하도록 고쳤다(`V2P2-DIALOG-FOCUS`).
   - **검사 허점 3건 보강**: `FR-F11`은 hover를 토큰 문자열이 아니라 실제로 칠해진 색으로 측정하고 커서 테두리 대비도 본다. `FR-F5`는 `.tree-list`에 직접 보내던 클릭을 화면의 실제 빈 곳 좌표로 바꿨다. 에디터 안 `Tab`은 영역 불변에 더해 껍데기가 `Tab`을 막지 않는지를 본다 — monaco의 실제 들여쓰기는 합성 이벤트로 판정할 수 없어 사용자 재검증 몫으로 기록했다.
@@ -83,6 +116,16 @@
   - **요청**: Phase 2에서 v0.1 요구 문언을 확인하지 않아 한 번 되돌린 뒤, Phase 3 구현 전에 v0.1 `SPEC.md`에서 세로 띠 · 상단 바 · 하단 바를 언급하는 요구를 전부 대조했다.
   - **발견**: 이미 사람이 결정한 D-3(분할은 세로 띠에서 빼고 메뉴에 둔다, 테마 · Zen은 상단 바로) · D-4(하단 바 오른쪽 앱 정보를 없앤다)가 깨는 v0.1 요구 넷이 대체 목록에서 **빠져 있었다** — `FR-D3`(분할 세 경로), `FR-J8`(빈 칸 재시작 세 경로), `FR-M1`(테마 두 경로), `FR-N10`(하단 바 세 자리 유지). SPEC을 쓸 때 `FR-N1` · `FR-N9` · `FR-N11`만 대조하고 경로 수를 명시한 요구를 놓쳤다.
   - **조치**: 새 결정이 아니라 승인된 결정의 귀결이라 대체 목록에 **일부 대체**로 네 행을 더했다. 없어지는 것은 세로 띠 경로와 앱 정보 자리뿐이고, 나머지 경로(탭 줄 · 메뉴 · 트리)는 v0.1 판정을 그대로 받는다.
+
+- **`SPEC.md` 0.1절 대체 목록 보완 — 메뉴 재구성 (Phase 4 착수 전 확인)**
+  - **요청**: Phase 4 구현 전에 v0.1 `SPEC.md`에서 메뉴 · 칸 닫기 · 테마 · 아이콘 테마 · 우클릭을 언급하는 요구를 전부 대조했다.
+  - **발견**: 사람이 이미 쓴 v0.2 `FR-M1` ~ `FR-M12`(SPEC 1.4)가 대체하는 v0.1 요구 여섯이 0.1절 목록에서 **빠져 있었다** — `FR-N6c`(File 폴더 닫기), `FR-G6` 일부(View의 우클릭 스위치), `FR-J2`~`FR-J4` 일부(View "활성 칸 탭 모두 닫기" → File `Close Editor Group`), `FR-Q1a` 일부(아이콘 테마 토글 → 고르기), `FR-I9` 일부(껍데기 File 항목 다섯 → 여덟), 그리고 `FR-D3`/`FR-J8`/`FR-M1`의 메뉴 경로가 View에서 File로 옮겨 가는 것.
+  - **조치**: 새 결정이 아니라 사람이 쓴 `FR-M*` 요구의 귀결이라 0.1절에 **일부 대체**로 여섯 행을 더하고 세 행을 고쳤다. Phase 3의 표 보완과 같은 판정이다.
+
+- **분할이 `Untitled` 임시 자리를 갖는 새 칸을 만든다 (Phase 4 — v0.1 구현 가정 변경)**
+  - **요청**: `FR-P11`은 "칸을 나누면 새 칸이 **비어 있지 않고** `Untitled` 임시 자리를 갖고 생긴다"를 요구한다. v0.1 구현은 `noPanelsOverlay: 'emptyGroup'`로 빈 칸을 만들었고, v0.1 스위트 여러 곳이 "분할 = 빈 칸"을 전제로 자리 수를 셌다.
+  - **판단**: v0.1 `SPEC.md`는 분할이 빈 칸을 만든다고 **요구한 적이 없다** — `FR-D1`·`FR-D2`는 "칸 수가 1 늘고" 위치만, `FR-D7`은 "8회에 9칸"만 판정한다. 빈 칸은 구현 선택이었고, 자리 수를 세던 v0.1 단언은 SPEC 계약을 넘어 구현 세부를 검사하고 있었다.
+  - **조치**: 사용자 분할 경로만 `splitGroupForUser`로 분리해 `Untitled` 임시 탭을 함께 만들고, `openBeside`의 내부 분할은 빈 칸 그대로 뒀다. `openItem`의 `isBlankSpot` 갈래로 임시 · 확정 열기 둘 다 그 자리를 흡수하게 해, v0.1 스위트의 "분할 뒤 그 칸에 열기" 흐름이 자리 수를 그대로 유지한다. 전건 통과로 회귀 없음을 확인했다.
 
 - **영역 순환 키를 `Tab`에서 `F6`으로 변경 (Phase 2 착수 전 명세 충돌)**
   - **요청**: Phase 2 착수 전 확인에서 `FR-F1`(`Tab`·`Shift+Tab`으로 트리와 칸 순환)이 v0.1의 두 요구와 충돌하는 것을 발견했다 — v0.1 `NFR-7`(세로 띠·탭 줄 버튼에 브라우저 기본 `Tab`으로 닿는다, `docs/reserved-keys.md` 5절)과 v0.1 `FR-I6`(탭 안 보기의 키는 앱 몫, 에디터 들여쓰기). 둘 다 `SPEC.md` 0.1절 대체 목록에 없어 그대로 구현하면 회귀다. 두 안(`F6` / `Tab` 조건부)을 올려 **사람이 `F6`을 결정**했다(2026-09-10).

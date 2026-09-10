@@ -234,7 +234,7 @@
     },
     {
       "id": "WK-062",
-      "status": "todo",
+      "status": "done",
       "priority": "P4",
       "category": "껍데기",
       "title": "File 메뉴 구조",
@@ -244,11 +244,11 @@
       "note": "FR-M1 · FR-M6 · FR-M7. v0.1 FR-N6을 대체한다",
       "parent": null,
       "deps": [],
-      "done_at": null
+      "done_at": "2026-09-10"
     },
     {
       "id": "WK-063",
-      "status": "todo",
+      "status": "done",
       "priority": "P4",
       "category": "껍데기",
       "title": "View 메뉴 구조",
@@ -258,11 +258,11 @@
       "note": "FR-M2 · FR-M6 · FR-M8 · FR-M9 · FR-M12. v0.1 FR-N7을 대체한다",
       "parent": null,
       "deps": [],
-      "done_at": null
+      "done_at": "2026-09-10"
     },
     {
       "id": "WK-064",
-      "status": "todo",
+      "status": "done",
       "priority": "P4",
       "category": "껍데기",
       "title": "단축키 표시와 실제 동작의 일치",
@@ -274,11 +274,11 @@
       "deps": [
         "WK-062"
       ],
-      "done_at": null
+      "done_at": "2026-09-10"
     },
     {
       "id": "WK-065",
-      "status": "todo",
+      "status": "done",
       "priority": "P4",
       "category": "껍데기",
       "title": "하위 메뉴 표시와 Help",
@@ -288,11 +288,11 @@
       "note": "FR-M11 · FR-M3",
       "parent": null,
       "deps": [],
-      "done_at": null
+      "done_at": "2026-09-10"
     },
     {
       "id": "WK-066",
-      "status": "todo",
+      "status": "done",
       "priority": "P4",
       "category": "칸·탭",
       "title": "세 닫기 명령",
@@ -304,11 +304,11 @@
       "deps": [
         "WK-062"
       ],
-      "done_at": null
+      "done_at": "2026-09-10"
     },
     {
       "id": "WK-067",
-      "status": "todo",
+      "status": "done",
       "priority": "P4",
       "category": "칸·탭",
       "title": "분할로 생기는 칸의 임시 자리",
@@ -320,7 +320,7 @@
       "deps": [
         "WK-049"
       ],
-      "done_at": null
+      "done_at": "2026-09-10"
     },
     {
       "id": "WK-068",

@@ -247,7 +247,7 @@ for (const val of ['12px', '4px', '8px', '16px', '6px']) {
 console.log('[PASS] src/style.css contains zero tab-explorer-templates typography, spacing, or radius values (FR-M5, D-29)');
 
 const menuSrc = fs.readFileSync(path.join(rootDir, 'src/core/menu.ts'), 'utf8');
-assert(menuSrc.includes("'view:cycle-icon-theme'"), 'View menu contains icon theme switcher (FR-Q1a)');
+assert(menuSrc.includes("'view:icon-theme'"), 'View menu contains the Icon Theme chooser (FR-Q1a → v0.2 FR-M9)');
 const activityBarSrc = fs.readFileSync(path.join(rootDir, 'src/core/activitybar.ts'), 'utf8');
 assert(!activityBarSrc.includes('icon-theme') && !activityBarSrc.includes('아이콘 테마'), 'Activity bar contains zero icon theme switchers (X-13, FR-Q1a)');
 assert(!activityBarSrc.includes('칸 삭제') && !activityBarSrc.includes('칸 합치기'), 'Activity bar contains zero 칸 삭제/칸 합치기 items (X-7, FR-N11)');

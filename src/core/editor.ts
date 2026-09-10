@@ -251,14 +251,14 @@ export class EditorHeaderActionsRenderer implements IHeaderActionsRenderer {
     splitRightBtn?.addEventListener('click', (e) => {
       e.stopPropagation();
       if (this.group) {
-        this.editorController.splitGroup(this.group, 'right');
+        this.editorController.splitGroupForUser(this.group, 'right');
       }
     });
 
     splitDownBtn?.addEventListener('click', (e) => {
       e.stopPropagation();
       if (this.group) {
-        this.editorController.splitGroup(this.group, 'below');
+        this.editorController.splitGroupForUser(this.group, 'below');
       }
     });
 
@@ -559,6 +559,43 @@ export class EditorController {
     // whether or not the declared type says `void` (TS's `await` on any
     // runtime thenable still suspends correctly regardless of static type).
     (panel.api as unknown as { close: () => Promise<boolean> }).close = () => this.confirmAndClose(panel, rawClose);
+    // A12 Major: a bulk close (Close Editor Group / Close All Tabs) must not
+    // half-empty the workspace and then stop at a Cancel. It confirms every
+    // dirty tab up front and, only if none is cancelled, force-closes them all
+    // through this raw path — no second per-tab prompt.
+    (panel as unknown as { __rawClose: () => void }).__rawClose = rawClose;
+  }
+
+  /**
+   * Confirms all the dirty panels in `panels` before any of them is closed
+   * (A12 Major). Returns false the moment one is cancelled — with nothing
+   * closed and nothing saved past that point — so the caller can abort the
+   * whole bulk close. Clean panels need no confirmation (FR-L7).
+   *
+   * A12 R2 Critical: this never touches `isDirty`. `forceClosePanel` closes
+   * the panel raw, bypassing the per-panel prompt, so there is no need to
+   * "clear" the mark — and clearing it mid-loop would leave a panel falsely
+   * clean if a *later* panel's prompt is then cancelled.
+   */
+  private async confirmCloseAll(panels: IDockviewPanel[]): Promise<boolean> {
+    if (!this.dialogController) return true;
+    for (const panel of panels) {
+      if (!panel.params?.isDirty) continue;
+      const choice = await this.dialogController.show(
+        `저장하지 않은 변경 내용이 있습니다: ${panel.title || panel.id}`
+      );
+      if (choice === 'cancel') return false;
+      if (choice === 'save') {
+        const ok = this.saveHandler ? await this.saveHandler(panel.id) : false;
+        if (!ok) return false;
+      }
+    }
+    return true;
+  }
+
+  /** Closes a panel through its raw path — no dirty prompt (see confirmCloseAll). */
+  private forceClosePanel(panel: IDockviewPanel): void {
+    (panel as unknown as { __rawClose?: () => void }).__rawClose?.();
   }
 
   /**
@@ -774,7 +811,14 @@ export class EditorController {
     // FR-P2: a preview open reuses the group's preview spot, replacing what is
     // shown there. A tab the user made with [+] is confirmed, so it is not a
     // candidate — browsing never overwrites it.
-    const reusable = mode === 'preview' ? this.getPreviewPanel(group) : undefined;
+    // A preview spot that has never shown anything — the `Untitled` tab a
+    // split starts with (FR-P11) — is taken by a confirming open too, so
+    // pressing Enter there does not leave an empty tab behind beside it.
+    const previewSpot = this.getPreviewPanel(group);
+    const isBlankSpot = Boolean(
+      previewSpot && previewSpot.params?.targetId == null && !previewSpot.params?.isDirty
+    );
+    const reusable = mode === 'preview' || isBlankSpot ? previewSpot : undefined;
     if (reusable) {
       reusable.setTitle(displayTitle);
       reusable.api.setRenderer(requestedRenderer);
@@ -793,7 +837,7 @@ export class EditorController {
           ...meta,
           targetId,
           isUserCreatedEmptyTab: false,
-          isPreview: true,
+          isPreview: mode === 'preview',
           // Round-2 adversarial finding (Major): dockview merges partial
           // params rather than replacing them, so a stale isDirty: true from
           // whatever this panel held before would otherwise survive into the
@@ -949,7 +993,8 @@ export class EditorController {
     const besideGroup = this.findBesideGroup(activeGroup);
 
     if (!besideGroup) {
-      // No horizontal neighbor exists: split right
+      // No horizontal neighbor exists: make a bare group and fill it at once.
+      // This is not a user-asked split, so it gets no `Untitled` spot (FR-P11).
       const beside = this.splitGroup(activeGroup, 'right');
       return this.openItem(targetId, title, options, beside);
     }
@@ -960,7 +1005,9 @@ export class EditorController {
   }
 
   /**
-   * Splits a group in the specified direction (FR-D1, FR-D2).
+   * The bare split primitive (FR-D1, FR-D2): a new group in the given
+   * direction, with no panels. Used where the caller fills it right away
+   * (openBeside). User-facing splits go through `splitGroupForUser`.
    */
   public splitGroup(group: DockviewGroupPanel, direction: 'right' | 'below'): DockviewGroupPanel {
     const dir: Direction = direction === 'right' ? 'right' : 'below';
@@ -971,12 +1018,45 @@ export class EditorController {
   }
 
   /**
-   * Splits active group in the specified direction (FR-D3).
+   * Splits a group the way the user does — the header buttons, the File menu,
+   * Ctrl+\ (v0.2 FR-P11, D-1).
+   *
+   * The new group is not empty: it opens with one `Untitled` preview tab. That
+   * tab is the group's replaceable spot, so the first pick there lands in it,
+   * and closing it without adding anything else takes the group with it by the
+   * ordinary last-tab rule (FR-P12). Creating the group and its tab in one
+   * addPanel call means no empty group ever exists in between.
+   */
+  public splitGroupForUser(group: DockviewGroupPanel, direction: 'right' | 'below'): DockviewGroupPanel {
+    const dir: Direction = direction === 'right' ? 'right' : 'below';
+    const panel = this.api.addPanel({
+      id: `tab-${++this.panelCounter}`,
+      component: 'editor-panel',
+      title: 'Untitled',
+      position: {
+        referenceGroup: group,
+        direction: dir,
+      },
+      params: {
+        isUserCreatedEmptyTab: true,
+        targetId: null,
+        isPreview: true,
+      },
+    });
+    this.wirePanelClose(panel);
+    panel.api.setActive();
+    this.applyPreviewClass(panel);
+    return panel.group;
+  }
+
+  /**
+   * Splits the active group the way the user does (FR-D1 ~ FR-D3, FR-P11):
+   * the File menu's Split Right / Split Down and Ctrl+\ land here.
    */
   public splitActiveGroup(direction: 'right' | 'below'): DockviewGroupPanel | undefined {
     const group = this.getActiveGroup();
     if (!group) return undefined;
-    return this.splitGroup(group, direction);
+    return this.splitGroupForUser(group, direction);
   }
 
   /**
@@ -1003,25 +1083,38 @@ export class EditorController {
   }
 
   /**
-   * Closes all tabs in the specified group (or active group) (FR-J2),
-   * asking first for each dirty tab (D-28).
-   * If other groups exist, that group disappears (FR-J1).
-   * If it is the last group, it remains as an empty pane (FR-J2, FR-J7).
-   * If already an empty pane, changes nothing (FR-J4).
+   * Closes every tab in the group — the active tab's whole group (v0.2 FR-M10,
+   * v0.1 FR-J2). Confirms all its dirty tabs first; a Cancel there aborts with
+   * the group untouched (A12 Major). If other groups exist the group then
+   * disappears (FR-J1); the last group stays as an empty pane (FR-J7); an
+   * already-empty pane changes nothing (FR-J4).
    */
   public async closeAllTabsInGroup(targetGroup?: DockviewGroupPanel): Promise<void> {
     const group = targetGroup || this.getActiveGroup();
     if (!group) return;
 
     const panels = [...group.panels];
-    if (panels.length === 0) {
-      // Empty group: already empty, nothing changes (FR-J4)
-      return;
-    }
+    if (panels.length === 0) return; // FR-J4
 
+    if (!(await this.confirmCloseAll(panels))) return;
     for (const panel of panels) {
-      const closed = await this.closePanel(panel);
-      if (!closed) break;
+      this.forceClosePanel(panel);
+    }
+  }
+
+  /**
+   * File > Close All Tabs: every open tab in every group (v0.2 FR-M10, D-5).
+   * Confirms all dirty tabs first; a Cancel aborts with nothing closed (A12
+   * Major). Emptied groups disappear by the usual rule, and the last one
+   * stays as an empty group (FR-J7).
+   */
+  public async closeAllTabs(): Promise<void> {
+    const panels = [...this.api.panels];
+    if (panels.length === 0) return;
+
+    if (!(await this.confirmCloseAll(panels))) return;
+    for (const panel of panels) {
+      if (this.api.getPanel(panel.id)) this.forceClosePanel(panel);
     }
   }
 

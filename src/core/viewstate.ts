@@ -18,17 +18,26 @@ export class ViewStateManager {
   }
 
   private setupKeyboardListeners(): void {
-    window.addEventListener('keydown', (e: KeyboardEvent) => {
-      if (e.key === 'F11') {
-        e.preventDefault();
-        this.toggleZenMode();
-      } else if (e.key === 'Escape') {
-        if (this._isZenMode) {
+    // Capture phase (A12 Critical): a reserved key is the shell's regardless of
+    // focus (reserved-keys.md §1). A bubbling listener could be blocked by a
+    // tab view that calls stopPropagation() on its own keydown; a capture
+    // listener on window runs before the event ever reaches that view.
+    window.addEventListener(
+      'keydown',
+      (e: KeyboardEvent) => {
+        // Only bare F11 is reserved — Ctrl/Alt/Shift+F11 belong to the app
+        // (A12 Major, reserved-keys.md §1).
+        const bare = !e.ctrlKey && !e.altKey && !e.shiftKey && !e.metaKey;
+        if (e.key === 'F11' && bare) {
+          e.preventDefault();
+          this.toggleZenMode();
+        } else if (e.key === 'Escape' && this._isZenMode && bare) {
           e.preventDefault();
           this.exitZenMode();
         }
-      }
-    });
+      },
+      true
+    );
   }
 
   public getState(): ViewState {

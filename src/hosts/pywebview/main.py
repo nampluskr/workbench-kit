@@ -25,6 +25,7 @@ is_phase7_test = "--phase7-test" in sys.argv
 is_v02_phase1_test = "--v02-phase1-test" in sys.argv
 is_v02_phase2_test = "--v02-phase2-test" in sys.argv
 is_v02_phase3_test = "--v02-phase3-test" in sys.argv
+is_v02_phase4_test = "--v02-phase4-test" in sys.argv
 loaded_called = False
 
 INSPECTION_EXPRESSION = """
@@ -255,6 +256,71 @@ def main():
                 sys.stderr.write(f"[pywebview] Error inspecting loaded DOM: {e}\n")
                 sys.stderr.flush()
                 os._exit(1)
+
+        if is_v02_phase4_test:
+            def run_v02_phase4():
+                # Three real folders for Recent Folders (FR-M7), each holding a
+                # file whose icon the icon theme draws (FR-M9).
+                test_dirs = [tempfile.mkdtemp(prefix="wb-v02p4-recent-") for _ in range(3)]
+                try:
+                    for d in test_dirs:
+                        with open(os.path.join(d, "note.txt"), "w", encoding="utf-8") as f:
+                            f.write("note")
+                    time.sleep(0.6)
+                    suite_path = os.path.join(root_dir, "scripts", "v02-phase4-suite.js")
+                    with open(suite_path, "r", encoding="utf-8") as f:
+                        suite_code = f.read()
+                    window.evaluate_js("window.__testTmpDirs = " + json.dumps(test_dirs) + ";")
+
+                    # Only the native folder picker's answer is stubbed (Ctrl+O
+                    # vs File > Open Folder..., FR-M5); the menu -> bridge ->
+                    # WindowApi chain stays real.
+                    def stubbed_open_folder_dialog():
+                        return window.evaluate_js("window.__nextDialogPath ?? null")
+                    api.open_folder_dialog = stubbed_open_folder_dialog
+
+                    window.evaluate_js(suite_code)
+                    window.evaluate_js("""
+                        (async () => {
+                            try {
+                                const res = await window.__runV02Phase4Suite();
+                                window.__v02Phase4Results = JSON.stringify(res);
+                            } catch (e) {
+                                window.__v02Phase4Results = JSON.stringify({ success: false, results: [{ id: 'RUNNER_ERR', pass: false, msg: String(e) }] });
+                            }
+                        })();
+                    """)
+                    for _ in range(900):
+                        time.sleep(0.1)
+                        res = window.evaluate_js("window.__v02Phase4Results")
+                        if res:
+                            sys.stdout.write(f"[pywebview] v0.2 Phase 4 Results: {res}\n")
+                            sys.stdout.flush()
+                            window._wb_close_confirmed = True
+                            window.destroy()
+                            for d in test_dirs:
+                                shutil.rmtree(d, ignore_errors=True)
+                            os._exit(0)
+                            return
+                    sys.stderr.write("[pywebview] Error: v0.2 Phase 4 test timed out waiting for results\n")
+                    sys.stderr.flush()
+                    window._wb_close_confirmed = True
+                    window.destroy()
+                    for d in test_dirs:
+                        shutil.rmtree(d, ignore_errors=True)
+                    os._exit(1)
+                except Exception as e:
+                    sys.stderr.write(f"[pywebview] Error executing v0.2 Phase 4 test: {e}\n")
+                    sys.stderr.flush()
+                    window._wb_close_confirmed = True
+                    window.destroy()
+                    for d in test_dirs:
+                        shutil.rmtree(d, ignore_errors=True)
+                    os._exit(1)
+
+            t = threading.Thread(target=run_v02_phase4, daemon=True)
+            t.start()
+            return
 
         if is_v02_phase3_test:
             def run_v02_phase3():

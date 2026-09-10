@@ -8,17 +8,19 @@
 
 | 키 | 동작 | 근거 |
 | --- | --- | --- |
-| `Ctrl+O` | 폴더 열기 | FR-A1, D-16 |
-| `Ctrl+W` | 활성 탭 닫기 | FR-N6b |
+| `Ctrl+O` | 폴더 열기 (`File > Open Folder...`) | FR-A1, D-16, v0.2 FR-M4 |
+| `Ctrl+W` | 활성 탭 닫기 (`File > Close Active Tab`) | FR-N6b, v0.2 FR-M4 |
 | `Ctrl+\` | 좌우 스플릿 | FR-D1 |
+| `Ctrl+B` | 탐색기 감추기/보이기 (`View > Show Sidebar`) | v0.2 FR-M4 · FR-M5 |
+| `Alt+F4` | 끝내기 (`File > Exit`) — 메뉴와 같은 닫기 확인 경로. `Alt` 없는 `F4`는 예약하지 않는다 | v0.2 FR-M4 · FR-M5 |
 | `F10` | 햄버거 메뉴 열기/닫기 | FR-N5, D-7 |
-| `F11` | Zen 모드 전환 | D-12 |
+| `F11` | Zen 모드 전환 (`View > Zen Mode`) | D-12, v0.2 FR-M4 |
 | `Ctrl+Tab` / `Ctrl+Shift+Tab` | 활성 칸 안에서 다음 / 이전 탭으로 전환. 칸은 바뀌지 않는다 | v0.2 FR-F2, D-10 |
+| `Escape` | 열린 메뉴를 닫거나(메뉴가 열려 있을 때), Zen 모드를 빠져나온다(Zen일 때) | D-12 |
 
 `Tab` / `Shift+Tab`은 **예약하지 않는다.** v0.1 그대로 브라우저 기본 포커스 이동(세로 띠 ·
 탭 줄 버튼 사이)과 탭 안 보기의 입력(에디터 들여쓰기 등)에 쓰인다. 영역 순환을 `Tab`에
 두지 않은 이유는 이 두 경로를 깨지 않기 위해서다(v0.2 D-10, 사람 결정 2026-09-10).
-| `Escape` | 열린 메뉴를 닫거나(메뉴가 열려 있을 때), Zen 모드를 빠져나온다(Zen일 때) | D-12 |
 
 ## 1b. 포커스가 탭 안 보기 **밖**에 있을 때만 (v0.2 D-10)
 
@@ -34,9 +36,11 @@
 
 | 키 | 동작 |
 | --- | --- |
-| `ArrowUp` / `ArrowDown` | 항목 사이 이동 |
-| `ArrowLeft` / `ArrowRight` | File · View · Help 사이 이동 |
-| `Enter` | 포커스된 항목 실행 |
+| `ArrowUp` / `ArrowDown` | 항목 사이 이동 (하위 메뉴가 열려 있으면 그 안에서) |
+| `ArrowRight` | 하위 메뉴가 있는 항목(`Recent Folders` · `Color Theme` · `Icon Theme`)이면 그 하위 메뉴를 연다. 아니면 다음 묶음(File → View → Help) |
+| `ArrowLeft` | 하위 메뉴가 열려 있으면 닫는다. 아니면 이전 묶음 |
+| `Enter` | 포커스된 항목 실행 (하위 메뉴가 있는 항목이면 연다) |
+| `Delete` | `Recent Folders` 하위 메뉴에서 포커스된 경로를 목록에서 지운다 (v0.2 FR-M7) |
 | `Escape` | 메뉴 닫기 |
 
 ## 2b. 우클릭 메뉴가 열려 있을 때만 (WK-030, D-22)

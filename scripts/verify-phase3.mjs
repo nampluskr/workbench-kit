@@ -952,7 +952,8 @@ assert(sidebarActionsHtml.includes('sidebar-action-refresh') && sidebarActionsHt
 assert(sidebarActionsHtml.includes('sidebar-app-actions'), 'Layout provides empty app actions mount point (FR-A24)');
 
 const mainTs = fs.readFileSync(path.join(rootDir, 'src/main.ts'), 'utf8');
-assert(mainTs.includes("'file:close-folder'") || mainTs.includes('"file:close-folder"'), 'main.ts registers file:close-folder command (FR-N6c)');
+// v0.1 FR-N6c is replaced by v0.2 FR-M1 (SPEC 0.1): File has no Close Folder item.
+assert(!mainTs.includes("'file:close-folder'") && !mainTs.includes('"file:close-folder"'), 'main.ts wires no file:close-folder menu command (v0.1 FR-N6c → v0.2 FR-M1)');
 assert(mainTs.includes('closeFolder()') && mainTs.includes('this.tree.clearRoot()'), 'closeFolder() clears root in tree');
 
 const electronMainCjs = fs.readFileSync(path.join(rootDir, 'src/hosts/electron/main.cjs'), 'utf8');

@@ -367,6 +367,11 @@ window.__runPhase5TestSuite = async function runPhase5TestSuite() {
     // ------------------------------------------------------------------------
     // 9. File menu app item (FR-I9, WK-048)
     // ------------------------------------------------------------------------
+    // v0.2 moved the wiring example's File item to View > Preset Info
+    // (FR-M12), so the production File menu has no app item any more. The
+    // app adds one here through its own extension surface, exactly as an app
+    // would (v0.1 FR-I9: zero core changes).
+    window.__workbenchAppSurface.addFileMenuItem({ id: 'app:file:preset-info', label: 'Sample App Item', action: () => {} });
     const fileGroup = menu.getGroups().find((g) => g.id === 'file');
     const coreFileItems = menu.getFileItems();
     const fileItemsMatchCore = coreFileItems.every((it, i) => fileGroup.items[i].id === it.id);

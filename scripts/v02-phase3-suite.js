@@ -131,7 +131,9 @@ window.__runV02Phase3Suite = async function runV02Phase3Suite() {
     await press('Escape');
     let themeByMenu = true;
     for (let i = 0; i < 3; i++) {
-      await clickMenuRow('view', 'view:cycle-color-theme');
+      // The next theme, picked from View > Color Theme (a list since Phase 4, FR-M8).
+      await clickMenuRow('view', 'view:color-theme');
+      await clickMenuRow('view', 'view:color-theme:' + { light: 'gray', gray: 'dark', dark: 'light' }[app.theme.getTheme()]);
       if (glyphOf(themeBtn) !== glyphByTheme[app.theme.getTheme()]) themeByMenu = false;
     }
     record(
@@ -164,7 +166,7 @@ window.__runV02Phase3Suite = async function runV02Phase3Suite() {
       const before = editor.getGroupCount();
       if (headerSplit) await clickEl(headerSplit);
       const headerWorks = editor.getGroupCount() === before + 1;
-      await clickMenuRow('view', 'view:split-horizontal');
+      await clickMenuRow('file', 'file:split-right');
       const menuWorks = editor.getGroupCount() === before + 2;
       record(
         'V2P3-FR-C5',

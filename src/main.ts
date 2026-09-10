@@ -8,8 +8,8 @@ import { MenuController } from './core/menu';
 import { ActivityBarController } from './core/activitybar';
 import { ViewStateManager } from './core/viewstate';
 import { FocusAreaController } from './core/focusareas';
-import { ThemeManager } from './core/theme';
-import { IconThemeManager } from './core/icontheme';
+import { ThemeManager, ColorTheme } from './core/theme';
+import { IconThemeManager, FileIconThemeId } from './core/icontheme';
 import { SetiResolver, VscodeIconsResolver } from './icons';
 import { TreeController, TreeNode } from './core/tree';
 import { ExplorerTitlebarController } from './core/sidebar';
@@ -64,8 +64,6 @@ export class WorkbenchApp {
   public editor: EditorController;
   public kindRegistry: ResourceKindRegistry;
   public contextMenu: ContextMenuController;
-  /** Shell-internal picker for the File menu's "recent folder" item (D-16: a list, not just the most recent). Always enabled — unlike `contextMenu`, this is not the user-toggleable right-click feature (D-22). */
-  private recentFoldersMenu: ContextMenuController;
   public confirmDialog: ConfirmDialogController;
   public aboutDialog: AboutDialogController;
   public statusMessages: StatusMessageController;
@@ -105,8 +103,6 @@ export class WorkbenchApp {
 
     // Right-click menu device, default off (FR-G5, FR-G6, D-22, WK-030)
     this.contextMenu = new ContextMenuController(this.layout.root);
-    this.recentFoldersMenu = new ContextMenuController(this.layout.root);
-    this.recentFoldersMenu.setEnabled(true);
 
     // Save-confirmation dialog (FR-L2 ~ FR-L7, D-28) and status message/progress line (D-21, D-32)
     this.confirmDialog = new ConfirmDialogController(this.layout.root);
@@ -132,10 +128,27 @@ export class WorkbenchApp {
 
     this.loadRecentFolders();
 
-    // Bind File menu actions (FR-A1, FR-N6a, FR-N6c)
+    // Bind File menu actions (FR-A1, FR-N6a)
     this.menu.setAction('file:open-folder', () => this.handleOpenFolderDialog());
-    this.menu.setAction('file:open-recent', () => this.showRecentFoldersPicker());
-    this.menu.setAction('file:close-folder', () => this.closeFolder());
+    // Recent Folders opens the stored paths as a list, read each time it is
+    // shown. A row opens that folder; its remove button drops the path for
+    // good (v0.2 FR-M7, v0.1 FR-N6a · D-16).
+    this.menu.setSubmenuProvider('file:open-recent', () =>
+      this.recentFolders.length === 0
+        ? [{ id: 'file:open-recent:empty', label: '(Empty)', disabled: true }]
+        : this.recentFolders.map((folderPath, index) => ({
+            id: `file:open-recent:${index}`,
+            label: folderPath,
+            action: () => {
+              void this.openFolder(folderPath);
+            },
+            secondaryAction: {
+              title: 'Remove from Recent Folders',
+              iconClass: 'codicon-close',
+              action: () => this.removeRecentFolder(folderPath),
+            },
+          }))
+    );
 
     // Update statusbar path on node selection
     this.tree.onSelect((nodes) => {
@@ -164,6 +177,13 @@ export class WorkbenchApp {
     this.menu.setAction('view:toggle-titlebar', () => this.viewState.toggleTitlebar());
     this.menu.setAction('view:toggle-statusbar', () => this.viewState.toggleStatusbar());
     this.menu.setAction('view:zen-mode', () => this.viewState.toggleZenMode());
+    // Each row's check mark is read from the live state whenever the menu is
+    // drawn, so a change made by key, title bar or Activity Bar shows the next
+    // time the menu opens (UT-MNU-002).
+    this.menu.setCheckedProvider('view:zen-mode', () => this.viewState.isZenMode);
+    this.menu.setCheckedProvider('view:toggle-sidebar', () => this.viewState.getState().sidebarVisible);
+    this.menu.setCheckedProvider('view:toggle-titlebar', () => this.viewState.getState().titlebarVisible);
+    this.menu.setCheckedProvider('view:toggle-statusbar', () => this.viewState.getState().statusbarVisible);
 
     this.activityBar.setAction('activity:toggle-sidebar', () => this.viewState.toggleSidebar());
     this.activityBar.setAction('activity:toggle-titlebar', () => this.viewState.toggleTitlebar());
@@ -172,8 +192,22 @@ export class WorkbenchApp {
     // Ensure menu controller state is closed when entering Zen mode (FR-F5, D-12)
     this.viewState.onZenEnter(() => this.menu.closeMenu());
 
-    // Bind theme cycling (FR-M1: White -> Gray -> Dark)
-    this.menu.setAction('view:cycle-color-theme', () => this.theme.cycleTheme());
+    // View > Color Theme lists the three themes and marks the current one
+    // (v0.2 FR-M8). The title bar button keeps cycling through them in the
+    // same White -> Gray -> Dark order (FR-C3, v0.1 FR-M1).
+    const colorThemes: { id: ColorTheme; label: string }[] = [
+      { id: 'light', label: 'White' },
+      { id: 'gray', label: 'Gray' },
+      { id: 'dark', label: 'Dark' },
+    ];
+    this.menu.setSubmenuProvider('view:color-theme', () =>
+      colorThemes.map((t) => ({
+        id: `view:color-theme:${t.id}`,
+        label: t.label,
+        checked: this.theme.getTheme() === t.id,
+        action: () => this.theme.setTheme(t.id),
+      }))
+    );
 
     // Title bar state actions (v0.2 FR-C1 ~ FR-C3, FR-C11, D-3). Zen and the
     // colour theme sit beside the window controls. Their icons are drawn from
@@ -201,15 +235,26 @@ export class WorkbenchApp {
     renderThemeIcon(this.theme.getTheme());
     renderZenIcon(this.viewState.isZenMode);
 
-    // Bind icon theme cycling (FR-Q1a: seti <-> vscode-icons, View menu only).
-    // Phase 7 finding: toggling the theme alone only flips internal state —
-    // already-rendered tree rows keep resolving icons at render time, so
-    // without an explicit re-render the visible icons would not actually
-    // change until some unrelated refresh happened to redraw the tree.
-    this.menu.setAction('view:cycle-icon-theme', () => {
-      this.iconTheme.toggleTheme();
-      this.tree.render();
-    });
+    // View > Icon Theme: choose one of the two, still from the View menu only
+    // (v0.2 FR-M9, v0.1 FR-Q1a). Phase 7 finding: switching the theme alone
+    // only flips internal state — already-rendered tree rows keep resolving
+    // icons at render time, so without an explicit re-render the visible
+    // icons would not change until some unrelated refresh redrew the tree.
+    const iconThemes: { id: FileIconThemeId; label: string }[] = [
+      { id: 'seti', label: 'VS Code Built-in' },
+      { id: 'vscode-icons', label: 'VS Code Icons' },
+    ];
+    this.menu.setSubmenuProvider('view:icon-theme', () =>
+      iconThemes.map((t) => ({
+        id: `view:icon-theme:${t.id}`,
+        label: t.label,
+        checked: this.iconTheme.getTheme() === t.id,
+        action: () => {
+          this.iconTheme.setTheme(t.id);
+          this.tree.render();
+        },
+      }))
+    );
 
     // Bind Tree item opening rules (FR-B1 ~ FR-B4, FR-A6, FR-A14, D-5).
     // Which kind a node opens as is an app-layer decision (isContainer is a
@@ -296,9 +341,8 @@ export class WorkbenchApp {
 
     // Right-click menu wiring (FR-G5, FR-G6, D-22). The shell only draws the
     // device; whether it is enabled and what items appear are app decisions.
-    this.menu.setAction('view:toggle-context-menu', () => {
-      this.contextMenu.setEnabled(this.menu.isItemChecked('view:toggle-context-menu'));
-    });
+    // v0.2 removed the View menu's own switch (FR-M2), so the app turns it on
+    // through setContextMenuEnabled.
     this.layout.sidebarContent.addEventListener('contextmenu', (e) => {
       const row = (e.target as HTMLElement).closest('.tree-row') as HTMLElement | null;
       if (!row) return;
@@ -316,8 +360,11 @@ export class WorkbenchApp {
       this.contextMenu.show(e.clientX, e.clientY, items);
     });
 
-    // File menu tab actions (FR-N6b)
+    // File menu close commands, each a different scope (v0.2 FR-M10, D-5):
+    // the active tab, the active tab's whole group, every open tab.
     this.menu.setAction('file:close-tab', () => this.editor.closeActiveTab());
+    this.menu.setAction('file:close-editor-group', () => void this.editor.closeAllTabsInGroup());
+    this.menu.setAction('file:close-all-tabs', () => void this.editor.closeAllTabs());
 
     // Overrides the built-in `file:exit` action (setAction takes priority
     // over the item's own embedded action) so quitting with unsaved changes
@@ -342,24 +389,21 @@ export class WorkbenchApp {
       });
     });
 
-    // View menu layout actions (FR-D3, FR-J2)
-    this.menu.setAction('view:split-horizontal', () => this.editor.splitActiveGroup('right'));
-    this.menu.setAction('view:split-vertical', () => this.editor.splitActiveGroup('below'));
-    this.menu.setAction('view:close-active-tabs', () => this.editor.closeAllTabsInGroup());
+    // File menu split actions (v0.2 FR-M1; the menu path of v0.1 FR-D3 moved
+    // here from View).
+    this.menu.setAction('file:split-right', () => this.editor.splitActiveGroup('right'));
+    this.menu.setAction('file:split-down', () => this.editor.splitActiveGroup('below'));
 
-    // Activity bar split actions (FR-D3)
+    // View > Preset Info (v0.2 FR-M12, D-6): the presets are registered right
+    // here by this composition root, which is what lets it name them.
+    this.menu.setAction('view:preset-info', () => {
+      this.statusMessages.showMessage('Presets registered: file, folder');
+    });
 
     // Minimal example wiring proving the app-facing extension slots (WK-048, WK-029):
-    // File menu item below the shell's separator (FR-I9), a view-titlebar action left
-    // of the shell's two actions (FR-I10), and one status bar item beside the shell's
-    // three slots (FR-N10). These are wiring examples, not domain functionality (INTENT 7).
-    this.menu.addAppFileItem({
-      id: 'app:file:preset-info',
-      label: 'Preset Info',
-      action: () => {
-        this.statusMessages.showMessage('Presets registered: file, folder');
-      },
-    });
+    // a view-titlebar action left of the shell's actions (FR-I10), and one status bar
+    // item beside the shell's slots (FR-N10). These are wiring examples, not domain
+    // functionality (INTENT 7).
     this.explorerTitlebar.addAppAction({
       id: 'app:sidebar:preset-info',
       title: 'Preset Info',
@@ -380,20 +424,39 @@ export class WorkbenchApp {
     // FR-F1 ~ FR-F5).
     new FocusAreaController(this.layout.sidebarContent, this.tree, this.editor, this.viewState);
 
-    // Global keyboard shortcuts: Ctrl+O, Ctrl+W, Ctrl+\
+    // Global keyboard shortcuts: Ctrl+O, Ctrl+W, Ctrl+\, Ctrl+B, Alt+F4.
+    // Capture phase (A12 Critical): these are the shell's regardless of focus
+    // (reserved-keys.md §1). A tab view that calls stopPropagation() on its own
+    // keydown must not be able to swallow them, so the listener runs before the
+    // event reaches the view. Non-reserved keys fall through untouched.
     if (typeof window !== 'undefined') {
       window.addEventListener('keydown', (e) => {
-        if (e.ctrlKey && !e.shiftKey && !e.altKey && (e.key === 'o' || e.key === 'O')) {
+        const ctrlOnly = e.ctrlKey && !e.shiftKey && !e.altKey && !e.metaKey;
+        const altOnly = e.altKey && !e.ctrlKey && !e.shiftKey && !e.metaKey;
+        // A12 R3 Major: a displayed shortcut must land on the same screen state
+        // as clicking its row — and clicking a row closes the menu first. Run
+        // the command with the menu already closed.
+        const run = (fn: () => void) => {
           e.preventDefault();
-          this.handleOpenFolderDialog();
-        } else if (e.ctrlKey && !e.shiftKey && !e.altKey && (e.key === 'w' || e.key === 'W')) {
-          e.preventDefault();
-          this.editor.closeActiveTab();
-        } else if (e.ctrlKey && !e.shiftKey && !e.altKey && e.key === '\\') {
-          e.preventDefault();
-          this.editor.splitActiveGroup('right');
+          if (this.menu.isOpen) this.menu.closeMenu();
+          fn();
+        };
+        if (ctrlOnly && (e.key === 'o' || e.key === 'O')) {
+          run(() => this.handleOpenFolderDialog());
+        } else if (ctrlOnly && (e.key === 'w' || e.key === 'W')) {
+          run(() => this.editor.closeActiveTab());
+        } else if (ctrlOnly && e.key === '\\') {
+          run(() => this.editor.splitActiveGroup('right'));
+        } else if (ctrlOnly && (e.key === 'b' || e.key === 'B')) {
+          // The key View > Show Sidebar displays (v0.2 FR-M4, FR-M5).
+          run(() => this.viewState.toggleSidebar());
+        } else if (altOnly && e.key === 'F4') {
+          // The key File > Exit displays (FR-M4, FR-M5). It takes the same
+          // path as the menu row, so a dirty tab is asked about through the
+          // same host close gate. A plain F4 is untouched (v0.1 FR-I6).
+          run(() => this.handleExitRequest());
         }
-      });
+      }, true);
     }
 
     // Program information, one line left in the title bar (v0.2 FR-C7 ~ FR-C9,
@@ -511,22 +574,10 @@ export class WorkbenchApp {
     }
   }
 
-  /**
-   * Shows the full recent-folders list (D-16: the recent-folder list lives
-   * in the menu) so the user can pick any of the up to 10 stored entries, not
-   * only the most recent one (FR-N6a, round-1 session review finding).
-   */
-  public showRecentFoldersPicker(): void {
-    if (this.recentFolders.length === 0) return;
-    const anchor = this.layout.menuBtn.getBoundingClientRect();
-    const items = this.recentFolders.map((folderPath, index) => ({
-      id: `recent-folder-${index}`,
-      label: folderPath,
-      action: () => {
-        void this.openFolder(folderPath);
-      },
-    }));
-    this.recentFoldersMenu.show(anchor.left, anchor.bottom, items);
+  /** Drops one path from the stored list; it stays gone after a restart (v0.2 FR-M7). */
+  public removeRecentFolder(folderPath: string): void {
+    this.recentFolders = this.recentFolders.filter((p) => p !== folderPath);
+    this.saveRecentFolders();
   }
 
   public getRecentFolders(): readonly string[] {
@@ -573,6 +624,10 @@ export class WorkbenchApp {
 
   private addRecentFolder(folderPath: string): void {
     this.recentFolders = [folderPath, ...this.recentFolders.filter((p) => p !== folderPath)].slice(0, 10);
+    this.saveRecentFolders();
+  }
+
+  private saveRecentFolders(): void {
     try {
       if (typeof localStorage !== 'undefined') {
         localStorage.setItem('workbench:recent-folders', JSON.stringify(this.recentFolders));

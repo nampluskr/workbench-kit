@@ -663,14 +663,15 @@ window.__runPhase6TestSuite = async function runPhase6TestSuite() {
         );
 
         tree.clearRoot();
-        app.showRecentFoldersPicker();
+        // v0.2 FR-M7: the list is File > Recent Folders' own submenu.
+        clickMenuRow('file', 'file:open-recent');
         await wait(30);
-        const pickerItems = Array.from(document.querySelectorAll('.workbench-context-menu .context-menu-item-row'));
-        const targetItem = pickerItems.find((el) => el.textContent === testDir);
+        const pickerItems = Array.from(document.querySelectorAll('.menu-child-submenu[data-parent-item="file:open-recent"] > .menu-item-row'));
+        const targetItem = pickerItems.find((el) => el.querySelector('.menu-item-label')?.textContent === testDir);
         record(
           'P6-FR-N6A-PICKER',
           pickerItems.length === recentAfterBoth.length && Boolean(targetItem),
-          "File > 최근 폴더 shows every stored entry, not only the most recent (FR-N6a, D-16)"
+          "File > Recent Folders shows every stored entry, not only the most recent (FR-N6a, D-16, v0.2 FR-M7)"
         );
         if (targetItem) targetItem.click();
         await wait(80);

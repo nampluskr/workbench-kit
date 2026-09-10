@@ -711,10 +711,11 @@ html, body, #app {
   font-weight: 500;
 }
 
-.menu-category-arrow {
-  font-size: 10px;
+/* A submenu is marked with the codicon chevron, not a text character (v0.2 FR-M11). */
+.menu-category-arrow,
+.menu-item-chevron {
+  font-size: 14px;
   margin-left: 10px;
-  opacity: 0.7;
 }
 
 .menu-submenu {
@@ -732,17 +733,74 @@ html, body, #app {
   z-index: 1001;
 }
 
-.menu-category-row:hover .menu-submenu,
-.menu-category-row.active .menu-submenu {
+/* Child combinator: a category shows its own list, never the nested ones. */
+.menu-category-row:hover > .menu-submenu,
+.menu-category-row.active > .menu-submenu {
   display: flex;
 }
 
+/* A12: a submenu that would run off the right edge opens leftward instead. */
+.menu-submenu.submenu-flip {
+  left: auto;
+  right: 100%;
+}
+
 .menu-item-row {
+  position: relative;
   display: flex;
   align-items: center;
   padding: 5px 15px;
   cursor: pointer;
   white-space: nowrap;
+}
+
+/* Recent Folders · Color Theme · Icon Theme (v0.2 FR-M7 ~ FR-M9) */
+.menu-child-submenu {
+  top: -5px;
+  min-width: 200px;
+  max-width: 360px;
+  z-index: 1002;
+}
+
+.menu-item-row.has-submenu:hover > .menu-child-submenu,
+.menu-item-row.submenu-open > .menu-child-submenu {
+  display: flex;
+}
+
+.menu-child-row .menu-item-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.menu-item-row.disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+
+.menu-item-row.disabled:hover {
+  background-color: transparent;
+  color: inherit;
+}
+
+.menu-item-secondary {
+  display: inline-flex;
+  align-items: center;
+  margin-left: 10px;
+  padding: 0 2px;
+  background: none;
+  border: none;
+  color: inherit;
+  cursor: pointer;
+  opacity: 0.8;
+}
+
+.menu-item-secondary:hover {
+  opacity: 1;
+}
+
+.menu-item-check .codicon {
+  font-size: 14px;
 }
 
 .menu-item-row:hover,
