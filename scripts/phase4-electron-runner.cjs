@@ -28,10 +28,15 @@ app.whenReady().then(async () => {
   const win = new BrowserWindow({
     width: 1280,
     height: 800,
-    show: false,
+    // The window has to actually paint: dockview defers tab activation to a
+    // requestAnimationFrame callback, which never runs in a hidden or
+    // throttled renderer. With `show: false` every UI-path assertion below
+    // silently measured a workbench that had ignored the press.
+    show: true,
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: false,
+      backgroundThrottling: false,
     },
   });
 

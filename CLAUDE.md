@@ -30,3 +30,4 @@ project-workflow v0.2 기준으로 초기화됨 (2026-09-08)
 5~15줄을 넘기지 않는다. 길어지면 안 읽힌다.
 설명과 배경은 여기 쓰지 않는다. 근거는 그 버전 DECISIONS.md에 있다.
 -->
+- dockview는 스타일시트 파일을 배포하지 않고 런타임에 인라인 `<style>`로 주입하는데, 이 앱의 CSP가 그것을 차단한다. **모든 `dv-*` 규칙은 `src/style.css`에 있어야 한다.** 버전을 올릴 때는 클래스명 변경분을 대조한다 (v0.1 UT-EDT-003 · `.claude/rules/dockview-css.md`)

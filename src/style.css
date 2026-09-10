@@ -887,6 +887,23 @@ html, body, #app {
   background-color: var(--dv-separator-border);
 }
 
+/*
+ * dockview-core ships no stylesheet file: it injects its CSS at runtime as an
+ * inline <style>, which this app's CSP (style-src 'self') blocks. Every dv-*
+ * rule therefore has to live in this file. The two rules below give the
+ * separator pseudo-element its size; without them it computes to 0x0 and the
+ * boundary between editor groups is invisible even though its colour resolves.
+ */
+.dv-split-view-container.dv-horizontal > .dv-view-container > .dv-view:not(:first-child)::before {
+  height: 100%;
+  width: 1px;
+}
+
+.dv-split-view-container.dv-vertical > .dv-view-container > .dv-view:not(:first-child)::before {
+  height: 1px;
+  width: 100%;
+}
+
 .dv-groupview {
   display: flex;
   height: 100%;
@@ -1134,10 +1151,46 @@ html, body, #app {
   pointer-events: none;
 }
 
-.dv-drop-target-container .dv-drop-target-overlay {
-  position: absolute;
+/*
+ * Drag-and-drop feedback. `dv-drop-target-overlay` was a stale class name that
+ * dockview 8.2.0 never emits, so dragging a tab produced no visible drop zone
+ * at all -- the drop itself worked, but nothing showed where the tab would
+ * land. These are the class names the library actually renders.
+ */
+.dv-drop-target-container .dv-drop-target-anchor {
+  position: relative;
   box-sizing: border-box;
   background-color: var(--dv-drag-over-background-color);
   border: 2px solid var(--dv-drag-over-border-color);
+  opacity: 1;
+}
+
+.dv-drop-target {
+  position: relative;
+}
+
+.dv-drop-target > .dv-drop-target-dropzone {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 100%;
+  width: 100%;
+  z-index: 1000;
+  pointer-events: none;
+}
+
+.dv-drop-target > .dv-drop-target-dropzone > .dv-drop-target-selection {
+  position: relative;
+  box-sizing: border-box;
+  height: 100%;
+  width: 100%;
+  pointer-events: none;
+  background-color: var(--dv-drag-over-background-color);
+  border: 2px solid var(--dv-drag-over-border-color);
+}
+
+/* Forces the dragged tab onto its own compositing layer while it moves. */
+.dv-dragged {
+  transform: translate3d(0, 0, 0);
 }
 

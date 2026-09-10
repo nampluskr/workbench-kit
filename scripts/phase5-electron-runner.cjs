@@ -28,10 +28,15 @@ app.whenReady().then(async () => {
   const win = new BrowserWindow({
     width: 1280,
     height: 800,
-    show: false,
+    // A painting window is required: dockview and monaco both commit
+    // user input through requestAnimationFrame, which never runs in a hidden
+    // or throttled renderer, so UI-path assertions silently measured a
+    // workbench that had ignored the press (A7 R1-4 / R3-2).
+    show: true,
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: false,
+      backgroundThrottling: false,
     },
   });
 

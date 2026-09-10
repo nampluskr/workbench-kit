@@ -43,6 +43,89 @@ window.__runPhase4TestSuite = async function runPhase4TestSuite() {
     }
 
     // ------------------------------------------------------------------------
+    // UI-path helpers.
+    //
+    // The A7 adversarial review (Round 1 R1-4, Round 3 R3-2) found that many of
+    // the assertions below drove the shell through EditorController methods
+    // (`splitActiveGroup`, `closePanel`, `panel.api.setActive`) rather than the
+    // controls a user actually operates. An assertion that calls the method it
+    // is meant to be testing proves the method works, not that the button wired
+    // to it works. These helpers go through the real DOM affordances instead;
+    // each throws if the control is missing, so a broken wire fails loudly
+    // rather than silently falling back to the internal call.
+    // ------------------------------------------------------------------------
+
+    /** The DOM element of a tab, addressed the way a user points at it. */
+    function findTabEl(panelId) {
+      return document.querySelector('.dv-tab[data-tab-panel-id="' + panelId + '"]');
+    }
+
+    /**
+     * Activates a tab by pressing it, as a user would. dockview activates on
+     * `pointerdown`, not `click`, and defers the actual switch to a
+     * requestAnimationFrame callback -- which is why the host window running
+     * this suite has to be painting (see the runners' `show: true` /
+     * `backgroundThrottling: false`) and why the wait here is generous.
+     */
+    async function uiActivateTab(panelId) {
+      const el = findTabEl(panelId);
+      if (!el) throw new Error('uiActivateTab: no tab element for ' + panelId);
+      el.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, cancelable: true, button: 0, buttons: 1 }));
+      el.dispatchEvent(new PointerEvent('pointerup', { bubbles: true, cancelable: true, button: 0, buttons: 0 }));
+      await wait(120);
+      return el;
+    }
+
+    /** Closes a tab through its own close button (the [x] on the tab). */
+    async function uiCloseTab(panelId) {
+      const el = findTabEl(panelId);
+      if (!el) throw new Error('uiCloseTab: no tab element for ' + panelId);
+      const action = el.querySelector('.dv-default-tab-action');
+      if (!action) throw new Error('uiCloseTab: tab ' + panelId + ' has no close button');
+      action.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
+      action.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+      await wait(60);
+    }
+
+    /** Presses a split button in a group's own header action bar. */
+    async function uiSplit(group, direction) {
+      const selector = direction === 'right' ? '.tab-action-split-right' : '.tab-action-split-down';
+      const btn = group.element.querySelector(selector);
+      if (!btn) throw new Error('uiSplit: no ' + selector + ' button in group header');
+      const before = editor.getGroupCount();
+      btn.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+      await wait(60);
+      if (editor.getGroupCount() !== before + 1) {
+        throw new Error('uiSplit: clicking ' + selector + ' did not create a group');
+      }
+      return editor.getActiveGroup();
+    }
+
+    /** Presses the [+] button in a group's own header action bar. */
+    async function uiNewTab(group) {
+      const btn = group.element.querySelector('.tab-action-new');
+      if (!btn) throw new Error('uiNewTab: no .tab-action-new button in group header');
+      btn.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+      await wait(60);
+      return editor.getActivePanel();
+    }
+
+    /**
+     * Activates a group by pressing the empty strip beside its tabs -- the
+     * place dockview binds group activation to (`dv-void-container`, and the
+     * tabs-and-actions container it sits in). Clicking the content area does
+     * nothing: no such binding exists there.
+     */
+    async function uiActivateGroup(group) {
+      const target = group.element.querySelector('.dv-void-container')
+        || group.element.querySelector('.dv-tabs-and-actions-container');
+      if (!target) throw new Error('uiActivateGroup: group has no void container to press');
+      target.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, cancelable: true, button: 0, buttons: 1 }));
+      target.dispatchEvent(new PointerEvent('pointerup', { bubbles: true, cancelable: true, button: 0, buttons: 0 }));
+      await wait(120);
+    }
+
+    // ------------------------------------------------------------------------
     // 1. Initial State & DOM Visibility (FR-K2, D-20, D-26)
     // ------------------------------------------------------------------------
     record('P4-INIT-GROUP', editor.getGroupCount() === 1, 'Initial workbench state has strictly 1 group (칸 수 1) (FR-K2, D-26)');
@@ -200,8 +283,10 @@ window.__runPhase4TestSuite = async function runPhase4TestSuite() {
     record('P4-FR-E5-TIMER', ticks2 > ticks1 && bgTicks > 0, 'Application view timer continues running while tab is inactive (FR-E5)');
     record('P4-FR-E5-ISOLATION', bgTicks !== ticks2, 'Background tab maintains isolated local timer counter distinct from active tab (FR-E5, D-24)');
 
-    // Switch back to appTab1
-    appTab1.api.setActive();
+    // Switch back to appTab1 by clicking its tab (FR-E1 is about what a user
+    // sees when they switch tabs, so the switch has to come from the tab).
+    await uiActivateTab(appTab1.id);
+    record('P4-FR-E1-UI-ACTIVE', editor.getActivePanel()?.id === appTab1.id, 'Clicking a tab makes it the active panel (FR-E1)');
     const reacquiredView1 = editor.getContentRenderer(appTab1.id);
     const stats1 = editor.getLifecycleStats(appTab1.id);
     record('P4-FR-E1-INSTANCE', reacquiredView1 === appView1, 'Switching tabs preserves strictly identical view instance (FR-E1)');
@@ -239,8 +324,11 @@ window.__runPhase4TestSuite = async function runPhase4TestSuite() {
     const tabMovedToRight = rightPane.panels.some((p) => p.id === appTab1.id);
     record('P4-FR-C6', tabMovedToRight && document.contains(reacquiredAfterMove.element), 'View element is attached in new pane and tab resides in target group after cross-pane move (FR-C6)');
 
-    // Close appTab1 and verify disposal & memory cleanup (FR-E3, Minor 1)
-    editor.closePanel(appTab1);
+    // Close appTab1 through the tab's own [x] and verify disposal & memory
+    // cleanup (FR-E3, Minor 1). Going through the button also exercises the
+    // close interception in wirePanelClose() that every close path shares.
+    await uiCloseTab(appTab1.id);
+    record('P4-FR-E3-UI-CLOSED', findTabEl(appTab1.id) === null, 'Tab close button removes the tab from the tab bar (FR-E3)');
     const statsAfterClose = editor.getLifecycleStats(appTab1.id);
     record('P4-FR-E3', statsAfterClose.disposalCount === 1, 'disposalCount becomes strictly 1 at close time (FR-E3)');
     record('P4-MEM-CLEANUP', editor.getContentRenderer(appTab1.id) === undefined, 'Closed renderer is deleted from contentRenderers map (FR-E3, Minor 1)');
@@ -266,12 +354,12 @@ window.__runPhase4TestSuite = async function runPhase4TestSuite() {
 
     // Create 2D layout: split below from right group
     const gTopRight = editor.getActiveGroup();
-    const gBottomRight = editor.splitActiveGroup('below');
-    record('P4-FR-D6', editor.getGroupCount() === 3, '3 groups now arranged in 2D layout (FR-D6)');
+    const gBottomRight = await uiSplit(gTopRight, 'below');
+    record('P4-FR-D6', editor.getGroupCount() === 3, '3 groups now arranged in 2D layout, built by pressing Split Down in the group header (FR-D6)');
 
-    // Activate top-left group (gMain)
-    editor.setActiveGroup(gMain);
-    record('P4-2D-ACTIVE-MAIN', editor.getActiveGroup() === gMain, 'Top-left group is active');
+    // Activate top-left group (gMain) by clicking into it
+    await uiActivateGroup(gMain);
+    record('P4-2D-ACTIVE-MAIN', editor.getActiveGroup() === gMain, 'Clicking a group makes it the active group (FR-D6)');
 
     // openBeside from top-left: spatial right neighbor is gTopRight (NOT gBottomRight)
     const panelBeside2D = editor.openBeside('/workspace/docC.txt', 'docC.txt');
@@ -333,7 +421,9 @@ window.__runPhase4TestSuite = async function runPhase4TestSuite() {
     let stressSuccess = true;
     for (let splitIndex = 1; splitIndex <= 8; splitIndex++) {
       try {
-        editor.splitActiveGroup('right');
+        // Each split comes from the Split Right button of the group that is
+        // currently active, which is what a user repeatedly pressing it does.
+        await uiSplit(editor.getActiveGroup(), 'right');
         if (editor.getGroupCount() !== 1 + splitIndex) {
           stressSuccess = false;
           break;
@@ -343,7 +433,7 @@ window.__runPhase4TestSuite = async function runPhase4TestSuite() {
         break;
       }
     }
-    record('P4-FR-D7', stressSuccess && editor.getGroupCount() === 9, 'Split stress test: 8 splits creating 9 coexisting panes (FR-D7)');
+    record('P4-FR-D7', stressSuccess && editor.getGroupCount() === 9, 'Split stress test: 8 presses of Split Right creating 9 coexisting panes (FR-D7)');
 
     // ------------------------------------------------------------------------
     // 14. Pane Sashes & Real Pointer Drag Resize (FR-D4, FR-D5)
@@ -358,6 +448,7 @@ window.__runPhase4TestSuite = async function runPhase4TestSuite() {
 
     const sash = document.querySelector('.dv-sash');
     record('P4-FR-D4-SASH', sash !== null, 'Sashes exist between adjacent split panes (FR-D4)');
+
 
     const wLeftBefore = gLeft.element.getBoundingClientRect().width;
     const wRightBefore = gRight.element.getBoundingClientRect().width;
@@ -420,6 +511,119 @@ window.__runPhase4TestSuite = async function runPhase4TestSuite() {
     }
     record('P4-FR-D5-HEADER', hasVoidDrag && groupDragSuccess, 'Group view header rendered with drag surface; dragging header into adjacent group moves and merges panels (FR-D5)');
 
+
+    // ------------------------------------------------------------------------
+    // 14b. Separator and drag-indicator visibility (FR-D4, FR-C6, UT-EDT-003)
+    // ------------------------------------------------------------------------
+    editor.clear();
+    const gSepA = editor.getActiveGroup();
+    editor.addNewTab(gSepA);
+    editor.openItem('/workspace/sepA.txt', 'sepA.txt');
+    const gSepB = await uiSplit(gSepA, 'right');
+    editor.addNewTab(gSepB);
+    editor.openItem('/workspace/sepB.txt', 'sepB.txt');
+    // The boundary between two groups has to be *visible*, not merely present.
+    // dockview injects its own stylesheet at runtime as an inline <style>, which
+    // this app's CSP (style-src 'self') blocks outright, so every dv-* rule has
+    // to live in src/style.css. The two rules that size this separator were
+    // missing, which left it computing to 0x0 with a resolved colour -- present
+    // to a DOM query, invisible to a user (user test UT-EDT-003).
+    // A8 Round-2 (Major): scanning every container and stopping at the first
+    // non-zero separator meant deleting one of the two orientation rules still
+    // passed, as long as the other orientation happened to be present. Measure
+    // horizontal and vertical separately and require both. A vertical split is
+    // created here so both orientations exist in the layout at this point.
+    await uiSplit(gSepB, 'below');
+    await wait(80);
+
+    function measureSeparator(orientation) {
+      for (const host of Array.from(document.querySelectorAll('.dv-split-view-container.dv-separator-border.dv-' + orientation))) {
+        const view = host.querySelector(':scope > .dv-view-container > .dv-view:not(:first-child)');
+        if (!view) continue;
+        const cs = getComputedStyle(view, '::before');
+        return {
+          w: parseFloat(cs.width) || 0,
+          h: parseFloat(cs.height) || 0,
+          color: cs.backgroundColor,
+        };
+      }
+      return null;
+    }
+
+    // A horizontal split-view lays its children out left-to-right, so the
+    // separator between them is a vertical hairline: 1px wide, full height.
+    const sepH = measureSeparator('horizontal');
+    const sepV = measureSeparator('vertical');
+    const sepHOk = Boolean(sepH) && sepH.w >= 1 && sepH.h > 1;
+    const sepVOk = Boolean(sepV) && sepV.h >= 1 && sepV.w > 1;
+    record(
+      'P4-SEPARATOR-SIZE',
+      sepHOk && sepVOk,
+      'Editor group separators render with a non-zero size in BOTH orientations (horizontal split: ' + JSON.stringify(sepH) + ', vertical split: ' + JSON.stringify(sepV) + ') (FR-D4, UT-EDT-003)'
+    );
+    const sepColors = [sepH && sepH.color, sepV && sepV.color];
+    record(
+      'P4-SEPARATOR-COLOR',
+      sepColors.every((c) => c && c !== 'rgba(0, 0, 0, 0)' && c !== 'transparent' && !/,\s*0\s*\)$/.test(c)),
+      'Both separators render in an opaque colour (' + JSON.stringify(sepColors) + ') (FR-D4, UT-EDT-003)'
+    );
+
+    // Same root cause: the only drag-and-drop class this project styled,
+    // `dv-drop-target-overlay`, is a name dockview 8.2.0 never emits, so a tab
+    // drag showed no drop zone at all. Assert against the class the library
+    // actually renders, while a drag is genuinely in flight.
+    const dndTabEl = document.querySelector('.dv-tab');
+    const dndTargetEl = gSepB.element.querySelector('.dv-content-container');
+    let dndSelectionBg = 'rgba(0, 0, 0, 0)';
+    let dndSelectionBorder = 0;
+    let dndSelectionRect = 'none';
+    if (dndTabEl && dndTargetEl) {
+      const dtHint = new DataTransfer();
+      const hintRect = dndTargetEl.getBoundingClientRect();
+      const hintX = hintRect.left + hintRect.width / 2;
+      const hintY = hintRect.top + hintRect.height / 2;
+      dndTabEl.dispatchEvent(new DragEvent('dragstart', { bubbles: true, cancelable: true, dataTransfer: dtHint }));
+      dndTargetEl.dispatchEvent(new DragEvent('dragenter', { bubbles: true, cancelable: true, dataTransfer: dtHint, clientX: hintX, clientY: hintY }));
+      dndTargetEl.dispatchEvent(new DragEvent('dragover', { bubbles: true, cancelable: true, dataTransfer: dtHint, clientX: hintX, clientY: hintY }));
+      await wait(60);
+      const selectionEl = document.querySelector('.dv-drop-target-selection');
+      if (selectionEl) {
+        const cs = getComputedStyle(selectionEl);
+        const rect = selectionEl.getBoundingClientRect();
+        // A8 Round-1 (Major): colour and border width alone do not mean the
+        // indicator is on screen. A rule that hid it (display/visibility/
+        // opacity) or collapsed it to nothing would still have passed.
+        // A8 Round-2 (Major): checking only the element itself still allowed a
+        // hidden ancestor, an off-screen position, or fully transparent
+        // colours. Walk the ancestor chain, require the rect to intersect the
+        // viewport, and reject zero-alpha paint.
+        let visibleChain = true;
+        for (let node = selectionEl; node && node !== document.body; node = node.parentElement) {
+          const ns = getComputedStyle(node);
+          if (ns.display === 'none' || ns.visibility === 'hidden' || (parseFloat(ns.opacity) || 0) === 0) {
+            visibleChain = false;
+            break;
+          }
+        }
+        const onScreen = rect.width >= 1 && rect.height >= 1
+          && rect.right > 0 && rect.bottom > 0
+          && rect.left < window.innerWidth && rect.top < window.innerHeight;
+        const opaque = (c) => Boolean(c) && c !== 'transparent' && !/,\s*0\s*\)$/.test(c);
+        const painted = visibleChain
+          && onScreen
+          && opaque(cs.backgroundColor)
+          && cs.borderTopStyle !== 'none'
+          && opaque(cs.borderTopColor);
+        if (painted) {
+          dndSelectionBg = cs.backgroundColor;
+          dndSelectionBorder = parseFloat(cs.borderTopWidth) || 0;
+        }
+        dndSelectionRect = Math.round(rect.width) + 'x' + Math.round(rect.height);
+      }
+      dndTabEl.dispatchEvent(new DragEvent('dragend', { bubbles: true, cancelable: true, dataTransfer: dtHint }));
+      await wait(30);
+    }
+    record('P4-DND-INDICATOR', dndSelectionBg !== 'rgba(0, 0, 0, 0)' && dndSelectionBorder >= 1, 'Dragging a tab paints a drop indicator that is actually on screen (bg ' + dndSelectionBg + ', border ' + dndSelectionBorder + 'px, rect ' + dndSelectionRect + ') (FR-C6, UT-EDT-003)');
     // ------------------------------------------------------------------------
     // 15. Tab Reordering within same group (FR-C5)
     // ------------------------------------------------------------------------
@@ -559,16 +763,35 @@ window.__runPhase4TestSuite = async function runPhase4TestSuite() {
     const tabG1 = editor.addNewTab(g1);
     editor.openItem('/workspace/p1.txt', 'p1.txt');
 
-    const g2 = editor.splitActiveGroup('right');
+    const g2 = await uiSplit(g1, 'right');
     const tabG2 = editor.addNewTab(g2);
     editor.openItem('/workspace/p2.txt', 'p2.txt');
 
     record('P4-MULTI-GROUP-INIT', editor.getGroupCount() === 2, '2 groups exist before closing tab in g2');
-    editor.closePanel(tabG2);
-    record('P4-FR-J1', editor.getGroupCount() === 1, 'Group disappears when its last tab closes and other group exists (FR-C4, FR-J1)');
+    await uiCloseTab(tabG2.id);
+    record('P4-FR-J1', editor.getGroupCount() === 1, 'Group disappears when a user closes its last tab with the tab close button and another group exists (FR-C4, FR-J1)');
 
-    // Close last tab of the only remaining group
-    editor.closePanel(tabG1);
+    // A8 Round-1 (Major): the group-collapse transition was only ever driven
+    // by the tab's [x]. Ctrl+W closing a group's LAST tab is a separate code
+    // path (closeActiveTab -> confirmAndClose), and breaking just that one
+    // left the suite green. Drive the same transition from the keyboard.
+    const g2b = await uiSplit(g1, 'right');
+    const tabG2b = editor.addNewTab(g2b);
+    editor.openItem('/workspace/p2b.txt', 'p2b.txt');
+    await wait(60);
+    const groupsBeforeCtrlWLast = editor.getGroupCount();
+    document.dispatchEvent(new KeyboardEvent('keydown', {
+      key: 'w', ctrlKey: true, bubbles: true, cancelable: true,
+    }));
+    await wait(120);
+    record(
+      'P4-FR-J1-CTRLW',
+      groupsBeforeCtrlWLast === 2 && editor.getGroupCount() === 1,
+      'Group disappears when Ctrl+W closes its last tab and another group exists (FR-C4, FR-J1, FR-N6b)'
+    );
+
+    // Close last tab of the only remaining group, again from its own [x]
+    await uiCloseTab(tabG1.id);
     record('P4-FR-J7-COUNT', editor.getGroupCount() === 1 && editor.getPanelCount() === 0, 'Last group remains as empty pane (칸 수 1, 탭 수 0) (FR-C4, FR-J7)');
     record('P4-FR-J7-DOM', editorContainer.children.length > 0, 'Editor container remains visible in DOM on empty pane (FR-J7)');
 

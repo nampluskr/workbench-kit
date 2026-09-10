@@ -346,6 +346,16 @@ def main():
                         suite_code = f.read()
                     window.evaluate_js("window.__testTmpDir = " + json.dumps(test_tmp_dir) + ";")
                     window.evaluate_js("window.__testTmpDir2 = " + json.dumps(test_tmp_dir2) + ";")
+
+                    # FR-G2/FR-G4/FR-K1 used to call app.openFolder() straight
+                    # from the suite, skipping the whole menu -> bridge ->
+                    # WindowApi chain a user's click travels (A7 R1-4). Stub
+                    # only the native picker's return value, the same way the
+                    # Phase 7 branch does, and leave the rest real.
+                    def stubbed_open_folder_dialog():
+                        return window.evaluate_js("window.__nextDialogPath ?? null")
+                    api.open_folder_dialog = stubbed_open_folder_dialog
+
                     window.evaluate_js(suite_code)
                     window.evaluate_js("""
                         (async () => {

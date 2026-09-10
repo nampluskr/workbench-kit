@@ -50,6 +50,64 @@ window.__runPhase6TestSuite = async function runPhase6TestSuite() {
       return Boolean(btn);
     }
 
+    function clickEl(el) {
+      if (!el) return false;
+      el.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+      return true;
+    }
+
+    /**
+     * Switches to a tab by pressing it. dockview activates on `pointerdown`
+     * and commits the switch in a requestAnimationFrame callback, so the host
+     * window has to be painting (see the runners' `show: true`).
+     * Returns false if there is no such tab to press.
+     */
+    async function uiActivateTab(panelId) {
+      const el = document.querySelector('.dv-tab[data-tab-panel-id="' + panelId + '"]');
+      if (!el) return false;
+      el.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, cancelable: true, button: 0, buttons: 1 }));
+      el.dispatchEvent(new PointerEvent('pointerup', { bubbles: true, cancelable: true, button: 0, buttons: 0 }));
+      await wait(150);
+      return true;
+    }
+
+    /** Walks the hamburger -> category -> item chain a user clicks through. */
+    function clickMenuRow(categoryId, itemId) {
+      const hamburger = document.getElementById('menu-hamburger-btn');
+      if (!document.getElementById('workbench-menu-dropdown')) {
+        clickEl(hamburger);
+      }
+      const catRow = document.querySelector(`.menu-category-row[data-category-id="${categoryId}"]`);
+      if (catRow) clickEl(catRow);
+      const itemRow = document.querySelector(`.menu-item-row[data-item-id="${itemId}"]`);
+      if (!itemRow) throw new Error(`Menu row for ${itemId} not found in DOM`);
+      clickEl(itemRow);
+    }
+
+    /**
+     * Opens a folder the way a user does: File > 폴더 열기, with only the
+     * native OS picker's return value stubbed (the runners read
+     * `window.__nextDialogPath`). Everything between the menu row and the host
+     * bridge stays real production code. Resolves once the tree root has
+     * changed or the status bar has reported the failure.
+     */
+    async function uiOpenFolder(folderPath, timeoutMs) {
+      const rootBefore = tree.getRoot();
+      const statusBefore = document.getElementById('statusbar-message').textContent;
+      window.__nextDialogPath = folderPath;
+      clickMenuRow('file', 'file:open-folder');
+      const deadline = Date.now() + (timeoutMs || 4000);
+      while (Date.now() < deadline) {
+        await wait(10);
+        const rootNow = tree.getRoot();
+        const statusNow = document.getElementById('statusbar-message').textContent;
+        if (rootNow !== rootBefore || statusNow !== statusBefore) break;
+      }
+      // Let the status/progress bookkeeping settle before anything is read.
+      await wait(80);
+      delete window.__nextDialogPath;
+    }
+
     async function clickDialogButton(choice) {
       await wait(30);
       const btn = document.querySelector(`.confirm-dialog-btn[data-choice="${choice}"]`);
@@ -94,16 +152,23 @@ window.__runPhase6TestSuite = async function runPhase6TestSuite() {
       // different panel and then explicitly switches TO it.
       const panelG3 = editor.addNewTab();
       editor.openItem(missingFilePath, 'phase6-missing-file.txt', { meta: { kind: 'file' } });
-      if (panelBeforeG3) panelBeforeG3.api.setActive();
-      await wait(30);
+      // A8 Round-1 (Critical): both switches used to go through
+      // `panel.api.setActive()`, so breaking the tab's own pointer activation
+      // left this assertion passing while a user could no longer trigger the
+      // error at all. Both switches now press the tab.
+      if (panelBeforeG3) await uiActivateTab(panelBeforeG3.id);
       statusElForG3.textContent = '';
       statusElForG3.classList.remove('statusbar-message-error');
-      panelG3.api.setActive();
-      await wait(150);
+      const switchedToG3 = await uiActivateTab(panelG3.id);
+      await wait(200);
       record(
         'P6-FR-G3',
-        statusElForG3.textContent.length > 0 && statusElForG3.classList.contains('statusbar-message-error'),
-        'Switching to a tab whose target no longer exists shows a status-bar error (FR-G3)'
+        switchedToG3 &&
+          editor.getActivePanel() &&
+          editor.getActivePanel().id === panelG3.id &&
+          statusElForG3.textContent.length > 0 &&
+          statusElForG3.classList.contains('statusbar-message-error'),
+        'Pressing the tab of a resource whose target no longer exists switches to it and shows a status-bar error (FR-G3)'
       );
     } else {
       record('P6-FR-G3', false, 'window.__testTmpDir was not provided by the runner');
@@ -116,6 +181,8 @@ window.__runPhase6TestSuite = async function runPhase6TestSuite() {
     //    service does not reliably honor from script-dispatched, untrusted
     //    events) (FR-P2 ~ FR-P5, X-12, WK-032, WK-033)
     // ------------------------------------------------------------------------
+    const surface = window.__workbenchAppSurface;
+
     const scratch = document.createElement('div');
     scratch.style.position = 'fixed';
     scratch.style.left = '-9999px';
@@ -123,47 +190,163 @@ window.__runPhase6TestSuite = async function runPhase6TestSuite() {
     scratch.style.height = '200px';
     document.body.appendChild(scratch);
 
-    const findView = new TextEditorView({ value: 'find me here', language: 'plaintext' });
-    scratch.appendChild(findView.element);
-    await wait(20);
-    findView.runActionForTest('actions.find');
-    await wait(30);
-    record('P6-FR-P2-FIND', Boolean(findView.element.querySelector('.find-widget')), "The find widget opens via monaco's find action (FR-P2)");
-    // Round-1 adversarial finding (Minor): the widget-presence check above
-    // never proved a match was actually found or replaced. Drive the find
-    // controller's own model directly to prove that.
-    await findView.findAndReplaceForTest('me', 'YOU');
-    record('P6-FR-P2-REPLACE', findView.getValue() === 'find YOU here', 'Find/replace locates the match and replaces it in the model (FR-P2)');
-    findView.dispose();
-    scratch.removeChild(scratch.firstChild);
+    // ------------------------------------------------------------------------
+    // A7 Round-1 (R1-4) / Round-3 (R3-2) reopened: these three used to build
+    // TextEditorView instances offscreen and drive them through test-only
+    // helpers (`runActionForTest`, `triggerCommand`, `findAndReplaceForTest`),
+    // on the stated grounds that monaco's keybinding service would not honour
+    // script-dispatched events. That premise turned out to be wrong: the
+    // blocker was the hidden host window, not the events. monaco commits a
+    // keybinding through a requestAnimationFrame-driven path, so nothing
+    // happened while the renderer was not painting. With a painting window
+    // (see the runners) real keys land, so the shortcuts a user actually
+    // presses are what is asserted below.
+    // ------------------------------------------------------------------------
 
-    const undoView = new TextEditorView({ value: 'line one', language: 'plaintext' });
-    scratch.appendChild(undoView.element);
-    await wait(20);
-    undoView.appendTextForTest(' two');
-    const afterTypeValue = undoView.getValue();
-    undoView.triggerCommand('undo');
-    await wait(20);
-    const afterUndoValue = undoView.getValue();
-    undoView.triggerCommand('redo');
-    await wait(20);
-    const afterRedoValue = undoView.getValue();
+    /** The element monaco routes keyboard input through in this version. */
+    function monacoInput(root) {
+      return root.querySelector('.native-edit-context') || root.querySelector('textarea.inputarea');
+    }
+
+    /** Presses a key on the focused editor, the way a user would. */
+    function pressKey(target, key, code, keyCode, mods) {
+      target.dispatchEvent(new KeyboardEvent('keydown', Object.assign({
+        key: key, code: code, keyCode: keyCode, which: keyCode,
+        bubbles: true, cancelable: true,
+      }, mods || {})));
+    }
+
+    /** What the user can actually read in the editor viewport. */
+    function visibleEditorText(root) {
+      return Array.from(root.querySelectorAll('.view-line'))
+        .map((l) => l.textContent.replace(/ /g, ' '))
+        .join('\n');
+    }
+
+    /** Types into one of the find widget's own input boxes. */
+    function fillWidgetInput(inputEl, value) {
+      inputEl.focus();
+      inputEl.value = value;
+      inputEl.dispatchEvent(new Event('input', { bubbles: true }));
+    }
+
+    // FR-P2: open find/replace with Ctrl+H, drive the widget's own inputs and
+    // press its own Replace All button.
+    editor.clear();
+    await editor.openItem('/workspace/find-me.js', 'find-me.js', { meta: { kind: 'file' } });
+    await wait(400);
+    const findRoot = document.querySelector('.monaco-editor');
+    const findInputCtx = findRoot ? monacoInput(findRoot) : null;
+    let findWidgetOpened = false;
+    let replaceApplied = false;
+    if (findInputCtx) {
+      findInputCtx.focus();
+      await wait(60);
+      pressKey(findInputCtx, 'h', 'KeyH', 72, { ctrlKey: true });
+      await wait(300);
+      const widget = document.querySelector('.find-widget');
+      findWidgetOpened = Boolean(widget && widget.classList.contains('visible'));
+      if (widget) {
+        const findBox = widget.querySelector('.find-part textarea.input, .find-part input.input');
+        const replaceBox = widget.querySelector('.replace-part textarea.input, .replace-part input.input');
+        // The Replace All button is a sibling of `.replace-part`, not inside
+        // it, so address it by the label a screen reader would read out.
+        const replaceAllBtn = widget.querySelector('.codicon-replace-all')
+          || widget.querySelector('[aria-label^="Replace All"]');
+        if (findBox && replaceBox && replaceAllBtn) {
+          fillWidgetInput(findBox, 'preset');
+          await wait(150);
+          fillWidgetInput(replaceBox, 'PRESET');
+          await wait(150);
+          replaceAllBtn.click();
+          await wait(250);
+          replaceApplied = visibleEditorText(findRoot).includes('PRESET');
+        }
+      }
+    }
+    record('P6-FR-P2-FIND', findWidgetOpened, 'Pressing Ctrl+H in the editor opens the find/replace widget (FR-P2)');
+    record('P6-FR-P2-REPLACE', replaceApplied, "The widget's own Replace All button replaces the match in the visible text (FR-P2)");
+
+    // FR-P3: undo and redo through their real keyboard shortcuts, on the same
+    // real tab, undoing the edit the Replace All button above actually made.
+    // A8 Round-2 (Critical): this used to build an offscreen TextEditorView
+    // and create its edit with `appendTextForTest()`, so breaking the wiring
+    // between a real editor tab and the keyboard left it green.
+    let afterUndoText = '';
+    let afterRedoText = '';
+    if (findInputCtx && replaceApplied) {
+      findInputCtx.focus();
+      await wait(60);
+      pressKey(findInputCtx, 'z', 'KeyZ', 90, { ctrlKey: true });
+      await wait(250);
+      afterUndoText = visibleEditorText(findRoot);
+      pressKey(findInputCtx, 'y', 'KeyY', 89, { ctrlKey: true });
+      await wait(250);
+      afterRedoText = visibleEditorText(findRoot);
+    }
     record(
       'P6-FR-P3-UNDOREDO',
-      afterTypeValue === 'line one two' && afterUndoValue === 'line one' && afterRedoValue === 'line one two',
-      'Undo restores prior content and redo restores the edit (FR-P3)'
+      replaceApplied && afterUndoText.includes('preset') && !afterUndoText.includes('PRESET') && afterRedoText.includes('PRESET'),
+      'In a real editor tab, Ctrl+Z undoes the replace the widget made and Ctrl+Y redoes it, as seen in the visible text (undo: ' + JSON.stringify(afterUndoText) + ', redo: ' + JSON.stringify(afterRedoText) + ') (FR-P3)'
     );
-    undoView.dispose();
-    scratch.removeChild(scratch.firstChild);
 
-    const roView = new TextEditorView({ value: 'read only content', language: 'plaintext', readOnly: true });
-    scratch.appendChild(roView.element);
-    await wait(20);
-    roView.appendTextForTest('X');
-    await wait(20);
-    record('P6-FR-P4', roView.getValue() === 'read only content', 'Read-only view rejects edits (FR-P4)');
-    roView.dispose();
-    scratch.removeChild(scratch.firstChild);
+    // FR-P4: read-only has to hold in a real tab against the same real
+    // controls -- an app registers a read-only resource kind through the
+    // documented registration slot (FR-I1), and neither a typed character nor
+    // the find widget's Replace All may change what is on screen.
+    // A8 Round-2 (Critical): the old version dispatched an untrusted
+    // `beforeinput` (which has no default insertion behaviour) and then leaned
+    // on `appendTextForTest()` for the real assertion.
+    const RO_KIND = 'phase6-readonly';
+    const roViews = [];
+    surface.kindRegistry.register(RO_KIND, () => {
+      const view = new TextEditorView({ value: 'read only content', language: 'plaintext', readOnly: true });
+      roViews.push(view);
+      return { element: view.element, dispose: () => view.dispose() };
+    });
+    editor.clear();
+    await editor.openItem('/workspace/readonly.txt', 'readonly.txt', { meta: { kind: RO_KIND } });
+    await wait(400);
+    const roRoot = document.querySelector('.monaco-editor');
+    const roTextBefore = roRoot ? visibleEditorText(roRoot) : '';
+    let roReplaceAttempted = false;
+    if (roRoot) {
+      const roInputCtx = monacoInput(roRoot);
+      if (roInputCtx) {
+        roInputCtx.focus();
+        await wait(60);
+        pressKey(roInputCtx, 'X', 'KeyX', 88, {});
+        await wait(120);
+        pressKey(roInputCtx, 'h', 'KeyH', 72, { ctrlKey: true });
+        await wait(300);
+        const roWidget = document.querySelector('.find-widget');
+        if (roWidget) {
+          const roFind = roWidget.querySelector('.find-part textarea.input, .find-part input.input');
+          const roReplace = roWidget.querySelector('.replace-part textarea.input, .replace-part input.input');
+          const roReplaceAll = roWidget.querySelector('.codicon-replace-all')
+            || roWidget.querySelector('[aria-label^="Replace All"]');
+          if (roFind && roReplace && roReplaceAll) {
+            fillWidgetInput(roFind, 'only');
+            await wait(150);
+            fillWidgetInput(roReplace, 'ONLY');
+            await wait(150);
+            roReplaceAll.click();
+            await wait(300);
+            roReplaceAttempted = true;
+          }
+        }
+      }
+    }
+    const roTextAfter = roRoot ? visibleEditorText(roRoot) : '';
+    record(
+      'P6-FR-P4',
+      roTextBefore.includes('read only content') &&
+        roTextAfter === roTextBefore &&
+        !roTextAfter.includes('ONLY'),
+      'A read-only tab rejects a typed character and the find widget\'s Replace All; its visible text is unchanged (replace attempted: ' + roReplaceAttempted + ', text: ' + JSON.stringify(roTextAfter) + ') (FR-P4)'
+    );
+    editor.clear();
+    for (const v of roViews) v.dispose();
 
     // monaco always creates a `.minimap` DOM node structurally (its class
     // name does not depend on the enabled option), so the actual signal for
@@ -371,13 +554,31 @@ window.__runPhase6TestSuite = async function runPhase6TestSuite() {
     // ------------------------------------------------------------------------
     const statusEl = document.getElementById('statusbar-message');
 
-    const openPromise = app.openFolder('C:\\definitely-does-not-exist-xyz123\\phase6-test');
-    // No wait here: startProgress() runs synchronously before the first
-    // await inside openFolder(), so it is already true the instant control
-    // returns to us — a real ENOENT on a local path can reject fast enough
-    // that even a few ms of delay would already observe it cleared.
-    record('P6-FR-G4-START', app.statusMessages.isProgressActive(), 'Progress indicator is active immediately after opening a folder (FR-G4)');
-    await openPromise;
+    // Driven through the real File > 폴더 열기 menu row now (A7 R1-4). Because
+    // that path crosses an IPC boundary, "progress was shown" can no longer be
+    // read synchronously the way a direct openFolder() call allowed: the
+    // window between start and the ENOENT rejection is short and does not line
+    // up with any single await here. Sample it instead, so the assertion is
+    // "progress became visible at some point during the operation" -- which is
+    // what FR-G4 actually promises the user.
+    const statusTexts = [];
+    const statusObserver = new MutationObserver(() => statusTexts.push(statusEl.textContent));
+    statusObserver.observe(statusEl, { childList: true, characterData: true, subtree: true });
+    await uiOpenFolder('C:\\definitely-does-not-exist-xyz123\\phase6-test');
+    statusObserver.disconnect();
+    // A8 Round-1 (Major): checking only that the progress text appeared let an
+    // implementation that starts progress and immediately stops it -- before
+    // the operation it describes has finished -- pass. Require that nothing
+    // blanks the line between the progress text and the outcome: the entry
+    // following the progress text has to be the error, not an empty string.
+    const progressIndex = statusTexts.findIndex((t) => t.startsWith('Opening folder:'));
+    const afterProgress = progressIndex >= 0 ? statusTexts.slice(progressIndex + 1) : [];
+    const clearedEarly = afterProgress.some((t) => t.trim() === '');
+    record(
+      'P6-FR-G4-START',
+      progressIndex >= 0 && !clearedEarly,
+      'The status line shows the "Opening folder" progress text and keeps it until the operation reports its outcome, with no blank in between (saw: ' + JSON.stringify(statusTexts) + ') (FR-G4)'
+    );
     record('P6-FR-G4-END', !app.statusMessages.isProgressActive(), 'Progress indicator clears once the operation finishes (FR-G4)');
     record(
       'P6-FR-G2',
@@ -388,7 +589,6 @@ window.__runPhase6TestSuite = async function runPhase6TestSuite() {
     );
 
     app.statusMessages.showMessage('shell message');
-    const surface = window.__workbenchAppSurface;
     surface.showStatusMessage('app message');
     record(
       'P6-FR-N10A',
@@ -410,8 +610,7 @@ window.__runPhase6TestSuite = async function runPhase6TestSuite() {
       editor.clear();
       editor.openItem('/phase6/leftover.txt', 'leftover.txt', { meta: { kind: 'file' } });
       await wait(30);
-      await app.openFolder(testDir);
-      await wait(80);
+      await uiOpenFolder(testDir);
       const savedPath = (() => {
         try {
           return localStorage.getItem('workbench:last-folder');
@@ -429,9 +628,17 @@ window.__runPhase6TestSuite = async function runPhase6TestSuite() {
       await app.restoreLastSession();
       await wait(100);
 
-      const rootLabelEl = document.getElementById('sidebar-title');
+      // A8 Round-1 (Critical): this used to accept any sidebar title other
+      // than 'EXPLORER', so a restore that reopened an entirely different
+      // folder passed. FR-K1 requires the restored root to BE the folder that
+      // was last opened, so compare the root's identity, not its emptiness.
+      const restoredRoot = tree.getRoot();
       const restartOk = editor.getGroupCount() === 1 && editor.getPanelCount() === 0;
-      record('P6-FR-K1-RESTORE', Boolean(rootLabelEl && rootLabelEl.textContent !== 'EXPLORER'), 'Restart reopens the last folder in the tree (FR-K1)');
+      record(
+        'P6-FR-K1-RESTORE',
+        Boolean(restoredRoot) && restoredRoot.id === testDir,
+        'Restart reopens exactly the last-opened folder as the tree root (restored: ' + (restoredRoot ? restoredRoot.id : 'none') + ', expected: ' + testDir + ') (FR-K1)'
+      );
       record('P6-FR-K2', restartOk, "restoreLastSession() itself adds 0 tabs/panes; prior tabs/panes are not restored (FR-K2, D-27)");
 
       const visibleRows = document.querySelectorAll('.tree-row:not(.tree-input-row)');
@@ -467,8 +674,10 @@ window.__runPhase6TestSuite = async function runPhase6TestSuite() {
         await wait(80);
         record(
           'P6-FR-N6A',
-          Boolean(rootLabelEl && rootLabelEl.textContent !== 'EXPLORER') && localStorage.getItem('workbench:last-folder') === testDir,
-          'Picking the OLDER (non-most-recent) entry reopens THAT folder, same as Open Folder would (FR-N6a)'
+          // Same A8 Round-1 (Critical) correction as FR-K1: identify the root
+          // that got opened instead of merely noting the title changed.
+          Boolean(tree.getRoot()) && tree.getRoot().id === testDir && localStorage.getItem('workbench:last-folder') === testDir,
+          'Picking the OLDER (non-most-recent) entry reopens THAT folder as the tree root, same as Open Folder would (FR-N6a)'
         );
       } else {
         record('P6-FR-N6A-LIST', false, 'window.__testTmpDir2 was not provided by the runner');

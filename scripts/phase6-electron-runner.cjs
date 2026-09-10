@@ -70,7 +70,11 @@ app.whenReady().then(async () => {
   const win = new BrowserWindow({
     width: 1280,
     height: 800,
-    show: false,
+    // A painting window is required: dockview and monaco both commit
+    // user input through requestAnimationFrame, which never runs in a hidden
+    // or throttled renderer, so UI-path assertions silently measured a
+    // workbench that had ignored the press (A7 R1-4 / R3-2).
+    show: true,
     webPreferences: {
       // Matches the real app's webPreferences (FR-G2/G3 need the actual
       // window.workbenchHost bridge so fs errors on a bogus path really
@@ -79,6 +83,7 @@ app.whenReady().then(async () => {
       preload: path.join(rootDir, 'src/hosts/electron/preload.cjs'),
       nodeIntegration: false,
       contextIsolation: true,
+      backgroundThrottling: false,
       sandbox: true,
     },
   });
@@ -108,6 +113,15 @@ app.whenReady().then(async () => {
     if (BrowserWindow.fromWebContents(e.sender) === win) win.close();
   });
 
+  // FR-G2/FR-G4/FR-K1 used to call app.openFolder() straight from the suite,
+  // which skipped the entire menu -> handleOpenFolderDialog() -> IPC -> host
+  // chain the user's click actually travels (A7 R1-4). Stub only the native
+  // picker's return value, exactly as the Phase 7 runner does, so everything
+  // between the menu row and the host stays real production code.
+  ipcMain.handle('dialog:open-folder', async () => {
+    return win.webContents.executeJavaScript('window.__nextDialogPath ?? null');
+  });
+
   win.webContents.on('console-message', (_event, _level, message) => {
     if (message.includes('Content Security Policy directive')) return;
     if (message.startsWith('[TEST_ASSERT]')) {
@@ -128,27 +142,80 @@ app.whenReady().then(async () => {
       // (no editor.clear()/state reset) so the ONLY thing carrying state
       // into launch2 is whatever the app itself persisted (localStorage in
       // this profile dir), not anything the test harness injected.
-      await win.webContents.executeJavaScript(`
+      // A8 Round-1 (Critical): the setup here went straight to
+      // app.openFolder(). Go through the real File > 폴더 열기 menu row
+      // instead, with only the native picker's return value stubbed, so what
+      // launch2 restores is state the real user path produced.
+      const openedRoot = await win.webContents.executeJavaScript(`
         (async () => {
-          await window.__workbenchApp.openFolder(${JSON.stringify(testTmpDir)});
+          window.__nextDialogPath = ${JSON.stringify(testTmpDir)};
+          const hamburger = document.getElementById('menu-hamburger-btn');
+          if (!document.getElementById('workbench-menu-dropdown') && hamburger) {
+            hamburger.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+          }
+          const catRow = document.querySelector('.menu-category-row[data-category-id="file"]');
+          if (catRow) catRow.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+          const itemRow = document.querySelector('.menu-item-row[data-item-id="file:open-folder"]');
+          if (!itemRow) return null;
+          itemRow.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+          let openedId = null;
+          for (let i = 0; i < 400; i++) {
+            await new Promise((r) => setTimeout(r, 10));
+            const root = window.__workbenchApp.tree.getRoot();
+            if (root) { openedId = root.id; break; }
+          }
+          // Leave a tab open, so launch2's FR-K2 check ("prior tabs are not
+          // restored") has something that could have come back but must not.
+          window.__workbenchApp.editor.addNewTab();
+          await new Promise((r) => setTimeout(r, 50));
+          return openedId;
         })();
       `);
-      assert(true, 'launch1: opened the real folder through app.openFolder() before exiting');
+      assert(
+        openedRoot === testTmpDir,
+        `launch1: the real File > 폴더 열기 menu path opened ${testTmpDir} before exiting (got: ${openedRoot})`
+      );
     } else if (mode === 'launch2') {
       // Fresh renderer, same userData profile as launch1 (real process
       // relaunch, not editor.clear() in the same process). Proves FR-K1's
       // restart claim against real persisted state instead of simulating it.
-      const restoredLabel = await win.webContents.executeJavaScript(`
+      // A8 Round-1 (Critical): asserting only "the title is not EXPLORER" let
+      // a restore of some entirely different folder pass.
+      // A8 Round-2 (Critical): calling restoreLastSession() from here also
+      // bypassed the production startup wiring -- deleting the call in
+      // src/main.ts left this green -- and it read back only the root, never
+      // the pane/tab/expansion state FR-K2 and FR-K3 are about. Observe what
+      // normal startup produced instead, and check all three.
+      const restored = await win.webContents.executeJavaScript(`
         (async () => {
-          await window.__workbenchApp.restoreLastSession();
-          await new Promise((r) => setTimeout(r, 150));
-          const el = document.getElementById('sidebar-title');
-          return el ? el.textContent : null;
+          const app = window.__workbenchApp;
+          // Startup already kicked off restoreLastSession(); wait for it to
+          // land rather than invoking it a second time.
+          for (let i = 0; i < 200; i++) {
+            if (app.tree.getRoot()) break;
+            await new Promise((r) => setTimeout(r, 10));
+          }
+          await new Promise((r) => setTimeout(r, 100));
+          const root = app.tree.getRoot();
+          return {
+            rootId: root ? root.id : null,
+            groupCount: app.editor.getGroupCount(),
+            panelCount: app.editor.getPanelCount(),
+            visibleRows: document.querySelectorAll('.tree-row:not(.tree-input-row)').length,
+          };
         })();
       `);
       assert(
-        Boolean(restoredLabel) && restoredLabel !== 'EXPLORER',
-        `launch2 (real process relaunch, same profile): restoreLastSession() restores launch1's folder (found sidebar title: ${restoredLabel})`
+        restored.rootId === testTmpDir,
+        `launch2 (real process relaunch, same profile): startup alone restores exactly launch1's folder, with no restoreLastSession() call from the harness (restored: ${restored.rootId}, expected: ${testTmpDir}) (FR-K1)`
+      );
+      assert(
+        restored.groupCount === 1 && restored.panelCount === 0,
+        `launch2: a real relaunch comes up with 칸 수 1 · 탭 수 0, resurrecting none of launch1's tabs (got ${restored.groupCount} groups / ${restored.panelCount} tabs) (FR-K2, D-27)`
+      );
+      assert(
+        restored.visibleRows <= 1,
+        `launch2: a real relaunch shows only the root row; tree expansion is not restored (got ${restored.visibleRows} rows) (FR-K3, D-27)`
       );
     } else {
       const suiteCode = fs.readFileSync(suitePath, 'utf8');
