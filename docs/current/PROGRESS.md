@@ -101,6 +101,36 @@
   - **검증**: `V2P4-CAPTURE-KEYS` · `V2P4-FR-M10-CANCEL` · `V2P4-FR-M9`(Delete 범위). `npm.cmd test` 전건 0 failures. 기록 `docs/reviews/A12.md`.
   - **최소 창 폭 · 세로 넘침**: A11 R1-4와 같이 이번 범위 밖으로 기록(어느 요구에도 없음).
 
+- **WK-068** (탐색기 제목 고정)
+  - **무엇을 했나**: `main.ts`의 `onRootChange`가 제목을 루트 폴더명으로 바꾸던 것을 없앴다. 제목은 처음부터 `EXPLORER` 고정이고, 열린 폴더명은 트리의 루트 행에 보인다.
+  - **결과**: `FR-X1`. v0.1 구현이 UT-EXP-001과 어긋난 것을 고쳤다(v0.1 SPEC엔 제목 요구 없음).
+  - **검증**: `V2P5-FR-X1`(폴더 열기 전후 모두 `EXPLORER`, 루트 폴더명 0건).
+- **WK-069** (뷰 제목줄 액션 넷)
+  - **무엇을 했나**: `layout.ts` 뷰 제목줄에 `New File` · `New Folder` 버튼을 더하고 순서를 `[앱 액션] New File · New Folder · Refresh · Collapse All`로 맞췄다. `sidebar.ts`(`ExplorerTitlebarController`)를 새 시그니처로 다시 썼다 — 네 버튼 + 트리. `main.ts`의 `Preset Info` 뷰 액션 배선을 지웠다(`Preset Info`는 Phase 4에서 `View` 메뉴로 갔다).
+  - **결과**: `FR-X2` · `FR-X3`. v0.1 `FR-A20`(둘) · `FR-A24`(앱 없으면 둘) · `FR-I10` 일부(왼쪽 앱 액션)를 대체.
+  - **검증**: `V2P5-FR-X2`(넷이 보이고 x좌표 순서) · `V2P5-FR-X3`(제목줄에 프리셋 정보 부르는 요소 0개). `P5-FR-I10`(앱이 표면으로 액션을 넣으면 넷의 왼쪽).
+- **WK-070** (만들기 인라인 입력 장치)
+  - **무엇을 했나**: `New File` → `type: 'leaf'`, `New Folder` → `type: 'container'`로 `tree.promptNewItem`을 부른다. 부모는 `tree.resolveNewItemParentId()`가 **generic `isContainer`만 보고** 정한다(포커스가 컨테이너면 그 안, 리프면 그 부모, 아니면 루트). `onCommit`이 앱이 등록한 `setNewItemHandler`로 이름 · 타입 · 부모를 넘긴다 — 껍데기는 만들지 않는다. `main.ts`의 예시 핸들러는 상태바 메시지만 낸다. 앱 표면에 `setSidebarNewItemHandler`를 더했다.
+  - **결과**: `FR-X4`. v0.1 `FR-A23`(앱이 꽂은 액션 → 껍데기 액션)을 대체. v0.1 D-30의 "껍데기는 파일을 만들지 않는다"는 그대로.
+  - **검증**: `V2P5-FR-X4`(입력 행 1개 · `Enter` → 앱 호출 1건 · 이름 그대로 · 타입 generic · 껍데기 생성 행 0 · `Escape` → 앱 호출 0). `P7-FR-A23-*`도 껍데기 버튼 기준으로 갱신.
+- **WK-071** (탐색기 폭 조절)
+  - **무엇을 했나**: `layout.ts`에 `#sidebar-resize-handle`을 탐색기와 편집 영역 사이에 뒀다. `main.ts` `setupSidebarResize()`가 `pointerdown`→`pointermove`(+ `pointercancel` · 창 `blur` 정리 · `setPointerCapture`)로 `--sidebar-width`를 갱신한다(clamp: 최소 폭 — `EXPLORER` + 껍데기 액션 넷 + 앱 액션 여유가 잘리지 않는 값, 최대 창 폭의 60%). **저장하지 않는다**(D-8) — 다시 열면 CSS 기본값 240px. Zen · 탐색기 숨김 때는 손잡이가 안 보인다. 키보드 경로: 손잡이 `tabindex="0"` + 화살표 · `Home` · `End`(`reserved-keys.md` 3b · 5절, NFR-8).
+  - **결과**: `FR-X5` · `FR-X6` · `FR-X7`.
+  - **검증**: `V2P5-FR-X5`(`pointermove`마다 재서 중간 폭 3개 이상 · 편집 영역이 정확히 그만큼 줄어듦) · `V2P5-FR-X5-KEYBOARD`(손잡이 포커스 · 화살표 · `Home`) · `V2P5-FR-X6`(앱 액션 여럿을 더 등록해도 제목 전체 · 껍데기 액션 넷이 탐색기 안 · 더 안 줄어듦) · `V2P5-FR-X7`(모든 드래그 전후 `localStorage` 스냅샷 동일 + 변수 제거 = 초기값). Electron 러너가 폭을 실제로 바꾼 뒤 창을 다시 만들어 240px 복귀를 확인한다(SPEC divergence X-5).
+- **WK-072** (트리 들여쓰기와 세로 정렬선)
+  - **무엇을 했나**: **핵심 발견 — 이 앱의 CSP(`style-src 'self'`)가 인라인 `style=` 속성을 통째로 막는다**(dockview CSS와 같은 사고). v0.1 트리는 들여쓰기를 `style="padding-left"`, 정렬선을 `style="left"`로 넣고 있어 **화면에 전혀 반영되지 않았다** — 사용자가 본 "어긋남"의 정체다. 깊이마다 `<span class="tree-indent-unit">`을 조상 수만큼 앞에 두는 **구조적 들여쓰기**로 바꿨다. 각 unit이 자기 계층의 세로선을 `::before`로 그린다. `.tree-row`의 기본 왼쪽 여백은 스타일시트로 옮겼다. 세 렌더 경로(`render` · `renderTreeListOnly` · 입력 행) 모두 고쳤다.
+  - **결과**: `FR-X8` · `FR-X9`. 설계 변경이 아니라 CSP에 막혀 안 보이던 v0.1 구현을 화면에 나오게 고친 것.
+  - **검증**: `V2P5-FR-X8`(깊이마다 내용 시작 x가 부모보다 14px씩 큼) · `V2P5-FR-X9`(각 세로선이 `::before`로 실제로 그려지고 해당 깊이의 들여쓰기 x에 있으며 왼쪽 경계에 붙은 것 0개). `verify-phase3.mjs` D-9 검사를 `.tree-indent-unit` 기준으로.
+  - **주의 — Phase 6**: 같은 CSP 문제로 트리 아이콘 색의 `style="color:…"`도 안 먹는다. `FR-X10` · `FR-X14`(색 테마가 아이콘까지)가 Phase 6에서 이걸 CSS 클래스 · data 속성 방식으로 풀어야 한다.
+- **v0.1 회귀 처리 (Phase 5)**: `verify-phase3.mjs` 4.6절을 네 액션 · 새 생성자 시그니처로, D-9 정렬선 검사를 `.tree-indent-unit`으로. `phase5-suite.js` `P5-FR-I10`을 "앱이 표면으로 액션을 넣고 넷의 왼쪽" + 프리셋 정보 0개로. `phase7-suite.js` `FR-A20`(네 액션 순서) · `FR-A23`(껍데기 New File · New Folder 버튼 · `setSidebarNewItemHandler`). ID 유지.
+  - **검증**: `npm.cmd test` — v0.1 Phase 1~7 · v0.2 Phase 1~5 두 갈래 전건 0 failures.
+
+- **A13 반대 벤더 검토 반영** (Phase 5, 필수 통과 아님 — 3회로 한도, 3회차 미해결 Critical 0건)
+  - **Critical 1건 수정**: 최소 폭 170px에서 `EXPLORER` 제목이 잘렸다(`FR-X6`). 최소 폭을 260px · 기본 폭을 280px로, 제목에서 생략 부호를 없애 넘치면 눈에 보이게 했다.
+  - **Major 8건 · Minor 1건 반영**: 폭 조절 키보드 경로(손잡이 `tabindex` + 화살표 · `Home` · `End`, `reserved-keys.md` 3b · 5절). 끊긴 드래그 정리(`pointercancel` · `blur` · `setPointerCapture`). 대량 앱 액션이 최소 폭을 못 무너뜨리게(앱 액션 묶음만 잘림, 껍데기 넷 · 제목은 안 줄어듦) + **잘려 안 보이는 앱 액션 버튼은 탭 순서 밖**(`ResizeObserver`로 `tabindex="-1"` · `aria-hidden`). `FR-X4` 테스트가 디스크를 직접 대조하고 New Folder도 `Enter`로 확정. `FR-X5`가 `pointermove`마다 재고, `FR-X7`이 `localStorage` 스냅샷 + **Electron 러너의 새 창 재시작** 확인.
+  - **검증**: `V2P5-FR-X4` ~ `X9` · `V2P5-FR-X5-KEYBOARD`. `npm.cmd test` 전건 0 failures. 기록 `docs/reviews/A13.md`.
+  - **최소 창 폭 자체 · 세로 넘침**: A11 R1-4와 같이 이번 범위 밖으로 기록.
+
 - **A10 반대 벤더 검토 반영** (Phase 2, 필수 통과 아님 — Critical 0 · Major 3 · Minor 1)
   - **제품 결함 2건 수정**: (1) `F6`이 dockview 삽입 순서로 칸을 돌던 것을 화면 읽기 순서로 바꿨다(`V2P2-FR-F1-ORDER`). (2) 저장 안 한 탭의 닫기 버튼을 실제로 누르면 칸 포커스 끌어오기가 확인 창의 포커스를 도로 빼앗던 것을, 버튼·입력칸 누르기와 확인 창·메뉴가 포커스를 가져간 경우를 제외하도록 고쳤다(`V2P2-DIALOG-FOCUS`).
   - **검사 허점 3건 보강**: `FR-F11`은 hover를 토큰 문자열이 아니라 실제로 칠해진 색으로 측정하고 커서 테두리 대비도 본다. `FR-F5`는 `.tree-list`에 직접 보내던 클릭을 화면의 실제 빈 곳 좌표로 바꿨다. 에디터 안 `Tab`은 영역 불변에 더해 껍데기가 `Tab`을 막지 않는지를 본다 — monaco의 실제 들여쓰기는 합성 이벤트로 판정할 수 없어 사용자 재검증 몫으로 기록했다.
@@ -121,6 +151,17 @@
   - **요청**: Phase 4 구현 전에 v0.1 `SPEC.md`에서 메뉴 · 칸 닫기 · 테마 · 아이콘 테마 · 우클릭을 언급하는 요구를 전부 대조했다.
   - **발견**: 사람이 이미 쓴 v0.2 `FR-M1` ~ `FR-M12`(SPEC 1.4)가 대체하는 v0.1 요구 여섯이 0.1절 목록에서 **빠져 있었다** — `FR-N6c`(File 폴더 닫기), `FR-G6` 일부(View의 우클릭 스위치), `FR-J2`~`FR-J4` 일부(View "활성 칸 탭 모두 닫기" → File `Close Editor Group`), `FR-Q1a` 일부(아이콘 테마 토글 → 고르기), `FR-I9` 일부(껍데기 File 항목 다섯 → 여덟), 그리고 `FR-D3`/`FR-J8`/`FR-M1`의 메뉴 경로가 View에서 File로 옮겨 가는 것.
   - **조치**: 새 결정이 아니라 사람이 쓴 `FR-M*` 요구의 귀결이라 0.1절에 **일부 대체**로 여섯 행을 더하고 세 행을 고쳤다. Phase 3의 표 보완과 같은 판정이다.
+
+- **`SPEC.md` 0.1절 대체 목록 보완 — 뷰 제목줄 (Phase 5 착수 전 확인)**
+  - **요청**: Phase 5 구현 전에 v0.1 `SPEC.md`에서 뷰 제목줄 · 인라인 입력 · 탐색기 폭을 언급하는 요구를 대조했다.
+  - **발견**: 사람이 이미 쓴 v0.2 `FR-X2` · `FR-X4`가 대체하는 v0.1 요구 셋이 빠져 있었다 — `FR-A23`(앱이 꽂은 새 파일/폴더 → 껍데기 액션), `FR-A24`(앱 없으면 제목줄 아이콘 정확히 2개 → 넷), `FR-I10` 일부(앱 액션이 껍데기 액션 **둘** 왼쪽 → **넷** 왼쪽).
+  - **조치**: 사람이 쓴 `FR-X*`의 귀결이라 0.1절에 일부 대체로 세 행을 더했다. Phase 3·4의 표 보완과 같은 판정.
+
+- **인라인 `style=` 속성이 CSP에 막힌다 — 트리 들여쓰기가 화면에 안 나오고 있었다 (Phase 5)**
+  - **요청**: `FR-X8`/`FR-X9`는 "설계 변경이 아니라 v0.1 구현이 화면에서 어긋난 것을 고친다"고 명시돼 있었다. 무엇이 어긋났는지 구현하며 찾았다.
+  - **발견**: 이 앱의 `index.html` CSP가 `style-src 'self'`(no `'unsafe-inline'`)라 **인라인 `style=` 속성이 전부 무시된다**. v0.1 트리는 들여쓰기를 `style="padding-left: Npx"`, 세로 정렬선을 `style="left: Npx"`로 넣고 있어 화면에는 들여쓰기도 정렬선도 없었다. v0.1 검사는 MockElement(CSP 없음)나 HTML 문자열만 봐서 못 잡았다. dockview CSS와 정확히 같은 사고다(`.claude/rules/dockview-css.md`).
+  - **조치**: 조상 깊이 수만큼 `<span class="tree-indent-unit">`을 앞에 두는 구조적 들여쓰기로 바꾸고, 각 unit이 `::before`로 세로선을 그리게 했다. 기본 여백은 스타일시트로. 인라인 `style=`에 기하 정보를 싣는 코드를 트리에서 없앴다.
+  - **남은 것**: 트리 아이콘 색 `style="color:…"`도 같은 이유로 안 먹는다 — `FR-X10`/`FR-X14`(Phase 6)가 다뤄야 한다. `PROGRESS`에 기록했고 Phase 6 착수 전 확인 대상.
 
 - **분할이 `Untitled` 임시 자리를 갖는 새 칸을 만든다 (Phase 4 — v0.1 구현 가정 변경)**
   - **요청**: `FR-P11`은 "칸을 나누면 새 칸이 **비어 있지 않고** `Untitled` 임시 자리를 갖고 생긴다"를 요구한다. v0.1 구현은 `noPanelsOverlay: 'emptyGroup'`로 빈 칸을 만들었고, v0.1 스위트 여러 곳이 "분할 = 빈 칸"을 전제로 자리 수를 셌다.

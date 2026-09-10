@@ -3,7 +3,7 @@
   "meta": {
     "version": "v0.2",
     "id_seed": "WK-049",
-    "updated": "2026-09-10",
+    "updated": "2026-09-11",
     "context_doc": "SPEC.md",
     "note": "workbench-kit v0.2 작업 SSOT. priority P{n} = PLAN.md의 Phase 번호. deps는 권장 순서다. summary가 완료 조건이고, note 앞머리의 FR/NFR 번호가 SPEC.md 역참조다. 계약은 SPEC.md, 근거는 DECISIONS.md, Phase 순서와 적대적 검증 게이트는 PLAN.md. v0.1에서 대체되는 요구는 SPEC.md 0.1절 표를 본다. NFR-4(검증 단위를 작게 쪼갠다)는 task가 아니라 PLAN의 Phase 구성으로 판정한다 — 한 Phase가 반대 벤더 검토 3회 안에 미해결 Critical 0건으로 닫히는지로 본다. backlog CLI는 콘솔 인코딩 때문에 PYTHONIOENCODING=utf-8 없이 list를 실행하면 죽는다."
   },
@@ -324,7 +324,7 @@
     },
     {
       "id": "WK-068",
-      "status": "todo",
+      "status": "done",
       "priority": "P5",
       "category": "탐색기",
       "title": "탐색기 제목 고정",
@@ -334,11 +334,11 @@
       "note": "FR-X1",
       "parent": null,
       "deps": [],
-      "done_at": null
+      "done_at": "2026-09-11"
     },
     {
       "id": "WK-069",
-      "status": "todo",
+      "status": "done",
       "priority": "P5",
       "category": "탐색기",
       "title": "뷰 제목줄 액션 넷",
@@ -348,11 +348,11 @@
       "note": "FR-X2 · FR-X3. v0.1 FR-A20의 '정확히 둘'을 대체한다 (D-6)",
       "parent": null,
       "deps": [],
-      "done_at": null
+      "done_at": "2026-09-11"
     },
     {
       "id": "WK-070",
-      "status": "todo",
+      "status": "done",
       "priority": "P5",
       "category": "확장점",
       "title": "만들기 인라인 입력 장치",
@@ -364,11 +364,11 @@
       "deps": [
         "WK-069"
       ],
-      "done_at": null
+      "done_at": "2026-09-11"
     },
     {
       "id": "WK-071",
-      "status": "todo",
+      "status": "done",
       "priority": "P5",
       "category": "탐색기",
       "title": "탐색기 폭 조절",
@@ -380,11 +380,11 @@
       "deps": [
         "WK-069"
       ],
-      "done_at": null
+      "done_at": "2026-09-11"
     },
     {
       "id": "WK-072",
-      "status": "todo",
+      "status": "done",
       "priority": "P5",
       "category": "탐색기",
       "title": "트리 들여쓰기와 세로 정렬선",
@@ -394,7 +394,7 @@
       "note": "FR-X8 · FR-X9. 설계 변경이 아니라 v0.1 구현이 화면에서 어긋난 것을 고친다",
       "parent": null,
       "deps": [],
-      "done_at": null
+      "done_at": "2026-09-11"
     },
     {
       "id": "WK-073",

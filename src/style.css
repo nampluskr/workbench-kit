@@ -21,7 +21,7 @@
   --titlebar-height: 30px;
   --statusbar-height: 22px;
   --activitybar-width: 50px;
-  --sidebar-width: 240px;
+  --sidebar-width: 280px;
   --close-hover-bg: #e81123;
 }
 
@@ -301,6 +301,7 @@ html, body, #app {
 /* 3. Sidebar */
 .workbench-sidebar {
   width: var(--sidebar-width);
+  min-width: 260px;
   background-color: var(--sidebar-bg);
   color: var(--sidebar-fg);
   display: flex;
@@ -309,22 +310,52 @@ html, body, #app {
   border-right: 1px solid var(--border-color);
 }
 
+/* Drag handle between the explorer and the editor area (v0.2 FR-X5). */
+.sidebar-resize-handle {
+  flex: 0 0 5px;
+  width: 5px;
+  margin-left: -3px;
+  margin-right: -2px;
+  z-index: 5;
+  cursor: ew-resize;
+  background-color: transparent;
+}
+
+.sidebar-resize-handle:hover,
+body.is-resizing-sidebar .sidebar-resize-handle {
+  background-color: var(--menu-hover-bg);
+}
+
+body.is-resizing-sidebar {
+  cursor: ew-resize;
+  user-select: none;
+}
+
+.workbench-root.zen-mode .sidebar-resize-handle,
+.workbench-sidebar.hidden + .sidebar-resize-handle {
+  display: none;
+}
+
 .sidebar-header {
   height: 35px;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0 10px 0 20px;
+  padding: 0 10px;
   font-size: 11px;
   font-weight: 600;
   letter-spacing: 0.5px;
   text-transform: uppercase;
 }
 
+/*
+ * The title never shrinks below its text (FR-X6): the explorer hits its own
+ * min-width first. `white-space: nowrap` keeps EXPLORER on one line; there is
+ * no `overflow: hidden`/ellipsis, so a too-narrow explorer would visibly
+ * overflow rather than silently truncate — which the min-width prevents.
+ */
 .sidebar-title {
-  flex: 1;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  flex: 0 0 auto;
   white-space: nowrap;
 }
 
@@ -332,17 +363,28 @@ html, body, #app {
   display: flex;
   align-items: center;
   gap: 3px;
+  flex: 0 1 auto;
+  min-width: 0;
 }
 
+/*
+ * The shell's four actions never shrink or clip (FR-X6). App-added actions
+ * (FR-I10, any number) go in this box, which gives up space and clips first
+ * when the header is narrow — the shell four and the EXPLORER title stay.
+ */
 .sidebar-app-actions {
   display: flex;
   align-items: center;
   gap: 3px;
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
 }
 
 .sidebar-action-btn {
   width: 22px;
   height: 22px;
+  flex: 0 0 auto;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -355,6 +397,14 @@ html, body, #app {
   opacity: 0.8;
   padding: 0;
   outline: none;
+}
+
+/* The shell's own four never give up their width. */
+#sidebar-action-new-file,
+#sidebar-action-new-folder,
+#sidebar-action-refresh,
+#sidebar-action-collapse-all {
+  flex: 0 0 auto;
 }
 
 .sidebar-action-btn:hover {
@@ -442,6 +492,7 @@ html, body, #app {
   display: flex;
   align-items: center;
   height: 22px;
+  padding-left: 10px;
   cursor: pointer;
   white-space: nowrap;
   outline: none;
@@ -449,13 +500,28 @@ html, body, #app {
   color: var(--sidebar-fg);
 }
 
-.tree-indent-guide {
+/*
+ * One unit per ancestor depth (v0.2 FR-X8). The unit itself is the 14px
+ * indent step; its ::before is the vertical guide for that level, sitting at
+ * the unit's left edge = that depth's indent position (FR-X9). Structural,
+ * because this app's CSP blocks the inline `style` a per-row padding would
+ * need (.claude/rules/dockview-css.md).
+ */
+.tree-indent-unit {
+  flex: 0 0 14px;
+  align-self: stretch;
+  position: relative;
+  pointer-events: none;
+}
+
+.tree-indent-unit::before {
+  content: "";
   position: absolute;
+  left: 0;
   top: 0;
   bottom: 0;
   width: 1px;
   background-color: var(--tree-indent-guide, rgba(128, 128, 128, 0.2));
-  pointer-events: none;
 }
 
 .tree-row:hover {

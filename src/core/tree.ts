@@ -423,6 +423,36 @@ export class TreeController {
     return this.findNodeById(this.root, id);
   }
 
+  /** The id of `id`'s parent node, or null for the root / an unknown id. */
+  public getParentId(id: string | null): string | null {
+    if (!id || !this.root || id === this.root.id) return null;
+    const walk = (node: TreeNode): string | null => {
+      for (const child of node.children || []) {
+        if (child.id === id) return node.id;
+        const deeper = walk(child);
+        if (deeper) return deeper;
+      }
+      return null;
+    };
+    return walk(this.root);
+  }
+
+  /**
+   * Where a "New File" / "New Folder" from the view titlebar should create
+   * (v0.2 FR-X4): inside the focused node when it is a container, otherwise
+   * inside that node's parent container, otherwise the root (returned as
+   * undefined). The shell only ever branches on the generic `isContainer`
+   * flag — never on "file" vs "folder" (NFR-6).
+   */
+  public resolveNewItemParentId(): string | undefined {
+    const focusedId = this.focusedId || this.getSelectedIds()[0] || null;
+    const node = this.getNodeById(focusedId);
+    if (!node) return undefined;
+    if (node.isContainer) return node.id === this.root?.id ? undefined : node.id;
+    const parentId = this.getParentId(node.id);
+    return parentId && parentId !== this.root?.id ? parentId : undefined;
+  }
+
   /**
    * Checks if targetId is a descendant of ancestorId.
    */
@@ -1046,15 +1076,12 @@ export class TreeController {
       const isSelected = this.selectedIds.has(item.node.id);
       const isFocused = this.focusedId === item.node.id;
 
-      // Safe indentation: 14px step + 10px base (Zero forbidden tokens: 12px, 4px, 8px, 16px, 6px)
-      const indentPx = item.depth * 14 + 10;
-
-      // Vertical Indentation Guides (D-9)
-      let indentGuidesHtml = '';
-      for (let d = 0; d < item.depth; d++) {
-        const guideLeft = d * 14 + 18;
-        indentGuidesHtml += `<span class="tree-indent-guide" style="left: ${guideLeft}px;"></span>`;
-      }
+      // Indentation is one fixed-width unit per ancestor level (v0.2 FR-X8).
+      // Inline `style` attributes are blocked by this app's CSP (see
+      // .claude/rules/dockview-css.md), so the depth cannot be an inline
+      // padding value — it is expressed structurally. Each unit also draws the
+      // vertical guide for its level via CSS ::before (FR-X9).
+      const indentUnitsHtml = '<span class="tree-indent-unit"></span>'.repeat(item.depth);
 
       // Twistie
       let twistieHtml = `<span class="tree-twistie tree-twistie-spacer"></span>`;
@@ -1086,9 +1113,8 @@ export class TreeController {
              data-id="${escapeHtml(item.node.id)}"
              role="treeitem"
              aria-selected="${isSelected}"
-             aria-expanded="${item.node.isContainer ? item.isExpanded : undefined}"
-             style="padding-left: ${indentPx}px;">
-          ${indentGuidesHtml}
+             aria-expanded="${item.node.isContainer ? item.isExpanded : undefined}">
+          ${indentUnitsHtml}
           ${twistieHtml}
           ${iconHtml}
           <span class="tree-label">${escapeHtml(item.node.label)}</span>
@@ -1101,12 +1127,7 @@ export class TreeController {
         ((this.promptState.parentId && this.promptState.parentId === item.node.id) ||
          (!this.promptState.parentId && item.node.id === this.root.id))
       ) {
-        const promptIndentPx = (item.depth + 1) * 14 + 10;
-        let promptIndentGuidesHtml = '';
-        for (let d = 0; d <= item.depth; d++) {
-          const guideLeft = d * 14 + 18;
-          promptIndentGuidesHtml += `<span class="tree-indent-guide" style="left: ${guideLeft}px;"></span>`;
-        }
+        const promptIndentUnitsHtml = '<span class="tree-indent-unit"></span>'.repeat(item.depth + 1);
         let promptIconHtml = '';
         if (this.promptState.icon) {
           // Render icon only if provided by app (WK-047)
@@ -1121,8 +1142,8 @@ export class TreeController {
         }
 
         html += `
-          <div class="tree-row tree-input-row" style="padding-left: ${promptIndentPx}px;">
-            ${promptIndentGuidesHtml}
+          <div class="tree-row tree-input-row">
+            ${promptIndentUnitsHtml}
             <span class="tree-twistie tree-twistie-spacer"></span>
             ${promptIconHtml}
             <input type="text" class="tree-input-field" placeholder="Name" />
@@ -1162,13 +1183,9 @@ export class TreeController {
     for (const item of visibleItems) {
       const isSelected = this.selectedIds.has(item.node.id);
       const isFocused = this.focusedId === item.node.id;
-      const indentPx = item.depth * 14 + 10;
-
-      let indentGuidesHtml = '';
-      for (let d = 0; d < item.depth; d++) {
-        const guideLeft = d * 14 + 18;
-        indentGuidesHtml += `<span class="tree-indent-guide" style="left: ${guideLeft}px;"></span>`;
-      }
+      // One fixed-width unit per ancestor level; CSP blocks inline padding
+      // (v0.2 FR-X8, .claude/rules/dockview-css.md). Guides via CSS ::before.
+      const indentUnitsHtml = '<span class="tree-indent-unit"></span>'.repeat(item.depth);
 
       let twistieHtml = `<span class="tree-twistie tree-twistie-spacer"></span>`;
       if (item.node.isContainer) {
@@ -1198,9 +1215,8 @@ export class TreeController {
              data-id="${escapeHtml(item.node.id)}"
              role="treeitem"
              aria-selected="${isSelected}"
-             aria-expanded="${item.node.isContainer ? item.isExpanded : undefined}"
-             style="padding-left: ${indentPx}px;">
-          ${indentGuidesHtml}
+             aria-expanded="${item.node.isContainer ? item.isExpanded : undefined}">
+          ${indentUnitsHtml}
           ${twistieHtml}
           ${iconHtml}
           <span class="tree-label">${escapeHtml(item.node.label)}</span>

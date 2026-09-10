@@ -39,6 +39,8 @@ export interface WorkbenchAppSurface {
   kindRegistry: ResourceKindRegistry;
   addFileMenuItem: (item: MenuItem) => void;
   addSidebarViewAction: (action: ViewAction) => void;
+  /** What the shell's New File / New Folder view actions do once a name is typed (v0.2 FR-X4). */
+  setSidebarNewItemHandler: (fn: (req: { type: 'leaf' | 'container'; name: string; parentId?: string }) => void) => void;
   setActivityBarTopItems: (items: ActivityBarItem[]) => void;
   setActivityBarBottomItems: (items: ActivityBarItem[]) => void;
   setContextMenuEnabled: (enabled: boolean) => void;
@@ -117,10 +119,11 @@ export class WorkbenchApp {
     // Initialize TreeController and Explorer view titlebar (FR-A, D-9, D-30)
     this.tree = new TreeController(this.layout.sidebarContent, this.iconTheme);
     this.explorerTitlebar = new ExplorerTitlebarController(
-      this.layout.sidebarHeader,
       this.layout.sidebarAppActions,
-      this.layout.sidebarCollapseAllBtn,
+      this.layout.sidebarNewFileBtn,
+      this.layout.sidebarNewFolderBtn,
       this.layout.sidebarRefreshBtn,
+      this.layout.sidebarCollapseAllBtn,
       this.tree
     );
     this.fsProvider = new FileSystemTreeProvider();
@@ -162,15 +165,34 @@ export class WorkbenchApp {
       }
     });
 
-    // Update sidebar title on root change
+    // The explorer title is always EXPLORER — the open folder's name shows in
+    // the tree's root row, not the header (v0.2 FR-X1, UT-EXP-001, v0.1 impl fix).
+    if (this.layout.sidebarTitle) {
+      this.layout.sidebarTitle.textContent = 'EXPLORER';
+    }
     this.tree.onRootChange((root) => {
-      if (this.layout.sidebarTitle) {
-        this.layout.sidebarTitle.textContent = root ? root.label.toUpperCase() : 'EXPLORER';
-      }
       if (!root && this.layout.statusbarPath) {
         this.layout.statusbarPath.textContent = '';
       }
     });
+
+    // View titlebar's New File / New Folder: the shell opens the inline input
+    // row; the app does the actual creation (v0.2 FR-X4, D-6). This wiring is
+    // an example (INTENT 7) — a real app registers its own handler through the
+    // app surface. It reuses the host directory bridge, no new native code.
+    this.explorerTitlebar.setNewItemHandler((req) => {
+      const parentNode = req.parentId ? this.tree.getNodeById(req.parentId) : this.tree.getRoot();
+      const parentPath = (parentNode?.data as { path?: string } | undefined)?.path || parentNode?.id;
+      this.statusMessages.showMessage(
+        `App would create ${req.type === 'container' ? 'folder' : 'file'} "${req.name}" in ${parentPath ?? '(root)'}`
+      );
+      void this.tree.refresh();
+    });
+
+    // Explorer width: a drag handle between the tree and the editor area
+    // (v0.2 FR-X5 ~ FR-X7). The width is not persisted (D-8) — a restart
+    // starts at the initial value baked into --sidebar-width.
+    this.setupSidebarResize();
 
     // Bind sidebar, titlebar, statusbar, and zen toggles
     this.menu.setAction('view:toggle-sidebar', () => this.viewState.toggleSidebar());
@@ -400,18 +422,11 @@ export class WorkbenchApp {
       this.statusMessages.showMessage('Presets registered: file, folder');
     });
 
-    // Minimal example wiring proving the app-facing extension slots (WK-048, WK-029):
-    // a view-titlebar action left of the shell's actions (FR-I10), and one status bar
-    // item beside the shell's slots (FR-N10). These are wiring examples, not domain
-    // functionality (INTENT 7).
-    this.explorerTitlebar.addAppAction({
-      id: 'app:sidebar:preset-info',
-      title: 'Preset Info',
-      iconClass: 'codicon-info',
-      action: () => {
-        this.statusMessages.showMessage('Presets registered: file, folder');
-      },
-    });
+    // Minimal example wiring proving one app-facing extension slot (WK-029):
+    // a status bar item beside the shell's slots (FR-N10). Preset Info is no
+    // longer a view-titlebar action (v0.2 FR-X3) — it lives in View > Preset
+    // Info (FR-M12). FR-I10's view-titlebar app-action slot stays open; a real
+    // app registers through addSidebarViewAction.
     if (this.layout.statusbarAppItems) {
       const presetInfoEl = document.createElement('span');
       presetInfoEl.className = 'statusbar-app-item';
@@ -474,6 +489,81 @@ export class WorkbenchApp {
     if (typeof window !== 'undefined') {
       window.addEventListener('pywebviewready', updateAppInfo);
     }
+  }
+
+  /**
+   * Drag — or arrow-key nudge — the handle between the explorer and the editor
+   * area to resize the explorer (v0.2 FR-X5, keyboard path per NFR-8). The
+   * width is clamped so `EXPLORER` and the four view actions never clip (FR-X6)
+   * and it cannot pass ~60% of the window; it lives only in the CSS variable,
+   * never persisted (FR-X7, D-8 — this method touches 0 storage).
+   */
+  private setupSidebarResize(): void {
+    const handle = this.layout.sidebarResizeHandle;
+    const sidebar = this.layout.sidebar;
+    if (!handle || !sidebar) return;
+
+    // Wide enough for the full EXPLORER label + the 4 shell actions + room for
+    // a few app actions, at the header's padding (A13 Critical + R3 Major).
+    const MIN = 260;
+    const clamp = (px: number) => {
+      const max = Math.max(MIN, Math.round((window.innerWidth || 1280) * 0.6));
+      return Math.min(max, Math.max(MIN, px));
+    };
+    const setWidth = (px: number) => {
+      this.layout.root.style.setProperty('--sidebar-width', `${clamp(px)}px`);
+    };
+
+    let dragging = false;
+    const onMove = (e: PointerEvent) => {
+      if (!dragging) return;
+      setWidth(e.clientX - sidebar.getBoundingClientRect().left);
+    };
+    const stop = () => {
+      if (!dragging) return;
+      dragging = false;
+      document.body.classList.remove('is-resizing-sidebar');
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', stop);
+      window.removeEventListener('pointercancel', stop);
+      window.removeEventListener('blur', stop);
+      try {
+        handle.releasePointerCapture?.(activePointerId);
+      } catch {
+        // no capture held
+      }
+    };
+    let activePointerId = -1;
+    handle.addEventListener('pointerdown', (e) => {
+      if (this.viewState.isZenMode || !this.viewState.getState().sidebarVisible) return;
+      dragging = true;
+      activePointerId = e.pointerId;
+      try {
+        handle.setPointerCapture?.(e.pointerId);
+      } catch {
+        // capture unavailable — window listeners below still track the drag
+      }
+      document.body.classList.add('is-resizing-sidebar');
+      window.addEventListener('pointermove', onMove);
+      window.addEventListener('pointerup', stop);
+      window.addEventListener('pointercancel', stop);
+      window.addEventListener('blur', stop);
+      e.preventDefault();
+    });
+
+    // Keyboard path (NFR-8, reserved-keys.md §3b): focus the handle, then
+    // Left/Right nudges the width; Home/End jump to the min/a comfortable max.
+    handle.setAttribute('tabindex', '0');
+    handle.addEventListener('keydown', (e) => {
+      if (this.viewState.isZenMode || !this.viewState.getState().sidebarVisible) return;
+      const current = sidebar.getBoundingClientRect().width;
+      if (e.key === 'ArrowLeft') setWidth(current - 16);
+      else if (e.key === 'ArrowRight') setWidth(current + 16);
+      else if (e.key === 'Home') setWidth(MIN);
+      else if (e.key === 'End') setWidth(Math.round((window.innerWidth || 1280) * 0.4));
+      else return;
+      e.preventDefault();
+    });
   }
 
   private currentFolderRequestId = 0;
@@ -595,6 +685,7 @@ export class WorkbenchApp {
       kindRegistry: this.kindRegistry,
       addFileMenuItem: (item) => this.menu.addAppFileItem(item),
       addSidebarViewAction: (action) => this.explorerTitlebar.addAppAction(action),
+      setSidebarNewItemHandler: (fn) => this.explorerTitlebar.setNewItemHandler(fn),
       setActivityBarTopItems: (items) => this.activityBar.setTopItems(items),
       setActivityBarBottomItems: (items) => this.activityBar.setBottomItems(items),
       setContextMenuEnabled: (enabled) => this.contextMenu.setEnabled(enabled),

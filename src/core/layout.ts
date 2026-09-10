@@ -19,9 +19,14 @@ export interface WorkbenchLayoutElements {
   sidebarTitle: HTMLElement;
   sidebarActions: HTMLElement;
   sidebarAppActions: HTMLElement;
-  sidebarCollapseAllBtn: HTMLButtonElement;
+  /** Shell view-titlebar actions, left to right (v0.2 FR-X2). */
+  sidebarNewFileBtn: HTMLButtonElement;
+  sidebarNewFolderBtn: HTMLButtonElement;
   sidebarRefreshBtn: HTMLButtonElement;
+  sidebarCollapseAllBtn: HTMLButtonElement;
   sidebarContent: HTMLElement;
+  /** Drag handle between the explorer and the editor area (v0.2 FR-X5). */
+  sidebarResizeHandle: HTMLElement;
   mainArea: HTMLElement;
   editorContainer: HTMLElement;
   statusbar: HTMLElement;
@@ -59,12 +64,16 @@ export function createWorkbenchLayout(container: HTMLElement): WorkbenchLayoutEl
             <span id="sidebar-title" class="sidebar-title">EXPLORER</span>
             <div id="sidebar-actions" class="sidebar-actions">
               <div id="sidebar-app-actions" class="sidebar-app-actions"></div>
-              <button id="sidebar-action-collapse-all" class="sidebar-action-btn" title="Collapse All (Ctrl+LeftArrow)" aria-label="Collapse All"><i class="codicon codicon-collapse-all"></i></button>
-              <button id="sidebar-action-refresh" class="sidebar-action-btn" title="Refresh" aria-label="Refresh"><i class="codicon codicon-refresh"></i></button>
+              <button id="sidebar-action-new-file" class="sidebar-action-btn" title="New File..." aria-label="New File..."><i class="codicon codicon-new-file"></i></button>
+              <button id="sidebar-action-new-folder" class="sidebar-action-btn" title="New Folder..." aria-label="New Folder..."><i class="codicon codicon-new-folder"></i></button>
+              <button id="sidebar-action-refresh" class="sidebar-action-btn" title="Refresh Explorer" aria-label="Refresh Explorer"><i class="codicon codicon-refresh"></i></button>
+              <button id="sidebar-action-collapse-all" class="sidebar-action-btn" title="Collapse Folders in Explorer" aria-label="Collapse Folders in Explorer"><i class="codicon codicon-collapse-all"></i></button>
             </div>
           </div>
           <div id="sidebar-content" class="sidebar-content"></div>
         </aside>
+
+        <div id="sidebar-resize-handle" class="sidebar-resize-handle" role="separator" aria-orientation="vertical" aria-label="Resize Explorer"></div>
 
         <main id="main-area" class="workbench-main-area">
           <div id="editor-container" class="editor-container"></div>
@@ -104,9 +113,12 @@ export function createWorkbenchLayout(container: HTMLElement): WorkbenchLayoutEl
     sidebarTitle: container.querySelector('#sidebar-title') as HTMLElement,
     sidebarActions: container.querySelector('#sidebar-actions') as HTMLElement,
     sidebarAppActions: container.querySelector('#sidebar-app-actions') as HTMLElement,
-    sidebarCollapseAllBtn: container.querySelector('#sidebar-action-collapse-all') as HTMLButtonElement,
+    sidebarNewFileBtn: container.querySelector('#sidebar-action-new-file') as HTMLButtonElement,
+    sidebarNewFolderBtn: container.querySelector('#sidebar-action-new-folder') as HTMLButtonElement,
     sidebarRefreshBtn: container.querySelector('#sidebar-action-refresh') as HTMLButtonElement,
+    sidebarCollapseAllBtn: container.querySelector('#sidebar-action-collapse-all') as HTMLButtonElement,
     sidebarContent: container.querySelector('#sidebar-content') as HTMLElement,
+    sidebarResizeHandle: container.querySelector('#sidebar-resize-handle') as HTMLElement,
     mainArea: container.querySelector('#main-area') as HTMLElement,
     editorContainer: container.querySelector('#editor-container') as HTMLElement,
     statusbar: container.querySelector('#statusbar') as HTMLElement,

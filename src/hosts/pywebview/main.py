@@ -26,6 +26,7 @@ is_v02_phase1_test = "--v02-phase1-test" in sys.argv
 is_v02_phase2_test = "--v02-phase2-test" in sys.argv
 is_v02_phase3_test = "--v02-phase3-test" in sys.argv
 is_v02_phase4_test = "--v02-phase4-test" in sys.argv
+is_v02_phase5_test = "--v02-phase5-test" in sys.argv
 loaded_called = False
 
 INSPECTION_EXPRESSION = """
@@ -256,6 +257,68 @@ def main():
                 sys.stderr.write(f"[pywebview] Error inspecting loaded DOM: {e}\n")
                 sys.stderr.flush()
                 os._exit(1)
+
+        if is_v02_phase5_test:
+            def run_v02_phase5():
+                # A real folder three levels deep, so FR-X8/FR-X9 have depths
+                # 0, 1, 2 to measure.
+                test_tmp_dir = tempfile.mkdtemp(prefix="wb-v02p5-fixture-")
+                try:
+                    with open(os.path.join(test_tmp_dir, "root-file.txt"), "w", encoding="utf-8") as f:
+                        f.write("root")
+                    l1 = os.path.join(test_tmp_dir, "level-one")
+                    os.makedirs(l1)
+                    with open(os.path.join(l1, "one.txt"), "w", encoding="utf-8") as f:
+                        f.write("one")
+                    l2 = os.path.join(l1, "level-two")
+                    os.makedirs(l2)
+                    with open(os.path.join(l2, "two.txt"), "w", encoding="utf-8") as f:
+                        f.write("two")
+                    l3 = os.path.join(l2, "level-three")
+                    os.makedirs(l3)
+                    with open(os.path.join(l3, "three.txt"), "w", encoding="utf-8") as f:
+                        f.write("three")
+                    time.sleep(0.6)
+                    suite_path = os.path.join(root_dir, "scripts", "v02-phase5-suite.js")
+                    with open(suite_path, "r", encoding="utf-8") as f:
+                        suite_code = f.read()
+                    window.evaluate_js("window.__testTmpDir = " + json.dumps(test_tmp_dir) + ";")
+                    window.evaluate_js(suite_code)
+                    window.evaluate_js("""
+                        (async () => {
+                            try {
+                                const res = await window.__runV02Phase5Suite();
+                                window.__v02Phase5Results = JSON.stringify(res);
+                            } catch (e) {
+                                window.__v02Phase5Results = JSON.stringify({ success: false, results: [{ id: 'RUNNER_ERR', pass: false, msg: String(e) }] });
+                            }
+                        })();
+                    """)
+                    for _ in range(600):
+                        time.sleep(0.1)
+                        res = window.evaluate_js("window.__v02Phase5Results")
+                        if res:
+                            sys.stdout.write(f"[pywebview] v0.2 Phase 5 Results: {res}\n")
+                            sys.stdout.flush()
+                            window.destroy()
+                            shutil.rmtree(test_tmp_dir, ignore_errors=True)
+                            os._exit(0)
+                            return
+                    sys.stderr.write("[pywebview] Error: v0.2 Phase 5 test timed out waiting for results\n")
+                    sys.stderr.flush()
+                    window.destroy()
+                    shutil.rmtree(test_tmp_dir, ignore_errors=True)
+                    os._exit(1)
+                except Exception as e:
+                    sys.stderr.write(f"[pywebview] Error executing v0.2 Phase 5 test: {e}\n")
+                    sys.stderr.flush()
+                    window.destroy()
+                    shutil.rmtree(test_tmp_dir, ignore_errors=True)
+                    os._exit(1)
+
+            t = threading.Thread(target=run_v02_phase5, daemon=True)
+            t.start()
+            return
 
         if is_v02_phase4_test:
             def run_v02_phase4():

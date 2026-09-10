@@ -848,24 +848,25 @@ window.__runPhase7TestSuite = async function runPhase7TestSuite() {
         'The real rendered tree has 0 "go up to parent" UI affordance, and real keyboard navigation (ArrowUp/ArrowLeft/Home) never changes tree.getRoot() (FR-A15)'
       );
 
-      // FR-A20 ~ FR-A22, A24: view-titlebar Collapse All / Refresh, via real
-      // clicks on the real rendered buttons (not the tree API directly).
+      // v0.1 FR-A20/FR-A24 -> v0.2 FR-X2 (SPEC 0.1): the view titlebar's shell
+      // actions are now New File, New Folder, Refresh, Collapse All — driven by
+      // real clicks on the real rendered buttons.
       tree.setExpanded(betaFolder.node.id, true);
       tree.setExpanded(echoFolder.node.id, true);
       await wait(20);
+      const newFileShellBtn = document.getElementById('sidebar-action-new-file');
+      const newFolderShellBtn = document.getElementById('sidebar-action-new-folder');
       const collapseAllBtn = document.getElementById('sidebar-action-collapse-all');
       const refreshBtn = document.getElementById('sidebar-action-refresh');
+      const shellActionEls = Array.from(document.querySelectorAll('#sidebar-actions .sidebar-action-btn:not(.app-action-btn)'));
+      const shellOrderOK =
+        shellActionEls.length === 4 &&
+        shellActionEls[0] === newFileShellBtn && shellActionEls[1] === newFolderShellBtn &&
+        shellActionEls[2] === refreshBtn && shellActionEls[3] === collapseAllBtn;
       record(
         'P7-FR-A20',
-        Boolean(collapseAllBtn) && Boolean(refreshBtn) && document.querySelectorAll('#sidebar-actions .sidebar-action-btn:not(.app-action-btn)').length === 2,
-        // WK-048's own demo wiring in main.ts already registers 1 app action
-        // before this test suite even runs, so "0 app items" is not an
-        // observable state in this real-host suite (unlike Phase 3's
-        // isolated mock TreeController, which had no main.ts wiring at
-        // all). This proves the narrower but still real claim FR-A24 needs:
-        // the shell's own 2 actions stay exactly 2 and distinguishable
-        // (:not(.app-action-btn)) regardless of how many app actions exist.
-        'The Explorer view titlebar always renders exactly the shell\'s own 2 actions (collapse-all, refresh), distinguishable from any app-added ones, regardless of how many app actions are also present (FR-A20, FR-A24)'
+        shellOrderOK && document.querySelectorAll('#sidebar-actions [data-id*="preset"], #sidebar-actions [title*="Preset" i]').length === 0,
+        'The Explorer view titlebar renders exactly the shell\'s own 4 actions — New File, New Folder, Refresh, Collapse All in order — distinguishable from any app-added ones, and 0 Preset Info (v0.1 FR-A20/A24 -> v0.2 FR-X2/FR-X3)'
       );
       clickEl(collapseAllBtn);
       await wait(30);
@@ -910,36 +911,23 @@ window.__runPhase7TestSuite = async function runPhase7TestSuite() {
         record('P7-FR-A22-NEWROW', false, 'window.__testTmpDir3 was not provided by the runner');
       }
 
-      // FR-A23: an app-registered "New File" trigger opens the inline input
-      // row, real Enter commits, real Escape cancels. The base shell renders
-      // 0 such trigger by default (INTENT 7 — apps provide this), so this
-      // registers one real demo ViewAction and clicks the real resulting
-      // button, exactly as an app author would.
+      // v0.1 FR-A23 -> v0.2 FR-X4 (SPEC 0.1): the New File button is now the
+      // shell's own view-titlebar action. Clicking it opens the inline input
+      // row; real Enter commits the typed name to the app's registered
+      // handler; real Escape cancels. The shell creates nothing itself.
       let a23CommitCount = 0;
       let a23LastCommitName = null;
-      app.explorerTitlebar.addAppAction({
-        id: 'demo:new-file',
-        title: 'New File (test)',
-        iconClass: 'codicon-new-file',
-        action: () => {
-          tree.promptNewItem({
-            type: 'file',
-            onCommit: (result) => {
-              a23CommitCount++;
-              a23LastCommitName = result.name;
-            },
-          });
-        },
+      let a23LastType = null;
+      window.__workbenchAppSurface.setSidebarNewItemHandler((req) => {
+        a23CommitCount++;
+        a23LastCommitName = req.name;
+        a23LastType = req.type;
       });
       await wait(20);
-      // WK-048's own demo already registers 1 app action before this suite
-      // even runs, so a generic .app-action-btn query would hit that one
-      // instead of this test's — select by this test's own data-id.
-      const newFileBtn = document.querySelector('.app-action-btn[data-id="demo:new-file"]');
-      clickEl(newFileBtn);
+      clickEl(newFileShellBtn);
       await wait(20);
       const inputRow = document.querySelector('.tree-input-row .tree-input-field');
-      record('P7-FR-A23-OPEN', Boolean(inputRow), 'Clicking a real app-provided "New File" button in the view titlebar opens exactly 1 inline input row (FR-A23)');
+      record('P7-FR-A23-OPEN', Boolean(inputRow), 'Clicking the shell\'s own New File button in the view titlebar opens exactly 1 inline input row (v0.1 FR-A23 -> v0.2 FR-X4)');
       if (inputRow) {
         inputRow.value = 'phase7-new-file.txt';
         inputRow.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }));
@@ -947,19 +935,12 @@ window.__runPhase7TestSuite = async function runPhase7TestSuite() {
       }
       record(
         'P7-FR-A23-COMMIT',
-        a23CommitCount === 1 && a23LastCommitName === 'phase7-new-file.txt' && document.querySelectorAll('.tree-input-row').length === 0,
-        'Real Enter in the inline input commits exactly once with the typed name, verbatim, to the app callback — the shell performs 0 file creation itself, and the input row disappears (FR-A23)'
+        a23CommitCount === 1 && a23LastCommitName === 'phase7-new-file.txt' && a23LastType === 'leaf' &&
+          document.querySelectorAll('.tree-input-row').length === 0,
+        'Real Enter in the inline input commits exactly once with the typed name verbatim and a generic "leaf" type to the app handler — the shell creates nothing itself, and the input row disappears (FR-X4, NFR-6)'
       );
 
-      app.explorerTitlebar.addAppAction({
-        id: 'demo:new-file-2',
-        title: 'New File (test 2)',
-        iconClass: 'codicon-new-file',
-        action: () => tree.promptNewItem({ type: 'file', onCommit: () => { a23CommitCount++; } }),
-      });
-      await wait(20);
-      const newFileBtn2 = document.querySelector('.app-action-btn[data-id="demo:new-file-2"]');
-      clickEl(newFileBtn2);
+      clickEl(newFolderShellBtn);
       await wait(20);
       const commitCountBeforeEscape = a23CommitCount;
       const inputRow2 = document.querySelector('.tree-input-row .tree-input-field');
@@ -970,7 +951,7 @@ window.__runPhase7TestSuite = async function runPhase7TestSuite() {
       record(
         'P7-FR-A23-CANCEL',
         Boolean(inputRow2) && a23CommitCount === commitCountBeforeEscape && document.querySelectorAll('.tree-input-row').length === 0,
-        'Real Escape in the inline input cancels with 0 additional app callback calls, and the input row disappears (FR-A23)'
+        'Real Escape in the inline input (opened by New Folder) cancels with 0 app handler calls, and the input row disappears (FR-X4)'
       );
     } else {
       for (const id of ['P7-FR-A2', 'P7-FR-A3', 'P7-FR-A4', 'P7-FR-A5', 'P7-FR-A8', 'P7-FR-A16', 'P7-FR-A17', 'P7-FR-A9', 'P7-FR-A10', 'P7-FR-A11', 'P7-FR-A12', 'P7-FR-A19', 'P7-FR-A15', 'P7-FR-A20', 'P7-FR-A21', 'P7-FR-A22-STATE', 'P7-FR-A22-NEWROW', 'P7-FR-A23-OPEN', 'P7-FR-A23-COMMIT', 'P7-FR-A23-CANCEL']) {
