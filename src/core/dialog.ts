@@ -17,6 +17,15 @@ export class ConfirmDialogController {
 
   public show(message: string): Promise<ConfirmDialogChoice> {
     return new Promise((resolve) => {
+      // A9 Round-3 (Major): a second show() used to hide the first dialog
+      // without ever settling its promise, leaving that caller suspended
+      // forever. A dialog the user never got to answer is treated as
+      // cancelled — the only answer that does nothing destructive.
+      if (this.pendingResolve) {
+        const superseded = this.pendingResolve;
+        this.pendingResolve = null;
+        superseded('cancel');
+      }
       this.hide();
 
       const overlay = document.createElement('div');
@@ -35,9 +44,11 @@ export class ConfirmDialogController {
       buttonsEl.className = 'confirm-dialog-buttons';
 
       const finish = (choice: ConfirmDialogChoice) => {
+        this.pendingResolve = null;
         this.hide();
         resolve(choice);
       };
+      this.pendingResolve = resolve;
 
       const buttons: { id: ConfirmDialogChoice; label: string }[] = [
         { id: 'save', label: '저장' },
@@ -75,6 +86,8 @@ export class ConfirmDialogController {
   }
 
   private pendingCleanup: (() => void) | null = null;
+  /** Settles the dialog currently on screen, if any (see show()). */
+  private pendingResolve: ((choice: ConfirmDialogChoice) => void) | null = null;
 
   public hide(): void {
     if (this.pendingCleanup) {

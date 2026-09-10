@@ -973,6 +973,16 @@ html, body, #app {
   text-overflow: ellipsis;
 }
 
+/*
+ * A tab holding the group's preview spot (v0.2 FR-P9). It is the one tab that
+ * the next pick replaces, so it has to read as provisional at a glance. The
+ * colour is untouched on purpose: this says "temporary", not "inactive", and
+ * the active/inactive colours already carry that other meaning.
+ */
+.dv-tab.workbench-preview-tab .dv-default-tab-content {
+  font-style: italic;
+}
+
 .dv-tab .dv-default-tab-action {
   display: flex;
   align-items: center;

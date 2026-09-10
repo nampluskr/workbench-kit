@@ -145,13 +145,15 @@ window.__runPhase6TestSuite = async function runPhase6TestSuite() {
       const missingFilePath = window.__testTmpDir.replace(/[/\\]+$/, '') + '\\phase6-missing-file.txt';
       const statusElForG3 = document.getElementById('statusbar-message');
       const panelBeforeG3 = editor.getActivePanel();
-      // openItem() on the currently-active tab updates it IN PLACE (FR-B1) —
-      // dockview does not fire onDidActivePanelChange for that, since the
-      // active panel reference never changes. FR-G3 is specifically about
-      // switching TO an existing tab, so this creates a second, genuinely
-      // different panel and then explicitly switches TO it.
-      const panelG3 = editor.addNewTab();
-      editor.openItem(missingFilePath, 'phase6-missing-file.txt', { meta: { kind: 'file' } });
+      // FR-G3 is specifically about switching TO an existing tab, so the
+      // missing target needs its own panel, distinct from whatever is active.
+      // v0.2 note: this used to be addNewTab() followed by openItem(), relying
+      // on the [+] empty tab absorbing the open (v0.1 FR-B3). That rule is
+      // superseded (SPEC 0.1), so the panel is opened directly and confirmed.
+      const panelG3 = editor.openItem(missingFilePath, 'phase6-missing-file.txt', {
+        mode: 'pinned',
+        meta: { kind: 'file' },
+      });
       // A8 Round-1 (Critical): both switches used to go through
       // `panel.api.setActive()`, so breaking the tab's own pointer activation
       // left this assertion passing while a user could no longer trigger the

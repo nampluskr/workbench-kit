@@ -19,9 +19,25 @@ import { ConfirmDialogController } from './dialog';
  */
 export type SaveHandler = (panelId: string) => Promise<boolean> | boolean;
 
+/**
+ * How firmly a tab holds its place (v0.2 D-1).
+ *
+ * - `preview` — a temporary spot. Opening something else in preview mode
+ *   replaces it rather than adding a tab, so browsing costs one spot no
+ *   matter how many things are looked at.
+ * - `pinned` — the user said "keep this". It is never replaced; the next
+ *   preview opens beside it.
+ */
+export type EditorOpenMode = 'preview' | 'pinned';
+
 export interface EditorOpenOptions {
   renderer?: DockviewPanelRenderer;
   isUserCreatedEmptyTab?: boolean;
+  /**
+   * Defaults to `preview` (v0.2 FR-P1): a single pick is browsing until the
+   * user confirms it.
+   */
+  mode?: EditorOpenMode;
   /**
    * Opaque metadata the caller attaches to a panel (FR-I1, D-4, NFR-1).
    * The shell stores and forwards this bag without inspecting its keys or
@@ -344,7 +360,46 @@ export class EditorController {
       this.activePanelChangeListeners.forEach((cb) => cb(event.panel));
     });
 
+    // Double-pressing a tab title confirms it (FR-P6). Delegated from the
+    // container because dockview owns — and rebuilds — the tab elements, so a
+    // listener attached per tab would quietly disappear on the next relayout.
+    this.container.addEventListener('dblclick', (event) => {
+      const target = event.target as HTMLElement | null;
+      const tab = target?.closest?.('.dv-tab') as HTMLElement | null;
+      if (!tab) return;
+      // Not the close button: that press means "go away", not "keep this".
+      if (target?.closest?.('.dv-default-tab-action')) return;
+      const panelId = tab.getAttribute('data-tab-panel-id');
+      if (!panelId) return;
+      const panel = this.api.getPanel(panelId);
+      if (panel) this.pinPanel(panel);
+    });
+
+    // Dragging a tab into a different group confirms it (FR-P13, D-2 — human
+    // decision after A9 R3-1). Carrying a tab to another group is already the
+    // user saying "keep this here", and treating it as a confirm is what lets
+    // FR-P10 (one preview per group) hold without auto-confirming a tab the
+    // user never touched. A reorder inside the same group (from === to) is
+    // not a confirm.
+    this.api.onDidMovePanel((event) => {
+      if (event.from === event.to) return;
+      this.pinPanel(event.panel);
+    });
+
     this.api.onDidLayoutChange(() => {
+      // dockview rebuilds tab elements when panels move between groups or the
+      // layout is restored, which drops the class carrying preview state. Put
+      // it back before anyone reads the tab bar (FR-P9).
+      this.refreshPreviewClasses();
+      // Safety net only. A drag between groups is resolved above by confirming
+      // the moved tab, so this should find nothing. It runs after the current
+      // event turn so that the move handler always gets there first — run
+      // synchronously it could confirm the tab the user did NOT move before
+      // the moved one was confirmed, leaving both confirmed (A9 R3-1).
+      queueMicrotask(() => {
+        this.reconcilePreviewUniqueness();
+        this.refreshPreviewClasses();
+      });
       this.layoutChangeListeners.forEach((cb) => cb());
     });
   }
@@ -446,6 +501,10 @@ export class EditorController {
       params: {
         isUserCreatedEmptyTab: true,
         targetId: null,
+        // Pressing [+] is the user asking for a place to keep, so the tab it
+        // makes is confirmed, not the replaceable preview spot (FR-P10 allows
+        // only one preview per group, and this must not compete for it).
+        isPreview: false,
       },
     });
     this.wirePanelClose(panel);
@@ -514,23 +573,52 @@ export class EditorController {
   }
 
   /**
-   * Round-1 adversarial finding (Critical): `openItem`'s FR-B1 in-place
-   * replacement silently discarded whatever the target group's active tab
-   * held, dirty or not. Callers that might replace a group's active tab in
-   * place (tree selection, the app-facing surface) call this first and
-   * skip the open when it resolves false.
+   * Would a plain pick into this group overwrite unsaved content? Asks about
+   * the panel that would actually be replaced — the preview spot, not whatever
+   * happens to be active (A9 Round-1 Critical).
    */
-  public async confirmReplaceIfDirty(group?: DockviewGroupPanel): Promise<boolean> {
-    const targetGroup = group || this.getActiveGroup();
-    const activePanel = targetGroup?.activePanel;
-    if (!this.isActivePanelDirty(targetGroup) || !this.dialogController) return true;
-    const choice = await this.dialogController.show(`저장하지 않은 변경 내용이 있습니다: ${activePanel!.title || activePanel!.id}`);
+  public isReplaceTargetDirty(group?: DockviewGroupPanel): boolean {
+    return Boolean(this.resolveReplaceTarget(group)?.params?.isDirty);
+  }
+
+  /**
+   * Round-1 adversarial finding (Critical): `openItem`'s in-place replacement
+   * silently discarded whatever it overwrote, dirty or not. Callers that might
+   * replace a tab in place (tree selection, the app-facing surface) call this
+   * first and skip the open when it resolves false.
+   *
+   * A9 Round-1 (Critical): this used to always ask about the group's ACTIVE
+   * tab, which stopped being the tab that gets replaced once v0.2 made a pick
+   * land in the preview spot. With a clean confirmed tab active and a dirty
+   * preview sitting beside it, no dialog appeared and the unsaved preview was
+   * destroyed. Callers now name the panel they are about to overwrite.
+   */
+  public async confirmReplaceIfDirty(
+    groupOrPanel?: DockviewGroupPanel | IDockviewPanel
+  ): Promise<boolean> {
+    const doomed = this.resolveReplaceTarget(groupOrPanel);
+    if (!doomed?.params?.isDirty || !this.dialogController) return true;
+    const choice = await this.dialogController.show(`저장하지 않은 변경 내용이 있습니다: ${doomed.title || doomed.id}`);
     if (choice === 'cancel') return false;
     if (choice === 'save') {
-      const ok = this.saveHandler ? await this.saveHandler(activePanel!.id) : false;
+      const ok = this.saveHandler ? await this.saveHandler(doomed.id) : false;
       if (!ok) return false;
     }
     return true;
+  }
+
+  /**
+   * Which panel a pick into `groupOrPanel` would overwrite: the panel itself
+   * when one is named, otherwise that group's preview spot, and only failing
+   * both its active tab (the pre-v0.2 answer, kept so callers that still pass
+   * a group behave the way they always did when there is no preview).
+   */
+  private resolveReplaceTarget(
+    groupOrPanel?: DockviewGroupPanel | IDockviewPanel
+  ): IDockviewPanel | undefined {
+    if (groupOrPanel && 'params' in groupOrPanel) return groupOrPanel as IDockviewPanel;
+    const group = (groupOrPanel as DockviewGroupPanel | undefined) || this.getActiveGroup();
+    return this.getPreviewPanel(group) || group?.activePanel;
   }
 
   /**
@@ -558,12 +646,82 @@ export class EditorController {
     }
   }
 
+  /** The one preview tab a group may hold (FR-P10), if it has one. */
+  public getPreviewPanel(group?: DockviewGroupPanel): IDockviewPanel | undefined {
+    const target = group || this.getActiveGroup();
+    if (!target) return undefined;
+    return target.panels.find((p) => p.params?.isPreview === true);
+  }
+
   /**
-   * Opens an item in accordance with D-5 and FR-B1 ~ FR-B4.
-   * - If active tab is user-created empty tab: opens in that tab (FR-B3).
-   * - If item already open elsewhere: relocates to existing tab without creating new tab (FR-B2).
-   * - Otherwise: replaces content of active tab without increasing tab count (FR-B1).
-   * - If active group is empty pane: opens as first tab in that pane (FR-J8).
+   * Confirms a tab: it stops being the replaceable preview spot and keeps its
+   * place (FR-P4, FR-P6, FR-P7). Confirming an already-confirmed tab is a
+   * no-op, so every confirm path can call this without checking first.
+   */
+  public pinPanel(panel: IDockviewPanel): void {
+    if (!panel.params?.isPreview) return;
+    panel.update({ params: { isPreview: false } });
+    this.applyPreviewClass(panel);
+  }
+
+  /**
+   * Mirrors a panel's preview state onto its rendered tab, because that is
+   * where the user reads it (FR-P9). dockview owns the tab element, so this
+   * toggles a class on it rather than re-rendering anything.
+   */
+  private applyPreviewClass(panel: IDockviewPanel): void {
+    const el = document.querySelector(`.dv-tab[data-tab-panel-id="${panel.id}"]`);
+    if (!el) return;
+    el.classList.toggle('workbench-preview-tab', panel.params?.isPreview === true);
+  }
+
+  /** Re-applies preview marking to every tab, after dockview rebuilds them. */
+  private refreshPreviewClasses(): void {
+    for (const panel of this.api.panels) {
+      this.applyPreviewClass(panel);
+    }
+  }
+
+  /**
+   * Restores "one preview spot per group" after the layout moved tabs around
+   * (A9 Round-1, Critical).
+   *
+   * Dragging a preview tab into a group that already had one used to leave two
+   * behind, and from then on a pick replaced whichever the lookup happened to
+   * return first while the other stayed provisional forever. Nothing in the
+   * drag path could prevent that, because dockview moves the panel itself.
+   *
+   * The survivor is the group's active panel when that is a preview — the one
+   * the user is looking at — and otherwise the last in tab order. Everything
+   * else in the group becomes confirmed, which is the safe direction: a tab
+   * wrongly left provisional can be silently replaced, while one wrongly
+   * confirmed merely takes up a place until the user closes it.
+   */
+  private reconcilePreviewUniqueness(): void {
+    for (const group of this.api.groups) {
+      const previews = group.panels.filter((p) => p.params?.isPreview === true);
+      if (previews.length < 2) continue;
+      const active = group.activePanel;
+      const survivor =
+        active && active.params?.isPreview === true ? active : previews[previews.length - 1];
+      for (const panel of previews) {
+        if (panel !== survivor) this.pinPanel(panel);
+      }
+    }
+  }
+
+  /**
+   * Opens an item (v0.2 FR-P1 ~ FR-P8, FR-B2, FR-B4, FR-J8).
+   *
+   * The rule that changed in v0.2: a plain pick no longer overwrites whatever
+   * tab happens to be active. It goes to the group's single preview spot,
+   * creating that spot if there is none, so browsing never destroys something
+   * the user chose to keep (v0.1 FR-B1/FR-B3 are superseded — SPEC 0.1).
+   *
+   * - Already open anywhere → jump to it (FR-B2). A confirming open also
+   *   confirms the tab it landed on (FR-P7).
+   * - `preview` and the group has a preview spot → replace it in place (FR-P2).
+   * - Otherwise → add a tab, marked preview or not per `mode` (FR-P8).
    */
   public openItem(
     targetId: string,
@@ -576,18 +734,40 @@ export class EditorController {
     const displayTitle = title || targetId;
     const requestedRenderer = options?.renderer || 'onlyWhenVisible';
     const meta = options?.meta || {};
+    const mode: EditorOpenMode = options?.mode || 'preview';
     const group = targetGroup || this.getActiveGroup() || this.api.groups[0];
-    const activePanel = group?.activePanel;
 
-    // Rule FR-B3: If active tab in target group is a user-created empty tab, open in it even if duplicate
-    if (activePanel && activePanel.params?.isUserCreatedEmptyTab && !activePanel.params?.targetId) {
-      activePanel.setTitle(displayTitle);
-      activePanel.api.setRenderer(requestedRenderer);
-      activePanel.update({
+    // Rule FR-B2: Target is already open in any panel across workbench -> jump to it (D-5)
+    const existingPanel = this.api.panels.find((p) => p.params?.targetId === targetId);
+    if (existingPanel) {
+      if (mode === 'pinned') this.pinPanel(existingPanel);
+      existingPanel.api.setActive();
+      return existingPanel;
+    }
+
+    // FR-P2: a preview open reuses the group's preview spot, replacing what is
+    // shown there. A tab the user made with [+] is confirmed, so it is not a
+    // candidate — browsing never overwrites it.
+    const reusable = mode === 'preview' ? this.getPreviewPanel(group) : undefined;
+    if (reusable) {
+      reusable.setTitle(displayTitle);
+      reusable.api.setRenderer(requestedRenderer);
+      // A9 Round-3 (Major): dockview merges params, so metadata the previous
+      // target carried survived into the replacement whenever the new caller
+      // did not happen to supply the same key. The metadata bag is opaque to
+      // the shell, so rather than know its keys, clear every key the new bag
+      // does not set.
+      const staleMeta: Record<string, undefined> = {};
+      for (const key of Object.keys(reusable.params || {})) {
+        if (!(key in meta)) staleMeta[key] = undefined;
+      }
+      reusable.update({
         params: {
+          ...staleMeta,
           ...meta,
           targetId,
           isUserCreatedEmptyTab: false,
+          isPreview: true,
           // Round-2 adversarial finding (Major): dockview merges partial
           // params rather than replacing them, so a stale isDirty: true from
           // whatever this panel held before would otherwise survive into the
@@ -595,38 +775,12 @@ export class EditorController {
           isDirty: false,
         },
       });
-      activePanel.api.setActive();
-      return activePanel;
+      reusable.api.setActive();
+      this.applyPreviewClass(reusable);
+      return reusable;
     }
 
-    // Rule FR-B2: Target is already open in any panel across workbench -> jump to it (D-5)
-    const existingPanel = this.api.panels.find((p) => p.params?.targetId === targetId);
-    if (existingPanel) {
-      existingPanel.api.setActive();
-      return existingPanel;
-    }
-
-    // Rule FR-B1: Target not open anywhere; update active tab in place without increasing tab count
-    if (activePanel) {
-      activePanel.setTitle(displayTitle);
-      activePanel.api.setRenderer(requestedRenderer);
-      activePanel.update({
-        params: {
-          ...meta,
-          targetId,
-          isUserCreatedEmptyTab: false,
-          // Round-2 adversarial finding (Major): see the FR-B3 branch above —
-          // the confirm-then-discard path already asked about (and gave up)
-          // whatever this panel held; the freshly loaded content must start
-          // clean, not inherit a stale isDirty: true from a dockview param merge.
-          isDirty: false,
-        },
-      });
-      activePanel.api.setActive();
-      return activePanel;
-    }
-
-    // Rule FR-J8: If group has 0 panels (empty pane), open first tab in it
+    // FR-P8 / FR-J8: nothing to reuse — add a tab beside whatever is kept.
     const id = `tab-${++this.panelCounter}`;
     const panel = this.api.addPanel({
       id,
@@ -641,11 +795,13 @@ export class EditorController {
         ...meta,
         targetId,
         isUserCreatedEmptyTab: false,
+        isPreview: mode === 'preview',
       },
     });
     this.wirePanelClose(panel);
 
     panel.api.setActive();
+    this.applyPreviewClass(panel);
     return panel;
   }
 

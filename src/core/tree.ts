@@ -69,6 +69,7 @@ export class TreeController {
   // Event callbacks
   private onSelectCallbacks: ((nodes: TreeNode[]) => void)[] = [];
   private onOpenCallbacks: ((node: TreeNode) => void)[] = [];
+  private onConfirmCallbacks: ((node: TreeNode) => void)[] = [];
   private onOpenToSideCallbacks: ((node: TreeNode) => void)[] = [];
   private onRootChangeCallbacks: ((root: TreeNode | null) => void)[] = [];
 
@@ -168,6 +169,17 @@ export class TreeController {
     this.onOpenCallbacks.push(cb);
     return () => {
       this.onOpenCallbacks = this.onOpenCallbacks.filter((c) => c !== cb);
+    };
+  }
+
+  /**
+   * The user said "keep this one" — Enter on the tree, or a double click on a
+   * file row (v0.2 FR-P4, FR-P7). Distinct from onOpen, which is just a look.
+   */
+  public onConfirm(cb: (node: TreeNode) => void): () => void {
+    this.onConfirmCallbacks.push(cb);
+    return () => {
+      this.onConfirmCallbacks = this.onConfirmCallbacks.filter((c) => c !== cb);
     };
   }
 
@@ -574,6 +586,10 @@ export class TreeController {
     this.onOpenCallbacks.forEach((cb) => cb(node));
   }
 
+  private emitConfirm(node: TreeNode): void {
+    this.onConfirmCallbacks.forEach((cb) => cb(node));
+  }
+
   private emitOpenToSide(node: TreeNode): void {
     this.onOpenToSideCallbacks.forEach((cb) => cb(node));
   }
@@ -654,13 +670,16 @@ export class TreeController {
       return;
     }
 
-    // Enter: Select/open focused item (FR-A6)
+    // Enter: confirm the focused item (v0.2 FR-P7, FR-T3).
+    // In v0.1 this meant "open in the current tab" (v0.1 FR-A6). That meaning
+    // went away with the current-tab concept itself: a pick now lands in the
+    // preview spot, so Enter is what says "keep this one" (D-2).
     if (e.key === 'Enter' && !e.ctrlKey && !e.shiftKey && !e.altKey) {
       e.preventDefault();
       e.stopPropagation();
       const node = this.getNodeById(this.focusedId);
       if (node) {
-        this.emitOpen(node);
+        this.emitConfirm(node);
       }
       return;
     }
@@ -1268,10 +1287,14 @@ export class TreeController {
       });
 
       rowEl.addEventListener('dblclick', () => {
+        // Double click splits by what was clicked, not by what it does elsewhere
+        // (v0.2 D-2): on a folder row this already means "expand", and that
+        // meaning wins. Confirming a folder goes through Enter or the tab
+        // title instead (FR-P5, FR-P7).
         if (node.isContainer) {
           this.toggleExpand(node.id);
         } else {
-          this.emitOpen(node);
+          this.emitConfirm(node);
         }
       });
     });

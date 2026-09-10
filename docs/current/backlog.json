@@ -38,7 +38,7 @@
   "tasks": [
     {
       "id": "WK-049",
-      "status": "todo",
+      "status": "done",
       "priority": "P1",
       "category": "칸·탭",
       "title": "임시 자리 열기와 대체 규칙",
@@ -48,27 +48,27 @@
       "note": "FR-P1 · FR-P2 · FR-P3 · FR-P10. 껍데기가 파일인지 폴더인지 아는 코드를 두지 않는다",
       "parent": null,
       "deps": [],
-      "done_at": null
+      "done_at": "2026-09-10"
     },
     {
       "id": "WK-050",
-      "status": "todo",
+      "status": "done",
       "priority": "P1",
       "category": "칸·탭",
       "title": "확정 경로 — 더블클릭 두 갈래",
       "summary": "완료: 파일 더블클릭과 임시 자리 제목 더블클릭이 확정하고, 트리에서 폴더 더블클릭은 확정하지 않고 펼친다. 그때 임시 자리는 임시인 채로 남는다",
       "where": "칸·탭 수명",
       "doc": "PLAN.md#phase-1",
-      "note": "FR-P4 · FR-P5 · FR-P6. 대상이 아니라 조작한 자리로 가른다 (D-2)",
+      "note": "FR-P4 · FR-P5 · FR-P6 · FR-P13. 대상이 아니라 조작한 자리로 가른다 (D-2). 다른 칸으로 끌어 놓기도 확정이다 — 사용자가 확정하지 않은 탭을 자동 확정하지 않는다 (A9 R3-1 사람 결정)",
       "parent": null,
       "deps": [
         "WK-049"
       ],
-      "done_at": null
+      "done_at": "2026-09-10"
     },
     {
       "id": "WK-051",
-      "status": "todo",
+      "status": "done",
       "priority": "P1",
       "category": "탐색기",
       "title": "트리 키 — 오른쪽 화살표와 Enter",
@@ -80,11 +80,11 @@
       "deps": [
         "WK-049"
       ],
-      "done_at": null
+      "done_at": "2026-09-10"
     },
     {
       "id": "WK-052",
-      "status": "todo",
+      "status": "done",
       "priority": "P1",
       "category": "칸·탭",
       "title": "확정 뒤 새 임시 자리",
@@ -96,7 +96,7 @@
       "deps": [
         "WK-049"
       ],
-      "done_at": null
+      "done_at": "2026-09-10"
     },
     {
       "id": "WK-053",
@@ -533,8 +533,8 @@
       "status": "todo",
       "priority": "P7",
       "category": "검증",
-      "title": "69건 전건 대조와 키보드 경로",
-      "summary": "완료: SPEC 1절 69건을 Electron과 pywebview에서 각각 확인해 결과가 다른 항목이 0건이다. 1절의 모든 명령에 마우스 없이 실행하는 경로가 1개 이상 있고 그 키가 예약 키 목록 문서에 있다",
+      "title": "70건 전건 대조와 키보드 경로",
+      "summary": "완료: SPEC 1절 70건을 Electron과 pywebview에서 각각 확인해 결과가 다른 항목이 0건이다. 1절의 모든 명령에 마우스 없이 실행하는 경로가 1개 이상 있고 그 키가 예약 키 목록 문서에 있다",
       "where": "검증 스크립트",
       "doc": "PLAN.md#phase-7",
       "note": "NFR-1 · NFR-3 · NFR-8. 판정은 화면에서 한다 — 요소의 존재로 끝나는 검사를 쓰지 않는다",

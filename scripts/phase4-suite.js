@@ -170,56 +170,82 @@ window.__runPhase4TestSuite = async function runPhase4TestSuite() {
         { id: '/workspace/folderX', label: 'folderX', name: 'folderX', isContainer: true, children: [] },
       ],
     });
+    // v0.2 supersedes three assertions that used to live here — v0.1 FR-A6
+    // (Enter opens in the current tab), FR-B1 (a pick replaces the active tab)
+    // and FR-B3 (a pick is absorbed by the [+] empty tab). All three are in
+    // v0.2 SPEC 0.1's replacement table, and their v0.2 successors (FR-P1 ~
+    // FR-P8, FR-P10, FR-T1 ~ FR-T3) are asserted in v02-phase1-suite.js.
+    // What stays here is the setup the rest of this suite depends on, written
+    // against the rule that actually applies now.
+    editor.clear();
     tree.focusItemById('/workspace/docA.txt');
-
-    // Dispatch real keydown Enter from tree container (FR-A6)
     sendTreeKey('Enter');
-
-    record('P4-FR-A6', editor.getActivePanel()?.params?.targetId === '/workspace/docA.txt' && editor.getActivePanel()?.title === 'docA.txt', 'Tree Enter keydown opens item in active tab (FR-A6)');
-    record('P4-FR-B3', editor.getPanelCount() === 1, 'Opening in user-created empty tab keeps panel count at 1 (FR-B3, D-5)');
+    record(
+      'P4-FR-A6',
+      editor.getActivePanel()?.params?.targetId === '/workspace/docA.txt' &&
+        editor.getActivePanel()?.title === 'docA.txt',
+      'Tree Enter keydown opens the focused item (v0.1 FR-A6 → v0.2 FR-P7)'
+    );
 
     // ------------------------------------------------------------------------
-    // 5. Tree Row Click: Replaces Active Tab in place without increase (FR-B1)
+    // 5. A pick goes to the preview spot (v0.1 FR-B1 → v0.2 FR-P2)
     // ------------------------------------------------------------------------
+    editor.clear();
+    tree.focusItemById('/workspace/docA.txt');
+    clickEl(document.querySelector('.tree-row.focused'));
     tree.focusItemById('/workspace/docB.txt');
-    sendTreeKey('Enter');
-    record('P4-FR-B1', editor.getPanelCount() === 1 && editor.getActivePanel()?.params?.targetId === '/workspace/docB.txt', 'Opening another item replaces active tab; tab count remains 1 (FR-B1, D-5)');
+    clickEl(document.querySelector('.tree-row.focused'));
+    record(
+      'P4-FR-B1',
+      editor.getPanelCount() === 1 && editor.getActivePanel()?.params?.targetId === '/workspace/docB.txt',
+      'A second pick replaces the same spot; tab count remains 1 (v0.1 FR-B1 → v0.2 FR-P2)'
+    );
 
     // ------------------------------------------------------------------------
-    // 6. User-created Empty Tab duplicate exception (FR-B3) & jumping duplicate (FR-B2)
+    // 6. New Tab button, and jumping to an already-open target (FR-B2)
     // ------------------------------------------------------------------------
-    clickEl(newTabBtn);
+    // Re-queried rather than reusing the element captured at the top: an
+    // editor.clear() in between makes dockview rebuild the group header, which
+    // detaches the old button and would make this click silently do nothing.
+    const newTabBtnNow = document.querySelector('.editor-group-header-actions .tab-action-new');
+    clickEl(newTabBtnNow);
     record('P4-FR-C1-2', editor.getPanelCount() === 2, 'Adding 2nd tab via + button increases tab count to 2');
-    // Open docB.txt in user-created empty tab -> allowed to have duplicate docB.txt
-    tree.focusItemById('/workspace/docB.txt');
-    sendTreeKey('Enter');
-    const panelsDocB = editor.getPanels().filter((p) => p.params?.targetId === '/workspace/docB.txt');
-    record('P4-FR-B3-DUP', panelsDocB.length === 2, 'User-created empty tab permits opening already-open target resulting in 2 tabs with docB.txt (FR-B3)');
 
-    // Open docC.txt into tab 2 to differentiate
+    // Open docC.txt so there is a second distinct target on screen
     tree.focusItemById('/workspace/docC.txt');
     sendTreeKey('Enter');
+    const countBeforeJump = editor.getPanelCount();
 
-    // Now jump to existing docB.txt tab 1 (FR-B2)
+    // Now jump back to the already-open docB.txt (FR-B2). Unchanged in v0.2:
+    // opening something that is already open goes to it instead of duplicating.
     tree.focusItemById('/workspace/docB.txt');
     sendTreeKey('Enter');
-    record('P4-FR-B2', editor.getPanelCount() === 2 && editor.getActivePanel()?.params?.targetId === '/workspace/docB.txt', 'Opening item already open elsewhere jumps to existing tab without increasing tab count (FR-B2, D-5)');
+    record(
+      'P4-FR-B2',
+      editor.getPanelCount() === countBeforeJump &&
+        editor.getActivePanel()?.params?.targetId === '/workspace/docB.txt',
+      'Opening item already open elsewhere jumps to existing tab without increasing tab count (FR-B2, D-5)'
+    );
 
     // ------------------------------------------------------------------------
     // 7. Folder opens using identical rules as files (FR-B4)
     // ------------------------------------------------------------------------
+    const countBeforeFolder = editor.getPanelCount();
     tree.focusItemById('/workspace/folderX');
     sendTreeKey('Enter');
-    record('P4-FR-B4', editor.getPanelCount() === 2 && editor.getActivePanel()?.params?.targetId === '/workspace/folderX', 'Folder opens using identical rules as files (FR-B4)');
+    record(
+      'P4-FR-B4',
+      editor.getPanelCount() === countBeforeFolder + 1 &&
+        editor.getActivePanel()?.params?.targetId === '/workspace/folderX',
+      'Folder opens using identical rules as files — a not-yet-open target adds one tab either way (FR-B4)'
+    );
 
     // ------------------------------------------------------------------------
     // 8. Renderer Modes: 'always' vs 'onlyWhenVisible' DOM Attachment (FR-E4, FR-E5, D-24)
     // ------------------------------------------------------------------------
     editor.clear();
-    const tabAlways = editor.addNewTab();
-    editor.openItem('/workspace/always.txt', 'always.txt', { renderer: 'always' });
-    const tabOther = editor.addNewTab();
-    editor.openItem('/workspace/other.txt', 'other.txt');
+    const tabAlways = editor.openItem('/workspace/always.txt', 'always.txt', { renderer: 'always' }, undefined);
+    const tabOther = editor.openItem('/workspace/other.txt', 'other.txt', { mode: 'pinned' }, undefined);
 
     // tabAlways is now inactive. Because renderer is 'always', its content element MUST remain in DOM
     const alwaysRenderer = editor.getContentRenderer(tabAlways.id);
@@ -262,8 +288,7 @@ window.__runPhase4TestSuite = async function runPhase4TestSuite() {
       };
     });
 
-    const appTab1 = editor.addNewTab();
-    editor.openItem('/workspace/app1.txt', 'app1.txt');
+    const appTab1 = editor.openItem('/workspace/app1.txt', 'app1.txt', { mode: 'pinned' }, undefined);
     const appView1 = editor.getContentRenderer(appTab1.id);
     record('P4-APP-VIEW', appView1 && appView1.instanceStamp?.startsWith('stamp-app-'), 'Custom application view injected via component factory (D-4)');
 
@@ -274,8 +299,7 @@ window.__runPhase4TestSuite = async function runPhase4TestSuite() {
     record('P4-APP-TIMER-RUNNING', ticks1 > 0, 'Application view timer is actively ticking');
 
     // Switch away to another tab
-    const bgTab = editor.addNewTab();
-    editor.openItem('/workspace/bg.txt', 'bg.txt');
+    const bgTab = editor.openItem('/workspace/bg.txt', 'bg.txt', { mode: 'pinned' }, undefined);
     const bgView = editor.getContentRenderer(bgTab.id);
     await wait(40);
     const ticks2 = appView1.getTimerTicks();
@@ -341,8 +365,7 @@ window.__runPhase4TestSuite = async function runPhase4TestSuite() {
     // ------------------------------------------------------------------------
     editor.clear();
     const gMain = editor.getActiveGroup();
-    editor.addNewTab(gMain);
-    editor.openItem('/workspace/docA.txt', 'docA.txt');
+    editor.openItem('/workspace/docA.txt', 'docA.txt', { mode: 'pinned' }, gMain);
 
     // In 1-group state, Ctrl+Enter from tree opens beside (FR-A14)
     tree.focusItemById('/workspace/docB.txt');
@@ -376,8 +399,7 @@ window.__runPhase4TestSuite = async function runPhase4TestSuite() {
     // ------------------------------------------------------------------------
     editor.clear();
     const sGroup = editor.getActiveGroup();
-    editor.addNewTab(sGroup);
-    editor.openItem('/workspace/splitTest.txt', 'splitTest.txt');
+    editor.openItem('/workspace/splitTest.txt', 'splitTest.txt', { mode: 'pinned' }, sGroup);
 
     const splitRightBtn = document.querySelector('.tab-action-split-right');
     clickEl(splitRightBtn);
@@ -440,11 +462,9 @@ window.__runPhase4TestSuite = async function runPhase4TestSuite() {
     // ------------------------------------------------------------------------
     editor.clear();
     const gLeft = editor.getActiveGroup();
-    editor.addNewTab(gLeft);
-    editor.openItem('/workspace/left.txt', 'left.txt');
+    editor.openItem('/workspace/left.txt', 'left.txt', { mode: 'pinned' }, gLeft);
     const gRight = editor.splitActiveGroup('right');
-    editor.addNewTab(gRight);
-    editor.openItem('/workspace/right.txt', 'right.txt');
+    editor.openItem('/workspace/right.txt', 'right.txt', { mode: 'pinned' }, gRight);
 
     const sash = document.querySelector('.dv-sash');
     record('P4-FR-D4-SASH', sash !== null, 'Sashes exist between adjacent split panes (FR-D4)');
@@ -517,11 +537,9 @@ window.__runPhase4TestSuite = async function runPhase4TestSuite() {
     // ------------------------------------------------------------------------
     editor.clear();
     const gSepA = editor.getActiveGroup();
-    editor.addNewTab(gSepA);
-    editor.openItem('/workspace/sepA.txt', 'sepA.txt');
+    editor.openItem('/workspace/sepA.txt', 'sepA.txt', { mode: 'pinned' }, gSepA);
     const gSepB = await uiSplit(gSepA, 'right');
-    editor.addNewTab(gSepB);
-    editor.openItem('/workspace/sepB.txt', 'sepB.txt');
+    editor.openItem('/workspace/sepB.txt', 'sepB.txt', { mode: 'pinned' }, gSepB);
     // The boundary between two groups has to be *visible*, not merely present.
     // dockview injects its own stylesheet at runtime as an inline <style>, which
     // this app's CSP (style-src 'self') blocks outright, so every dv-* rule has
@@ -629,10 +647,8 @@ window.__runPhase4TestSuite = async function runPhase4TestSuite() {
     // ------------------------------------------------------------------------
     editor.clear();
     const roGroup = editor.getActiveGroup();
-    const tA = editor.addNewTab(roGroup);
-    editor.openItem('/workspace/tA.txt', 'tA.txt');
-    const tB = editor.addNewTab(roGroup);
-    editor.openItem('/workspace/tB.txt', 'tB.txt');
+    const tA = editor.openItem('/workspace/tA.txt', 'tA.txt', { mode: 'pinned' }, roGroup);
+    const tB = editor.openItem('/workspace/tB.txt', 'tB.txt', { mode: 'pinned' }, roGroup);
     record('P4-REORDER-INIT', roGroup.panels[0].id === tA.id && roGroup.panels[1].id === tB.id, 'Tabs initially ordered [tA, tB]');
 
     const tabEls = Array.from(roGroup.element.querySelectorAll('.dv-tab'));
@@ -715,12 +731,9 @@ window.__runPhase4TestSuite = async function runPhase4TestSuite() {
     // ------------------------------------------------------------------------
     editor.clear();
     const cGroup = editor.getActiveGroup();
-    const cTab1 = editor.addNewTab(cGroup);
-    editor.openItem('/workspace/cTab1.txt', 'cTab1.txt');
-    const cTab2 = editor.addNewTab(cGroup);
-    editor.openItem('/workspace/cTab2.txt', 'cTab2.txt');
-    const cTab3 = editor.addNewTab(cGroup);
-    editor.openItem('/workspace/cTab3.txt', 'cTab3.txt');
+    const cTab1 = editor.openItem('/workspace/cTab1.txt', 'cTab1.txt', { mode: 'pinned' }, cGroup);
+    const cTab2 = editor.openItem('/workspace/cTab2.txt', 'cTab2.txt', { mode: 'pinned' }, cGroup);
+    const cTab3 = editor.openItem('/workspace/cTab3.txt', 'cTab3.txt', { mode: 'pinned' }, cGroup);
 
     // Activate middle tab (cTab2)
     cTab2.api.setActive();
@@ -749,8 +762,7 @@ window.__runPhase4TestSuite = async function runPhase4TestSuite() {
     record('P4-FR-N6b-KEY', editor.getPanelCount() === countBeforeCtrlW - 1, 'Pressing Ctrl+W dispatches keydown and closes active tab (FR-N6b)');
 
     // File menu "탭 닫기" (FR-N6b) via DOM click
-    const cTabNew = editor.addNewTab(cGroup);
-    editor.openItem('/workspace/cTabNew.txt', 'cTabNew.txt');
+    const cTabNew = editor.openItem('/workspace/cTabNew.txt', 'cTabNew.txt', { mode: 'pinned' }, cGroup);
     const countBeforeFileMenu = editor.getPanelCount();
     clickMenuRow('file', 'file:close-tab');
     record('P4-FR-N6b-MENU', editor.getPanelCount() === countBeforeFileMenu - 1, 'File menu "탭 닫기" clicked via DOM closes active tab (FR-N6b)');
@@ -760,12 +772,10 @@ window.__runPhase4TestSuite = async function runPhase4TestSuite() {
     // ------------------------------------------------------------------------
     editor.clear();
     const g1 = editor.getActiveGroup();
-    const tabG1 = editor.addNewTab(g1);
-    editor.openItem('/workspace/p1.txt', 'p1.txt');
+    const tabG1 = editor.openItem('/workspace/p1.txt', 'p1.txt', { mode: 'pinned' }, g1);
 
     const g2 = await uiSplit(g1, 'right');
-    const tabG2 = editor.addNewTab(g2);
-    editor.openItem('/workspace/p2.txt', 'p2.txt');
+    const tabG2 = editor.openItem('/workspace/p2.txt', 'p2.txt', { mode: 'pinned' }, g2);
 
     record('P4-MULTI-GROUP-INIT', editor.getGroupCount() === 2, '2 groups exist before closing tab in g2');
     await uiCloseTab(tabG2.id);
@@ -776,8 +786,7 @@ window.__runPhase4TestSuite = async function runPhase4TestSuite() {
     // path (closeActiveTab -> confirmAndClose), and breaking just that one
     // left the suite green. Drive the same transition from the keyboard.
     const g2b = await uiSplit(g1, 'right');
-    const tabG2b = editor.addNewTab(g2b);
-    editor.openItem('/workspace/p2b.txt', 'p2b.txt');
+    const tabG2b = editor.openItem('/workspace/p2b.txt', 'p2b.txt', { mode: 'pinned' }, g2b);
     await wait(60);
     const groupsBeforeCtrlWLast = editor.getGroupCount();
     document.dispatchEvent(new KeyboardEvent('keydown', {
@@ -806,17 +815,13 @@ window.__runPhase4TestSuite = async function runPhase4TestSuite() {
     // Multi-tab group close & disposal count test (FR-J2, FR-J5)
     editor.clear();
     const mg1 = editor.getActiveGroup();
-    const mt1 = editor.addNewTab(mg1);
-    editor.openItem('/workspace/m1.txt', 'm1.txt');
-    const mt2 = editor.addNewTab(mg1);
-    editor.openItem('/workspace/m2.txt', 'm2.txt');
-    const mt3 = editor.addNewTab(mg1);
-    editor.openItem('/workspace/m3.txt', 'm3.txt');
+    const mt1 = editor.openItem('/workspace/m1.txt', 'm1.txt', { mode: 'pinned' }, mg1);
+    const mt2 = editor.openItem('/workspace/m2.txt', 'm2.txt', { mode: 'pinned' }, mg1);
+    const mt3 = editor.openItem('/workspace/m3.txt', 'm3.txt', { mode: 'pinned' }, mg1);
 
     // Create 2nd pane so mg1 disappears when closed
     const mg2 = editor.splitActiveGroup('right');
-    editor.addNewTab(mg2);
-    editor.openItem('/workspace/mOther.txt', 'mOther.txt');
+    editor.openItem('/workspace/mOther.txt', 'mOther.txt', { mode: 'pinned' }, mg2);
 
     // Make mg1 active
     editor.setActiveGroup(mg1);
@@ -858,8 +863,7 @@ window.__runPhase4TestSuite = async function runPhase4TestSuite() {
     // 22. Tab Dirty Indicator (FR-L1)
     // ------------------------------------------------------------------------
     editor.clear();
-    const dTab = editor.addNewTab();
-    editor.openItem('/workspace/dirty.txt', 'dirty.txt');
+    const dTab = editor.openItem('/workspace/dirty.txt', 'dirty.txt', { mode: 'pinned' }, undefined);
     editor.setTabDirty(dTab.id, true);
     record('P4-FR-L1-SET', dTab.title.startsWith('●'), 'setTabDirty(true) prefixes title with ● (FR-L1)');
     editor.setTabDirty(dTab.id, false);

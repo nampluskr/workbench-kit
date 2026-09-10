@@ -10,10 +10,10 @@ import { ViewStateManager } from './core/viewstate';
 import { ThemeManager } from './core/theme';
 import { IconThemeManager } from './core/icontheme';
 import { SetiResolver, VscodeIconsResolver } from './icons';
-import { TreeController } from './core/tree';
+import { TreeController, TreeNode } from './core/tree';
 import { ExplorerTitlebarController } from './core/sidebar';
 import { FileSystemTreeProvider, promptOpenFolderDialog } from './providers/filesystem';
-import { EditorController } from './core/editor';
+import { EditorController, EditorOpenMode } from './core/editor';
 import { ContextMenuController, ContextMenuItem } from './core/contextmenu';
 import { ResourceKindRegistry } from './registry/kind-registry';
 import { registerFilePreset, FILE_KIND } from './presets/file-preset';
@@ -189,20 +189,67 @@ export class WorkbenchApp {
     // Round-1 adversarial finding (Critical): selecting a new item replaces
     // the target group's active tab in place (FR-B1), which would silently
     // discard an unsaved edit. Ask first, same as closing that tab would (D-28).
-    this.tree.onOpen((node) => {
-      // Stays fully synchronous in the common (clean) case — Phase 4's
-      // FR-A6/FR-B1~B4/FR-J8 assert state right after a synchronous
-      // keydown/click with 0 waits. Only a genuinely dirty active tab takes
-      // the async confirm path.
-      if (this.editor.isActivePanelDirty()) {
+    // A single pick is browsing: it goes to the group's preview spot and
+    // replaces whatever was being looked at there (v0.2 FR-P1 ~ FR-P3).
+    // A9 Round-3 (Major): a double click delivers click, click, dblclick.
+    // With a dirty preview each click used to start its own confirmation, and
+    // the dblclick opened the target pinned *behind* the dialog — after which
+    // "Discard" found the target already open and discarded nothing. While a
+    // confirmation is on screen, further requests fold into the one pending
+    // request instead: the latest target wins, and a confirm upgrades it.
+    let pendingOpen: { node: TreeNode; mode: EditorOpenMode } | null = null;
+
+    const openFromTree = (node: TreeNode, mode: EditorOpenMode) => {
+      const openNow = (target: TreeNode, how: EditorOpenMode) =>
+        this.editor.openItem(target.id, target.label, {
+          mode: how,
+          meta: { kind: kindOf(target.isContainer) },
+        });
+
+      if (pendingOpen) {
+        const keepPinned = pendingOpen.node.id === node.id && pendingOpen.mode === 'pinned';
+        pendingOpen = { node, mode: keepPinned ? 'pinned' : mode };
+        return;
+      }
+
+      // Stays fully synchronous in the common (clean) case — the acceptance
+      // suites assert state right after a synchronous keydown/click with 0
+      // waits. Only a genuinely dirty replace target takes the async confirm
+      // path: overwriting it would discard an unsaved edit (D-28).
+      //
+      // A9 Round-1 (Critical): the tab about to be overwritten is the preview
+      // spot, which is not necessarily the active one. Both the question and
+      // the answer have to name that same panel.
+      //
+      // A9 Round-3 (Major): a target that is already open is jumped to, not
+      // loaded into the preview spot, so nothing is overwritten and asking
+      // would be a false alarm whose "Discard" discards nothing.
+      const alreadyOpen = this.editor.getPanels().some((p) => p.params?.targetId === node.id);
+      const doomed = mode === 'preview' && !alreadyOpen ? this.editor.getPreviewPanel() : undefined;
+      if (doomed?.params?.isDirty) {
+        pendingOpen = { node, mode };
         void (async () => {
-          if (!(await this.editor.confirmReplaceIfDirty())) return;
-          this.editor.openItem(node.id, node.label, { meta: { kind: kindOf(node.isContainer) } });
+          const proceed = await this.editor.confirmReplaceIfDirty(doomed);
+          const request = pendingOpen;
+          pendingOpen = null;
+          if (!proceed || !request) return;
+          // What the user just agreed to is replacing the dirty preview spot,
+          // so the target goes INTO that spot. A pinned request would
+          // otherwise open beside it and leave the "discarded" content in
+          // place. A double click folded in here is then honoured by
+          // confirming the tab the target landed in.
+          const landed = openNow(request.node, 'preview');
+          if (request.mode === 'pinned') this.editor.pinPanel(landed);
         })();
         return;
       }
-      this.editor.openItem(node.id, node.label, { meta: { kind: kindOf(node.isContainer) } });
-    });
+      openNow(node, mode);
+    };
+
+    this.tree.onOpen((node) => openFromTree(node, 'preview'));
+    // Enter, or a double click on a file row: the user is keeping this one
+    // (v0.2 FR-P4, FR-P7, FR-T3).
+    this.tree.onConfirm((node) => openFromTree(node, 'pinned'));
     this.tree.onOpenToSide((node) => {
       const activeGroup = this.editor.getActiveGroup();
       const besideGroup = activeGroup ? this.editor.findBesideGroup(activeGroup) : undefined;

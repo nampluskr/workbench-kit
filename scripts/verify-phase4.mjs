@@ -163,6 +163,10 @@ try {
 // --------------------------------------------------------------------------
 // Phase 4 Required Assertion Manifest (Immutable Contract)
 // --------------------------------------------------------------------------
+// v0.2 removed P4-FR-B3 and P4-FR-B3-DUP: v0.1 FR-B3 (a pick is absorbed by
+// the [+] empty tab) is superseded by the preview-spot rule, and is listed in
+// v0.2 SPEC 0.1's replacement table. Its successors are asserted in
+// scripts/v02-phase1-suite.js.
 const REQUIRED_PHASE4_ASSERTIONS = Object.freeze([
   'INIT',
   'P4-INIT-GROUP',
@@ -177,10 +181,8 @@ const REQUIRED_PHASE4_ASSERTIONS = Object.freeze([
   'P4-FR-C1-ACTIVE',
   'P4-FR-C2',
   'P4-FR-A6',
-  'P4-FR-B3',
   'P4-FR-B1',
   'P4-FR-C1-2',
-  'P4-FR-B3-DUP',
   'P4-FR-B2',
   'P4-FR-B4',
   'P4-FR-E4',

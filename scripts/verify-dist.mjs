@@ -89,17 +89,21 @@ assert(
   'requirements.txt pins pywebview dependency'
 );
 
-// Check that PLAN.md documents exact pinned C-11 versions
-const planPath = path.join(rootDir, 'docs/current/PLAN.md');
-if (fs.existsSync(planPath)) {
-  const planContent = fs.readFileSync(planPath, 'utf8');
+// Check that the current version documents the exact pinned C-11 versions.
+// v0.1 kept them in PLAN.md; v0.2 keeps them in SPEC.md's constraints section.
+// The requirement is that they are written down and exact, not which of the
+// two documents holds them, so look in both rather than pinning a filename.
+const versionDocPaths = ['docs/current/PLAN.md', 'docs/current/SPEC.md']
+  .map((p) => path.join(rootDir, p))
+  .filter((p) => fs.existsSync(p));
+if (versionDocPaths.length > 0) {
+  const combined = versionDocPaths.map((p) => fs.readFileSync(p, 'utf8')).join('\n');
   assert(
-    planContent.includes('실행 환경 최소 버전 (C-11)') &&
-    planContent.includes('Node: v22.22.3') &&
-    planContent.includes('Python: 3.11.8') &&
-    planContent.includes('Electron: v44.2.0') &&
-    planContent.includes('pywebview: 6.2.1'),
-    'PLAN.md records exact confirmed minimum execution environment versions'
+    combined.includes('Node: v22.22.3') &&
+    combined.includes('Python: 3.11.8') &&
+    combined.includes('Electron: v44.2.0') &&
+    combined.includes('pywebview: 6.2.1'),
+    'Current version documents record exact confirmed minimum execution environment versions'
   );
 }
 

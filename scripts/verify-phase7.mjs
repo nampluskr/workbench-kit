@@ -176,7 +176,13 @@ assert(
 // 5. 133-item FR matrix completeness (FR-H1, NFR-5, WK-041)
 // --------------------------------------------------------------------------
 console.log('\n--- 5. 133-Item FR Cross-Reference Matrix Completeness (FR-H1, NFR-5) ---');
-const specText = fs.readFileSync(path.join(rootDir, 'docs/current/SPEC.md'), 'utf8');
+// Reads the v0.1 SPEC snapshot, not docs/current/SPEC.md. This matrix is the
+// v0.1 closing gate: it pairs v0.1's 133 requirements with the assertions that
+// judge them, and both sides of that pairing are frozen in history. Pointing it
+// at the current version would silently re-target it at a different contract
+// (v0.2's SPEC lists only what v0.2 changes — see v0.2 SPEC 0절). The v0.2
+// matrix is built by its own Phase 7 (WK-082).
+const specText = fs.readFileSync(path.join(rootDir, 'docs/history/v0.1/SPEC.md'), 'utf8');
 const specLines = specText.split('\n').slice(11, 247);
 const allFrIds = [];
 for (const line of specLines) {

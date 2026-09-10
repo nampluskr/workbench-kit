@@ -18,7 +18,7 @@ project-workflow v0.2 기준으로 초기화됨 (2026-09-08)
 - 두 갈래(Electron · pywebview)는 **산출물 한 벌**을 읽는다. 갈래별로 갈라진 빌드 설정을 만들지 않는다 (D-25 · NFR-2)
 - 칸·탭·보기 수명은 dockview, 편집 화면은 monaco, 아이콘은 codicons·seti·vscode-icons를 쓴다. 직접 구현하지 않는다 (NFR-4)
 - 새 기능 Phase와 리팩토링은 `docs/ADVERSARIAL-REVIEW.md`의 **반대 벤더 검증**을 거친다. 반대 벤더 CLI를 못 쓰면 기본 모델로 폴백하지 말고 멈추고 보고한다
-- 필수 통과 Phase는 1 · 4 · 5 · 7이다. 미해결 Critical이 있으면 다음 Phase로 넘어가지 않는다 (`PLAN.md` 적대적 검증)
+- 필수 통과 Phase는 현재 버전 `PLAN.md`의 적대적 검증 절이 정한다(v0.2: 1 · 4 · 7). 미해결 Critical이 있으면 다음 Phase로 넘어가지 않는다
 - Phase 하나(구현 + 반대 벤더 검증 통과)가 끝날 때마다 그 Phase 변경분을 즉시 커밋한다. 버전 마감 커밋(`VERSIONING.md` 4절)과는 별개다 (사용자 지시, 2026-09-09)
 
 <!--
