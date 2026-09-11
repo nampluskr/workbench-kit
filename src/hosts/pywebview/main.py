@@ -27,6 +27,7 @@ is_v02_phase2_test = "--v02-phase2-test" in sys.argv
 is_v02_phase3_test = "--v02-phase3-test" in sys.argv
 is_v02_phase4_test = "--v02-phase4-test" in sys.argv
 is_v02_phase5_test = "--v02-phase5-test" in sys.argv
+is_v02_phase6_test = "--v02-phase6-test" in sys.argv
 loaded_called = False
 
 INSPECTION_EXPRESSION = """
@@ -257,6 +258,76 @@ def main():
                 sys.stderr.write(f"[pywebview] Error inspecting loaded DOM: {e}\n")
                 sys.stderr.flush()
                 os._exit(1)
+
+        if is_v02_phase6_test:
+            def run_v02_phase6():
+                test_tmp_dir = tempfile.mkdtemp(prefix="wb-v02p6-fixture-")
+                try:
+                    with open(os.path.join(test_tmp_dir, "README.md"), "w", encoding="utf-8") as f:
+                        f.write("# readme")
+                    with open(os.path.join(test_tmp_dir, "index.ts"), "w", encoding="utf-8") as f:
+                        f.write("export {};")
+                    with open(os.path.join(test_tmp_dir, "app.spec.ts"), "w", encoding="utf-8") as f:
+                        f.write("test")
+                    with open(os.path.join(test_tmp_dir, "agents.md"), "w", encoding="utf-8") as f:
+                        f.write("agents")
+                    src_dir = os.path.join(test_tmp_dir, "src")
+                    os.makedirs(src_dir)
+                    with open(os.path.join(src_dir, "main.ts"), "w", encoding="utf-8") as f:
+                        f.write("main")
+                    for i in range(40):
+                        with open(os.path.join(test_tmp_dir, "file-" + str(i) + ".txt"), "w", encoding="utf-8") as f:
+                            f.write(str(i))
+                    with open(os.path.join(test_tmp_dir, "a-deliberately-very-long-file-name-to-force-the-explorer-horizontal-scrollbar.txt"), "w", encoding="utf-8") as f:
+                        f.write("x")
+                    comparison_doc = ""
+                    with open(os.path.join(root_dir, "docs", "vscode-comparison.md"), "r", encoding="utf-8") as f:
+                        comparison_doc = f.read()
+                    with open(os.path.join(root_dir, "src", "icons", "data", "seti.json"), "r", encoding="utf-8") as f:
+                        seti_data = f.read()
+                    time.sleep(0.6)
+                    suite_path = os.path.join(root_dir, "scripts", "v02-phase6-suite.js")
+                    with open(suite_path, "r", encoding="utf-8") as f:
+                        suite_code = f.read()
+                    window.evaluate_js("window.__testTmpDir = " + json.dumps(test_tmp_dir) + ";")
+                    window.evaluate_js("window.__vscodeComparison = " + json.dumps(comparison_doc) + ";")
+                    window.evaluate_js("window.__setiData = " + seti_data + ";")
+                    window.evaluate_js(suite_code)
+                    window.evaluate_js("""
+                        (async () => {
+                            try {
+                                const res = await window.__runV02Phase6Suite();
+                                window.__v02Phase6Results = JSON.stringify(res);
+                            } catch (e) {
+                                window.__v02Phase6Results = JSON.stringify({ success: false, results: [{ id: 'RUNNER_ERR', pass: false, msg: String(e) }] });
+                            }
+                        })();
+                    """)
+                    for _ in range(600):
+                        time.sleep(0.1)
+                        res = window.evaluate_js("window.__v02Phase6Results")
+                        if res:
+                            sys.stdout.write(f"[pywebview] v0.2 Phase 6 Results: {res}\n")
+                            sys.stdout.flush()
+                            window.destroy()
+                            shutil.rmtree(test_tmp_dir, ignore_errors=True)
+                            os._exit(0)
+                            return
+                    sys.stderr.write("[pywebview] Error: v0.2 Phase 6 test timed out waiting for results\n")
+                    sys.stderr.flush()
+                    window.destroy()
+                    shutil.rmtree(test_tmp_dir, ignore_errors=True)
+                    os._exit(1)
+                except Exception as e:
+                    sys.stderr.write(f"[pywebview] Error executing v0.2 Phase 6 test: {e}\n")
+                    sys.stderr.flush()
+                    window.destroy()
+                    shutil.rmtree(test_tmp_dir, ignore_errors=True)
+                    os._exit(1)
+
+            t = threading.Thread(target=run_v02_phase6, daemon=True)
+            t.start()
+            return
 
         if is_v02_phase5_test:
             def run_v02_phase5():

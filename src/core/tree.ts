@@ -31,6 +31,27 @@ export interface VisibleTreeItem {
   hasChildren: boolean;
 }
 
+/**
+ * The per-icon colour goes on a `data-fg` attribute, not an inline `style=`
+ * (this app's CSP blocks style attributes — .claude/rules/dockview-css.md).
+ * `applyIconColors` reads it back after render and sets it through the CSSOM,
+ * which the CSP does allow. That is what makes the colour actually follow the
+ * theme on screen (v0.2 FR-X10, FR-X14).
+ */
+function renderIconMarkup(iconDesc: IconDescriptor): string {
+  const fg = iconDesc.color ? ` data-fg="${escapeHtml(iconDesc.color)}"` : '';
+  if (iconDesc.kind === 'codicon') {
+    return `<span class="tree-icon"><i class="codicon ${iconDesc.cssClass || 'codicon-file'}"${fg}></i></span>`;
+  }
+  if (iconDesc.kind === 'font') {
+    return `<span class="tree-icon seti-icon"${fg}>${iconDesc.char || ''}</span>`;
+  }
+  if (iconDesc.kind === 'svg') {
+    return `<span class="tree-icon svg-icon">${iconDesc.svgData || ''}</span>`;
+  }
+  return '';
+}
+
 function escapeHtml(text: string | null | undefined): string {
   if (!text) {
     return '';
@@ -1097,16 +1118,7 @@ export class TreeController {
         item.isExpanded
       );
 
-      let iconHtml = '';
-      if (iconDesc.kind === 'codicon') {
-        const colorStyle = iconDesc.color ? `style="color: ${iconDesc.color};"` : '';
-        iconHtml = `<span class="tree-icon"><i class="codicon ${iconDesc.cssClass || 'codicon-file'}" ${colorStyle}></i></span>`;
-      } else if (iconDesc.kind === 'font') {
-        const colorStyle = iconDesc.color ? `style="color: ${iconDesc.color};"` : '';
-        iconHtml = `<span class="tree-icon seti-icon" ${colorStyle}>${iconDesc.char || ''}</span>`;
-      } else if (iconDesc.kind === 'svg') {
-        iconHtml = `<span class="tree-icon svg-icon">${iconDesc.svgData || ''}</span>`;
-      }
+      const iconHtml = renderIconMarkup(iconDesc);
 
       html += `
         <div class="tree-row ${isSelected ? 'selected' : ''} ${isFocused ? 'focused' : ''}"
@@ -1155,11 +1167,61 @@ export class TreeController {
     html += `</div>`;
 
     this.container.innerHTML = html;
+    this.applyIconColors();
     this.attachDomEvents();
 
     if (hadFocus) {
       this.focusTree();
     }
+  }
+
+  /**
+   * Paints each icon's `data-fg` colour through the CSSOM (v0.2 FR-X10). The
+   * inline `style=` a template string would emit is dropped by this app's CSP,
+   * but `element.style.color = …` is not — so the theme-computed colour only
+   * reaches the screen from here.
+   */
+  private applyIconColors(): void {
+    const icons = this.container.querySelectorAll<HTMLElement>('.tree-icon [data-fg], .tree-icon[data-fg]');
+    icons.forEach((el) => {
+      const fg = el.getAttribute('data-fg');
+      if (fg) el.style.color = fg;
+    });
+  }
+
+  /**
+   * Re-resolves every visible row's icon colour for the current colour theme
+   * and repaints it in place — WITHOUT rebuilding the DOM (v0.2 FR-X14). A
+   * full `render()` on a theme switch would wipe an open inline-input row, the
+   * scroll position and focus (A14 R1-3); only the colour changed, so only the
+   * colour is touched here. View actions, chevrons and the twistie follow the
+   * theme through `currentColor` and need nothing.
+   */
+  public refreshThemeColors(): void {
+    const rows = this.container.querySelectorAll<HTMLElement>('.tree-row[data-id]');
+    rows.forEach((row) => {
+      const id = row.getAttribute('data-id');
+      const node = this.getNodeById(id);
+      if (!node) return;
+      const desc = this.iconThemeManager.resolveIcon(
+        node.label,
+        Boolean(node.isContainer),
+        node.isContainer ? this.expandedIds.has(node.id) : undefined
+      );
+      // Font / codicon: repaint the colour on the existing element.
+      const fgEl = row.querySelector<HTMLElement>('.tree-icon [data-fg], .tree-icon[data-fg]');
+      if (fgEl && desc.color) {
+        fgEl.setAttribute('data-fg', desc.color);
+        fgEl.style.color = desc.color;
+      }
+      // SVG (VS Code Icons): a theme may pick a different vendor svg (a light
+      // variant). Swap just the icon span's contents if it changed — the row
+      // structure, focus and scroll are untouched.
+      const svgWrap = row.querySelector<HTMLElement>('.tree-icon.svg-icon');
+      if (svgWrap && desc.kind === 'svg' && desc.svgData && svgWrap.innerHTML !== desc.svgData) {
+        svgWrap.innerHTML = desc.svgData;
+      }
+    });
   }
 
   private renderTreeListOnly(): void {
@@ -1199,16 +1261,7 @@ export class TreeController {
         item.isExpanded
       );
 
-      let iconHtml = '';
-      if (iconDesc.kind === 'codicon') {
-        const colorStyle = iconDesc.color ? `style="color: ${iconDesc.color};"` : '';
-        iconHtml = `<span class="tree-icon"><i class="codicon ${iconDesc.cssClass || 'codicon-file'}" ${colorStyle}></i></span>`;
-      } else if (iconDesc.kind === 'font') {
-        const colorStyle = iconDesc.color ? `style="color: ${iconDesc.color};"` : '';
-        iconHtml = `<span class="tree-icon seti-icon" ${colorStyle}>${iconDesc.char || ''}</span>`;
-      } else if (iconDesc.kind === 'svg') {
-        iconHtml = `<span class="tree-icon svg-icon">${iconDesc.svgData || ''}</span>`;
-      }
+      const iconHtml = renderIconMarkup(iconDesc);
 
       rowsHtml += `
         <div class="tree-row ${isSelected ? 'selected' : ''} ${isFocused ? 'focused' : ''}"
@@ -1225,6 +1278,7 @@ export class TreeController {
     }
 
     listContainer.innerHTML = rowsHtml;
+    this.applyIconColors();
     this.attachRowEvents();
 
     if (hadFocus) {

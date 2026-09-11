@@ -2,11 +2,78 @@ import { ColorThemeId, FileIconResolver, IconDescriptor } from '../core/iconthem
 import vsiTheme from './data/vscode-icons.json';
 import { LANGUAGE_BY_EXTENSION } from './language-map';
 
-const svgModules: Record<string, string> = import.meta.glob('./assets/vscode-icons/*.svg', {
+const rawSvgModules: Record<string, string> = import.meta.glob('./assets/vscode-icons/*.svg', {
   query: '?raw',
   import: 'default',
   eager: true,
 });
+
+/**
+ * Most vendor SVGs carry their colours in a CSP-hostile place: ~75% in an
+ * inline `style="fill:…"` attribute, a few in a `<style>` block with class
+ * selectors. This app's CSP (`style-src 'self'`) strips both, so the icon
+ * would render with no fill (.claude/rules/dockview-css.md). Rewrite both to
+ * the equivalent presentation ATTRIBUTES (`fill`, `stroke`, `opacity`, …),
+ * which the CSP does not touch. The glyph and its reference colours are
+ * unchanged (v0.2 FR-X13).
+ */
+function declsToAttrs(decls: string): string[] {
+  return decls
+    .split(';')
+    .map((d) => d.trim())
+    .filter(Boolean)
+    .map((d) => {
+      const idx = d.indexOf(':');
+      if (idx < 0) return '';
+      const prop = d.slice(0, idx).trim();
+      const val = d.slice(idx + 1).trim().replace(/\s*!important$/i, '');
+      // Only plain presentation properties (no url(), no transform-origin, …).
+      if (!/^[a-z-]+$/.test(prop) || /[<>"]/.test(val)) return '';
+      return `${prop}="${val}"`;
+    })
+    .filter(Boolean);
+}
+
+function inlineStyleToAttrs(svg: string): string {
+  let out = svg;
+
+  // 1. `<style> .cls { fill:… } </style>` → attributes on class="cls" elements.
+  out = out.replace(/<style[^>]*>([\s\S]*?)<\/style>/gi, (_full, cssText: string) => {
+    const ruleRe = /\.([A-Za-z0-9_-]+)\s*\{([^}]*)\}/g;
+    let m: RegExpExecArray | null;
+    while ((m = ruleRe.exec(cssText)) !== null) {
+      const cls = m[1];
+      const attrs = declsToAttrs(m[2]);
+      if (!attrs.length) continue;
+      // Add the attributes to every element carrying this class (unless it
+      // already sets that attribute explicitly).
+      out = out.replace(
+        new RegExp(`<([a-z]+)([^>]*\\sclass="[^"]*\\b${cls}\\b[^"]*")([^>]*)>`, 'g'),
+        (elFull, tag, pre, post) => {
+          const existing = elFull;
+          const add = attrs.filter((a) => {
+            const name = a.slice(0, a.indexOf('='));
+            return !new RegExp(`\\s${name}=`).test(existing);
+          });
+          return add.length ? `<${tag}${pre}${post} ${add.join(' ')}>` : elFull;
+        }
+      );
+    }
+    return ''; // drop the (blocked) <style> block
+  });
+
+  // 2. inline `style="fill:…"` → presentation attributes.
+  out = out.replace(/\sstyle="([^"]*)"/g, (_full, decls: string) => {
+    const attrs = declsToAttrs(decls);
+    return attrs.length ? ' ' + attrs.join(' ') : '';
+  });
+
+  return out;
+}
+
+const svgModules: Record<string, string> = Object.fromEntries(
+  Object.entries(rawSvgModules).map(([k, v]) => [k, inlineStyleToAttrs(v)])
+);
 
 export class VscodeIconsResolver implements FileIconResolver {
   private activeColorTheme: ColorThemeId = 'dark';

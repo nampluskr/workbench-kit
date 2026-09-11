@@ -179,7 +179,16 @@ assert(menuCode.includes('workbench:zen-enter'), 'MenuController listens for wor
 
 const mainCode = fs.readFileSync(path.join(rootDir, 'src/main.ts'), 'utf8');
 assert(mainCode.includes('onZenEnter(() => this.menu.closeMenu())'), 'main.ts wires viewState.onZenEnter to menu.closeMenu()');
-assert(mainCode.includes('onThemeChange((theme) => this.iconTheme.setColorTheme(theme))'), 'main.ts wires theme.onThemeChange to iconTheme.setColorTheme()');
+assert(
+  /onThemeChange\(\s*\(theme\)\s*=>\s*\{[\s\S]*?this\.iconTheme\.setColorTheme\(theme\)/.test(mainCode),
+  'main.ts wires theme.onThemeChange to iconTheme.setColorTheme()'
+);
+// v0.2 FR-X14: a colour-theme switch repaints the tree's icon colours in place
+// so they follow the theme on screen without a reopen.
+assert(
+  mainCode.includes('this.tree?.refreshThemeColors()') || /onThemeChange\([\s\S]*?refreshThemeColors\(\)/.test(mainCode),
+  "main.ts repaints the tree's icon colours on a colour-theme change (FR-X14)"
+);
 
 const electronMain = fs.readFileSync(path.join(rootDir, 'src/hosts/electron/main.cjs'), 'utf8');
 assert(electronMain.includes('width: 1280') && electronMain.includes('height: 800'), 'Electron sets initial window size to 1280x800');

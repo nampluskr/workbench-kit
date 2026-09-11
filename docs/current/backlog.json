@@ -398,7 +398,7 @@
     },
     {
       "id": "WK-073",
-      "status": "todo",
+      "status": "done",
       "priority": "P6",
       "category": "껍데기",
       "title": "아이콘 색의 테마 전파",
@@ -408,11 +408,11 @@
       "note": "FR-X10 · FR-X14",
       "parent": null,
       "deps": [],
-      "done_at": null
+      "done_at": "2026-09-11"
     },
     {
       "id": "WK-074",
-      "status": "todo",
+      "status": "done",
       "priority": "P6",
       "category": "껍데기",
       "title": "스크롤바 테마 적용",
@@ -422,11 +422,11 @@
       "note": "FR-X11",
       "parent": null,
       "deps": [],
-      "done_at": null
+      "done_at": "2026-09-11"
     },
     {
       "id": "WK-075",
-      "status": "todo",
+      "status": "done",
       "priority": "P6",
       "category": "탐색기",
       "title": "파일 아이콘을 참조 구현과 맞춘다",
@@ -436,11 +436,11 @@
       "note": "FR-X12 · FR-X13. 확장자 매핑표를 직접 만들지 않는다 (D-11 · NFR-6)",
       "parent": null,
       "deps": [],
-      "done_at": null
+      "done_at": "2026-09-11"
     },
     {
       "id": "WK-076",
-      "status": "todo",
+      "status": "done",
       "priority": "P6",
       "category": "껍데기",
       "title": "공통 치수 30px",
@@ -450,11 +450,11 @@
       "note": "FR-D1 · FR-D2",
       "parent": null,
       "deps": [],
-      "done_at": null
+      "done_at": "2026-09-11"
     },
     {
       "id": "WK-077",
-      "status": "todo",
+      "status": "done",
       "priority": "P6",
       "category": "문서",
       "title": "치수 divergence 기록",
@@ -466,7 +466,7 @@
       "deps": [
         "WK-076"
       ],
-      "done_at": null
+      "done_at": "2026-09-11"
     },
     {
       "id": "WK-078",

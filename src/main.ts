@@ -91,7 +91,14 @@ export class WorkbenchApp {
     this.iconTheme = new IconThemeManager('seti', this.theme.getTheme());
     this.iconTheme.registerResolver('seti', new SetiResolver());
     this.iconTheme.registerResolver('vscode-icons', new VscodeIconsResolver());
-    this.theme.onThemeChange((theme) => this.iconTheme.setColorTheme(theme));
+    this.theme.onThemeChange((theme) => {
+      this.iconTheme.setColorTheme(theme);
+      // Repaint the tree's icon colours for the new theme in place (FR-X14).
+      // A full re-render would drop an open inline-input row, focus and scroll
+      // position (A14 R1-3), so this only touches colour. `this.tree` exists by
+      // the time any theme change can fire.
+      this.tree?.refreshThemeColors();
+    });
 
     // Initialize EditorController layout engine (FR-C, FR-D, FR-E, FR-J, WK-019 ~ WK-024)
     this.editor = new EditorController(this.layout.editorContainer);

@@ -97,7 +97,10 @@ export class SetiResolver implements FileIconResolver {
         if (theme === 'light') {
           activeColor = lightColor;
         } else if (theme === 'gray') {
-          activeColor = interpolateHex(darkColor, lightColor, 0.450892857);
+          // The gray ground (#7d7d7d) is mid-tone, so a mid-tone file colour
+          // would wash out (D-11). Push the icon well toward dark so it keeps
+          // contrast against that ground.
+          activeColor = darkenHex(interpolateHex(darkColor, lightColor, 0.45), 0.5);
         }
 
         return {

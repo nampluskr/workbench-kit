@@ -131,6 +131,35 @@
   - **검증**: `V2P5-FR-X4` ~ `X9` · `V2P5-FR-X5-KEYBOARD`. `npm.cmd test` 전건 0 failures. 기록 `docs/reviews/A13.md`.
   - **최소 창 폭 자체 · 세로 넘침**: A11 R1-4와 같이 이번 범위 밖으로 기록.
 
+- **WK-073** (아이콘 색의 테마 전파)
+  - **무엇을 했나**: Phase 5에서 찾은 CSP 인라인 `style=` 차단이 트리 아이콘 색(`style="color:…"`)도 막고 있었다. 렌더가 색을 `data-fg` 속성으로 내보내고, `applyIconColors()`가 렌더 뒤 **CSSOM**(`el.style.color = …`, CSP가 허용 — 폭 조절 변수 설정으로 이미 검증됨)으로 칠한다. 두 렌더 경로(`render` · `renderTreeListOnly`) 모두. codicon(폴더 · 기본 파일)은 이미 `currentColor`로 `--sidebar-fg`를 따르고, seti 폰트 아이콘 · 뷰 액션 · chevron도 테마별 색을 계산한다. `main.ts`의 색 테마 변경 핸들러가 `this.tree.render()`도 부른다(재실행 없이 즉시 반영).
+  - **seti 회색 테마**: 중간 톤 배경(#7d7d7d)에서 중간 톤 파일 색이 묻혀서(D-11), 회색일 때 아이콘 색을 `darkenHex(...0.5)`로 어둡게 밀었다.
+  - **결과**: `FR-X10` · `FR-X14`.
+  - **검증**: `V2P6-FR-X10`(선택 안 된 행의 뷰 액션 · chevron · 폴더 · 파일 아이콘이 세 테마에서 서로 다른 계산 색 + 배경 대비 ≥ 1.35) · `V2P6-FR-X14`(테마 전환 직후 아이콘 색 · 스크롤바 토큰이 모두 새 테마).
+- **WK-074** (스크롤바 테마 적용)
+  - **무엇을 했나**: 세 테마 블럭에 `--scrollbar-track` · `--scrollbar-thumb` · `--scrollbar-thumb-hover` · `--scrollbar-thumb-active` 토큰을 더하고, `.tree-list` · `.sidebar-content` · `.dv-content-container` · 메뉴에 `::-webkit-scrollbar*` 규칙(가로 · 세로 다 `width`/`height` 지정)과 `scrollbar-color` 축약형을 걸었다.
+  - **결과**: `FR-X11`.
+  - **검증**: `V2P6-FR-X11`(세 테마에서 트랙 · 손잡이 색이 서로 다름, 손잡이 rest · hover · active 셋이 다름, 규칙이 `width`와 `height`를 다 정함).
+- **WK-075** (파일 아이콘을 참조 구현과 맞춘다)
+  - **무엇을 했나**: 이미 `src/icons/data/seti.json` · `vscode-icons.json`이 참조 구현(`_clones/tab-explorer-templates`)의 데이터이고 두 resolver가 그대로 쓴다. 확장자 매핑표를 껍데기가 아니라 `src/icons/`(앱·프리셋 계층)에 둔다(NFR-6).
+  - **결과**: `FR-X12` · `FR-X13`.
+  - **검증**: `V2P6-FR-X12`(대표 파일명 · 단일 확장자 · 복합 확장자에 seti glyph가 나옴, 열린 폴더 ≠ 닫힌 폴더) · `V2P6-FR-X13`(vscode-icons SVG, 열린 폴더 SVG ≠ 닫힌 폴더 SVG, 트리가 `<svg>`를 렌더).
+- **WK-076** (공통 치수 30px)
+  - **무엇을 했나**: `--area-size: 30px` 토큰 하나로 상단 바 높이 · 하단 바 높이 · 세로 띠 너비 · 탐색기 제목줄 높이 · 탭 줄 높이를 모두 유도한다(`--titlebar-height`/`--statusbar-height`/`--activitybar-width`가 `var(--area-size)`, `--dv-tabs-and-actions-container-height`도, `.sidebar-header` `height: var(--area-size)`). 테마 · 창 상태 · 배율에 안 의존하므로 `FR-D1`·`FR-D2`가 구조적으로 참이다.
+  - **결과**: `FR-D1` · `FR-D2`.
+  - **검증**: `V2P6-FR-D1`(다섯 실측값이 각각 정확히 30) · `V2P6-FR-D2`(테마 전환 · resize 후에도 그대로).
+- **WK-077** (치수 divergence 기록)
+  - **무엇을 했나**: `docs/vscode-comparison.md`에 §6(공통 치수) — VS Code는 영역마다 다른 두께, workbench-kit은 30px 하나, **의도적 다름 (공통 치수)** · D-7. "이 문서를 어떻게 읽나"의 divergence 목록에 §6-1을 더했다. §2-1 · §1-4가 v0.2(미리보기 탭 · 뷰 액션 넷)로 낡은 것은 Phase 7 전건 대조로 미룬다고 명시했다.
+  - **결과**: `FR-D3` · `NFR-5`.
+  - **검증**: `V2P6-FR-D3` + `verify-v02-phase6.mjs`가 §6 행 · 요약의 §6-1 열거 · `style.css`의 `--area-size` 유도를 확인.
+- **v0.1 회귀 처리 (Phase 6)**: `verify-phase2.mjs`의 `main.ts wires theme.onThemeChange` 정규식을 다중 줄 형태로 고치고 `refreshThemeColors()`(FR-X14) 확인을 더했다. ID 유지.
+  - **검증**: `npm.cmd test` — v0.1 Phase 1~7 · v0.2 Phase 1~6 두 갈래 전건 0 failures.
+
+- **A14 반대 벤더 검토 반영** (Phase 6, 필수 통과 아님 — 3회로 한도, 미해결 Critical 0건)
+  - **3회에 걸쳐 Major 11건 전부 반영**: (1) **CSP가 벗기던 vscode-icons SVG 색** — `style="fill"` 속성과 `<style>` 블럭을 표현 속성으로 다시 쓰는 `inlineStyleToAttrs()`(~1170개 자산이 색 없이 렌더되던 실제 버그). (2) 색 테마 전환 시 `render()`가 아니라 `refreshThemeColors()`로 제자리 재칠 — 인라인 입력 · 포커스 · 스크롤 보존, 라이트 변형 SVG는 innerHTML만 교체. (3) `scrollbar-color` 축약형 제거 — Chromium이 그게 있으면 `::-webkit-scrollbar*`(hover · active 포함)를 통째로 무시. (4) `.tree-list overflow: auto` + `.tree-row width: max-content` — 긴 이름에서 실제 가로 스크롤. (5) vscode-icons 세 테마 각각 다른 `filter`. (6) seti 회색 아이콘을 어둡게. (7~11) 스위트 강화 — 두 아이콘 테마 · 참조 데이터 일치 · 실제 두 축 스크롤 · CSP 안전성 실측 · Electron 러너의 **실제 maximize/restore + `setZoomFactor` 배율 변경**.
+  - **사람 확인 사항**: `FR-X10`("모든 아이콘 색") ↔ `FR-X13`("같은 SVG") 긴장은 "마크업 그대로, CSS 필터로 색만"으로 풀었다 — 필터 세기는 사용자 눈으로 최종 판정. seti 회색 파일 아이콘 대비가 낮은 종류가 보이면 회색 계산 재조정 필요.
+  - **검증**: `V2P6-FR-X10` ~ `X14` · `V2P6-FR-D1` ~ `D3`. `npm.cmd test` 전건 0 failures. 기록 `docs/reviews/A14.md`.
+
 - **A10 반대 벤더 검토 반영** (Phase 2, 필수 통과 아님 — Critical 0 · Major 3 · Minor 1)
   - **제품 결함 2건 수정**: (1) `F6`이 dockview 삽입 순서로 칸을 돌던 것을 화면 읽기 순서로 바꿨다(`V2P2-FR-F1-ORDER`). (2) 저장 안 한 탭의 닫기 버튼을 실제로 누르면 칸 포커스 끌어오기가 확인 창의 포커스를 도로 빼앗던 것을, 버튼·입력칸 누르기와 확인 창·메뉴가 포커스를 가져간 경우를 제외하도록 고쳤다(`V2P2-DIALOG-FOCUS`).
   - **검사 허점 3건 보강**: `FR-F11`은 hover를 토큰 문자열이 아니라 실제로 칠해진 색으로 측정하고 커서 테두리 대비도 본다. `FR-F5`는 `.tree-list`에 직접 보내던 클릭을 화면의 실제 빈 곳 좌표로 바꿨다. 에디터 안 `Tab`은 영역 불변에 더해 껍데기가 `Tab`을 막지 않는지를 본다 — monaco의 실제 들여쓰기는 합성 이벤트로 판정할 수 없어 사용자 재검증 몫으로 기록했다.
@@ -156,6 +185,10 @@
   - **요청**: Phase 5 구현 전에 v0.1 `SPEC.md`에서 뷰 제목줄 · 인라인 입력 · 탐색기 폭을 언급하는 요구를 대조했다.
   - **발견**: 사람이 이미 쓴 v0.2 `FR-X2` · `FR-X4`가 대체하는 v0.1 요구 셋이 빠져 있었다 — `FR-A23`(앱이 꽂은 새 파일/폴더 → 껍데기 액션), `FR-A24`(앱 없으면 제목줄 아이콘 정확히 2개 → 넷), `FR-I10` 일부(앱 액션이 껍데기 액션 **둘** 왼쪽 → **넷** 왼쪽).
   - **조치**: 사람이 쓴 `FR-X*`의 귀결이라 0.1절에 일부 대체로 세 행을 더했다. Phase 3·4의 표 보완과 같은 판정.
+
+- **`vscode-comparison.md` §2-1 · §1-4가 v0.2로 낡음 (Phase 6에서 확인)**
+  - **발견**: `FR-D3` 구현 중 이 문서를 읽다가, §2-1("미리보기 탭·고정 탭 구분을 두지 않는다")과 §1-4("New File·New Folder는 앱이 꽂을 때만... 아이콘 정확히 2개")가 v0.1 기준이라 v0.2와 어긋난 것을 발견했다. Phase 1(D-1 미리보기 탭)·Phase 5(FR-X2 뷰 액션 넷)로 바뀌었다.
+  - **조치**: Phase 6에서는 §6(치수 divergence)만 더하고, §2-1·§1-4의 전면 재작성은 **Phase 7 전건 대조**(FR-R2)로 미룬다고 문서에 명시했다. 이 문서는 `docs/current/`가 아니라 `docs/`라 에이전트가 고칠 수 있지만, 전건 대조 시점에 SPEC 1절 전체와 맞추는 것이 맞다.
 
 - **인라인 `style=` 속성이 CSP에 막힌다 — 트리 들여쓰기가 화면에 안 나오고 있었다 (Phase 5)**
   - **요청**: `FR-X8`/`FR-X9`는 "설계 변경이 아니라 v0.1 구현이 화면에서 어긋난 것을 고친다"고 명시돼 있었다. 무엇이 어긋났는지 구현하며 찾았다.

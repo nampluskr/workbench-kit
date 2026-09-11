@@ -18,9 +18,18 @@
 
 :root {
   --font-family: system-ui, -apple-system, BlinkMacSystemFont, Roboto, Helvetica, Arial, sans-serif;
-  --titlebar-height: 30px;
-  --statusbar-height: 22px;
-  --activitybar-width: 50px;
+  /*
+   * The one common chrome thickness (v0.2 FR-D1, D-7): title bar height,
+   * status bar height, activity bar width, explorer header height and the
+   * editor tab strip height are ALL this value. A single token makes FR-D1's
+   * "all five equal 30" and FR-D2's "does not change" true by construction —
+   * it does not depend on the theme, the window state, or the system scale.
+   * This is a deliberate divergence from VS Code (docs/vscode-comparison.md).
+   */
+  --area-size: 30px;
+  --titlebar-height: var(--area-size);
+  --statusbar-height: var(--area-size);
+  --activitybar-width: var(--area-size);
   --sidebar-width: 280px;
   --close-hover-bg: #e81123;
 }
@@ -51,9 +60,13 @@
   --tab-inactive-bg: #181818;
   --tab-inactive-fg: #909090;
   --tree-indent-guide: rgba(255, 255, 255, 0.1);
+  --scrollbar-track: rgba(255, 255, 255, 0.04);
+  --scrollbar-thumb: rgba(204, 204, 204, 0.28);
+  --scrollbar-thumb-hover: rgba(204, 204, 204, 0.46);
+  --scrollbar-thumb-active: rgba(204, 204, 204, 0.66);
   --dv-group-view-background-color: var(--editor-bg);
   --dv-tabs-and-actions-container-background-color: var(--tabs-bg);
-  --dv-tabs-and-actions-container-height: 35px;
+  --dv-tabs-and-actions-container-height: var(--area-size);
   --dv-tab-font-size: 13px;
   --dv-activegroup-visiblepanel-tab-background-color: var(--tab-active-bg);
   --dv-activegroup-visiblepanel-tab-color: var(--tab-active-fg);
@@ -94,9 +107,13 @@
   --tab-inactive-bg: #f8f8f8;
   --tab-inactive-fg: #868686;
   --tree-indent-guide: rgba(0, 0, 0, 0.15);
+  --scrollbar-track: rgba(0, 0, 0, 0.03);
+  --scrollbar-thumb: rgba(100, 100, 100, 0.35);
+  --scrollbar-thumb-hover: rgba(100, 100, 100, 0.55);
+  --scrollbar-thumb-active: rgba(100, 100, 100, 0.78);
   --dv-group-view-background-color: var(--editor-bg);
   --dv-tabs-and-actions-container-background-color: var(--tabs-bg);
-  --dv-tabs-and-actions-container-height: 35px;
+  --dv-tabs-and-actions-container-height: var(--area-size);
   --dv-tab-font-size: 13px;
   --dv-activegroup-visiblepanel-tab-background-color: var(--tab-active-bg);
   --dv-activegroup-visiblepanel-tab-color: var(--tab-active-fg);
@@ -137,9 +154,13 @@
   --tab-inactive-bg: #7d7d7d;
   --tab-inactive-fg: #222222;
   --tree-indent-guide: rgba(0, 0, 0, 0.2);
+  --scrollbar-track: rgba(0, 0, 0, 0.06);
+  --scrollbar-thumb: rgba(17, 17, 17, 0.30);
+  --scrollbar-thumb-hover: rgba(17, 17, 17, 0.48);
+  --scrollbar-thumb-active: rgba(17, 17, 17, 0.7);
   --dv-group-view-background-color: var(--editor-bg);
   --dv-tabs-and-actions-container-background-color: var(--tabs-bg);
-  --dv-tabs-and-actions-container-height: 35px;
+  --dv-tabs-and-actions-container-height: var(--area-size);
   --dv-tab-font-size: 13px;
   --dv-activegroup-visiblepanel-tab-background-color: var(--tab-active-bg);
   --dv-activegroup-visiblepanel-tab-color: var(--tab-active-fg);
@@ -337,7 +358,8 @@ body.is-resizing-sidebar {
 }
 
 .sidebar-header {
-  height: 35px;
+  height: var(--area-size); /* the common chrome thickness (v0.2 FR-D1) */
+  flex-shrink: 0;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -420,6 +442,65 @@ body.is-resizing-sidebar {
   position: relative;
 }
 
+/*
+ * Scrollbars carry the current theme's colours (v0.2 FR-X11): the tree's
+ * vertical AND horizontal bars, and every other scrollable surface. Track and
+ * thumb differ per theme, and the thumb's rest / hover / active states are
+ * distinct. Reflected live on a theme switch because the tokens are (FR-X14).
+ */
+/*
+ * Chromium (both hosts) ignores every ::-webkit-scrollbar rule the moment a
+ * non-`auto` `scrollbar-color` is set — and the standard property has no
+ * hover/active. So the styling is done ENTIRELY through the ::-webkit
+ * pseudo-elements below, which do give rest / hover / active (A14 R3-3).
+ */
+.tree-list::-webkit-scrollbar,
+.sidebar-content::-webkit-scrollbar,
+.dv-content-container::-webkit-scrollbar,
+.workbench-menu-dropdown::-webkit-scrollbar,
+.menu-submenu::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+.tree-list::-webkit-scrollbar-track,
+.sidebar-content::-webkit-scrollbar-track,
+.dv-content-container::-webkit-scrollbar-track,
+.workbench-menu-dropdown::-webkit-scrollbar-track,
+.menu-submenu::-webkit-scrollbar-track {
+  background-color: var(--scrollbar-track);
+}
+
+.tree-list::-webkit-scrollbar-thumb,
+.sidebar-content::-webkit-scrollbar-thumb,
+.dv-content-container::-webkit-scrollbar-thumb,
+.workbench-menu-dropdown::-webkit-scrollbar-thumb,
+.menu-submenu::-webkit-scrollbar-thumb {
+  background-color: var(--scrollbar-thumb);
+  border-radius: 10px;
+}
+
+.tree-list::-webkit-scrollbar-thumb:hover,
+.sidebar-content::-webkit-scrollbar-thumb:hover,
+.dv-content-container::-webkit-scrollbar-thumb:hover,
+.workbench-menu-dropdown::-webkit-scrollbar-thumb:hover,
+.menu-submenu::-webkit-scrollbar-thumb:hover {
+  background-color: var(--scrollbar-thumb-hover);
+}
+
+.tree-list::-webkit-scrollbar-thumb:active,
+.sidebar-content::-webkit-scrollbar-thumb:active,
+.dv-content-container::-webkit-scrollbar-thumb:active,
+.workbench-menu-dropdown::-webkit-scrollbar-thumb:active,
+.menu-submenu::-webkit-scrollbar-thumb:active {
+  background-color: var(--scrollbar-thumb-active);
+}
+
+.tree-list::-webkit-scrollbar-corner,
+.sidebar-content::-webkit-scrollbar-corner {
+  background-color: var(--scrollbar-track);
+}
+
 /* 4. Main Area & Editor Container (Dockview) */
 .workbench-main-area {
   flex: 1;
@@ -480,8 +561,9 @@ body.is-resizing-sidebar {
 /* Tree Component Styles */
 .tree-list {
   flex: 1;
-  overflow-y: auto;
-  overflow-x: hidden;
+  /* Both axes scroll when content overflows, so a deeply nested / long-named
+     tree gets a themed horizontal scrollbar too (v0.2 FR-X11). */
+  overflow: auto;
   outline: none;
   user-select: none;
   font-size: 13px;
@@ -498,6 +580,11 @@ body.is-resizing-sidebar {
   outline: none;
   box-sizing: border-box;
   color: var(--sidebar-fg);
+  /* Grow with content past the viewport so a long name produces a real
+     (themed) horizontal scrollbar, while short rows still fill the width so
+     their selection/hover background spans it (v0.2 FR-X11). */
+  min-width: 100%;
+  width: max-content;
 }
 
 /*
@@ -582,11 +669,25 @@ body.is-resizing-sidebar {
   height: 15px;
 }
 
+/*
+ * VS Code Icons ships one colourful SVG per file type (no per-theme variant).
+ * The colour theme still reaches them (v0.2 FR-X10, D-11): each theme applies
+ * a distinct filter so the rendered colour differs and no theme washes the
+ * icon out against its ground. The SVG MARKUP is untouched, so FR-X13 still
+ * shows the reference glyph. Dark is the baseline (no filter).
+ */
+[data-theme="light"] .tree-icon.svg-icon svg {
+  filter: brightness(0.9) contrast(1.05);
+}
+
+[data-theme="gray"] .tree-icon.svg-icon svg {
+  filter: brightness(0.72) saturate(1.15);
+}
+
 .tree-label {
-  overflow: hidden;
-  text-overflow: ellipsis;
   white-space: nowrap;
-  flex: 1;
+  flex: 0 0 auto;
+  padding-right: 10px;
 }
 
 /* Find in Tree Widget (FR-A13, FR-A19) */
