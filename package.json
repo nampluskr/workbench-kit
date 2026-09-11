@@ -1,6 +1,6 @@
 {
   "name": "workbench-kit",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "description": "여러 데스크톱 앱이 공유하는 공통 껍데기 한 벌",
   "type": "module",
@@ -18,13 +18,14 @@
     "verify:phase5": "node scripts/verify-phase5.mjs",
     "verify:phase6": "node scripts/verify-phase6.mjs",
     "verify:phase7": "node scripts/verify-phase7.mjs",
-    "test": "npm run typecheck && npm run verify:dist && npm run verify:phase2 && npm run verify:phase3 && npm run verify:phase4 && npm run verify:phase5 && npm run verify:phase6 && npm run verify:phase7 && npm run verify:v02-phase1 && npm run verify:v02-phase2 && npm run verify:v02-phase3 && npm run verify:v02-phase4 && npm run verify:v02-phase5 && npm run verify:v02-phase6",
+    "test": "npm run typecheck && npm run verify:dist && npm run verify:phase2 && npm run verify:phase3 && npm run verify:phase4 && npm run verify:phase5 && npm run verify:phase6 && npm run verify:phase7 && npm run verify:v02-phase1 && npm run verify:v02-phase2 && npm run verify:v02-phase3 && npm run verify:v02-phase4 && npm run verify:v02-phase5 && npm run verify:v02-phase6 && npm run verify:v02-phase7",
     "verify:v02-phase1": "node scripts/verify-v02-phase1.mjs",
     "verify:v02-phase2": "node scripts/verify-v02-phase2.mjs",
     "verify:v02-phase3": "node scripts/verify-v02-phase3.mjs",
     "verify:v02-phase4": "node scripts/verify-v02-phase4.mjs",
     "verify:v02-phase5": "node scripts/verify-v02-phase5.mjs",
-    "verify:v02-phase6": "node scripts/verify-v02-phase6.mjs"
+    "verify:v02-phase6": "node scripts/verify-v02-phase6.mjs",
+    "verify:v02-phase7": "node scripts/verify-v02-phase7.mjs"
   },
   "engines": {
     "node": ">=22.0.0"

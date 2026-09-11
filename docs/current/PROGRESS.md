@@ -155,6 +155,36 @@
 - **v0.1 회귀 처리 (Phase 6)**: `verify-phase2.mjs`의 `main.ts wires theme.onThemeChange` 정규식을 다중 줄 형태로 고치고 `refreshThemeColors()`(FR-X14) 확인을 더했다. ID 유지.
   - **검증**: `npm.cmd test` — v0.1 Phase 1~7 · v0.2 Phase 1~6 두 갈래 전건 0 failures.
 
+- **WK-078** (제품 UI 텍스트 영어 통일)
+  - **무엇을 했나**: `src/core/dialog.ts`(확인 창 버튼 `Save`/`Don't Save`/`Cancel`) · `about.ts`(aria-label · 닫기 버튼) · `activitybar.ts`(세 라벨) · `layout.ts`(상태 바 기본 문구 `Ready`) · `editor.ts`(더티 탭 확인 문구 4곳)의 남은 한국어 제품 문자열을 전부 영어로 바꿨다. `scripts/phase6-suite.js` · `verify-dist.mjs`의 대응 단언도 같이 고쳤다(FR-L2 회귀 처리).
+  - **결과**: 제품이 표시하는 글자에 한글 0건(FR-L1). 두 갈래가 같은 영어 표현을 쓴다(FR-L2).
+  - **검증**: `V2P7-FR-L1` · `FR-L2` — 메뉴 · 우클릭 · 뷰 액션 · 다이얼로그 · 상태 문구 · 빈 상태 안내 · 도움말 풍선을 전부 열어 수집한 문자열에 한글 0건.
+- **WK-079** (이름 기반 정적 검사 보강 — A7 이월분)
+  - **무엇을 했나**: `verify-phase7.mjs` 2a절 — `src/` 전체를 훑어 재구현 금지 패턴을 `editor.ts`·`texteditor.ts` 두 파일 밖에서도 적용한다. `createDockview()`/`monaco.editor.create()`가 `src/` 어딘가에서 실제로 호출되는지, 손으로 그린 `<svg><path>`가 아이콘 파일 밖에 없는지도 repo 전체로 확인한다.
+  - **결과**: WK-079가 다루기로 한 유일한 A7/A8 잔여 위험(사람 결정, 2026-09-10)을 닫았다.
+  - **검증**: `V2P7`(정적, Electron/pywebview 무관) — `scripts/verify-phase7.mjs` 2a절. A15 반대 벤더 검토에서 이름 형태(객체 메서드·속성·클래스 필드·계산된 속성)를 3회에 걸쳐 넓혔다(`docs/reviews/A15.md`).
+- **WK-080** (v0.1 회귀 대조)
+  - **무엇을 했나**: `SPEC.md` 0.1절 대체 목록이 v0.1 요구를 빠짐없이 대체 처리했는지 다시 훑고, `verify-v02-phase7.mjs`가 그 표의 행 수를 정확히 고정하도록 했다.
+  - **결과**: 대체 목록에 있는 것 말고는 v0.1 검사가 이번 산출물에서 그대로 통과한다(`npm.cmd test` 전건).
+  - **검증**: `V2P7`(정적) — 대체 표 행 수 · 핵심 FR 커버리지. `npm.cmd test` v0.1 Phase 1~7 전건 0 failures.
+- **WK-081** (기준 문서 divergence 갱신)
+  - **무엇을 했나**: `docs/vscode-comparison.md` §1-4 · §2-1(미리보기 탭 divergence가 없어짐, D-1) · §2-2(더블클릭 확정) · §2-10(탭 줄 `+` 버튼, D-15)을 v0.2 기준으로 다시 썼다. "이 문서를 어떻게 읽나"의 divergence 목록·요약을 갱신했다. A15 검토 중 §3(분할 영역) 표도 v0.1 이전 경로·존재하지 않는 FR ID를 인용하고 있는 것을 발견해 같이 고쳤다(계획 외, 아래 기록).
+  - **결과**: 기준 문서의 divergence 표시가 실제 동작과 일치한다.
+  - **검증**: `verify-phase7.mjs` 3절 — divergence 마커 수 · 결정 ID 인용 · "없어진 의도적 다름" 서술을 확인.
+- **WK-082** (70건 전건 대조와 키보드 경로)
+  - **무엇을 했나**: `scripts/v02-phase7-suite.js`(호스트 중립 스위트) · `v02-phase7-electron-runner.cjs` · `verify-v02-phase7.mjs` · pywebview `--v02-phase7-test` 분기를 새로 만들었다. `SPEC.md` 1절의 70건이 Electron·pywebview에서 같은 결과를 내는지, 1절의 모든 명령에 마우스 없는 경로가 있고 그 키가 `docs/reserved-keys.md`에 있는지를 확인한다.
+  - **결과**: 두 갈래 0 divergence. A15 3회에 걸쳐 22 → 29개 명령으로 늘리고, 존재 확인만 하던 검사를 실제 클릭 결과 확인으로 강화했다(아래 A15 기록).
+  - **검증**: `V2P7-NFR8-KEYBOARD` · `verify-v02-phase7.mjs`의 두 갈래 대조. `npm.cmd test` 전건 0 failures.
+- **v0.1 회귀 처리 (Phase 7)**: 없음 — Phase 7은 문자열·문서·대조 스위트만 건드렸고, v0.1 스위트 단언을 고칠 필요가 있는 v0.1 요구 문언 충돌은 없었다.
+  - **검증**: `npm.cmd test` — v0.1 Phase 1~7 · v0.2 Phase 1~7 두 갈래 전건 0 failures.
+
+- **A15 반대 벤더 검토 반영** (Phase 7, **필수 통과** — 3회로 한도, 3회차 시점 미해결 Critical 2건)
+  - **1~2회차에서 Critical 7건·Major 4건 전부 반영**: `package.json`이 아직 `0.1.0`이라 About·제목줄이 서로 다른 사본으로 그걸 보여주던 것 → `appInfoBase()` 하나로 합침(번호 자체는 사람 결정 몫으로 남김). `FR-L1` 문자 훑기가 우클릭 메뉴·빈 상태·넓은 catch-all을 놓치던 것 → 세 표면 다 추가. `FR-L3`(한국어 파일명)이 전혀 테스트되지 않던 것 → 두 갈래 fixture에 한국어 파일/폴더 추가. `NFR-8`이 11개 명령만 보고 `Alt+F4`를 실제로 눌러보지도 않던 것 → 22개로 늘리고 실제 키 디스패치로 바꿈(Electron 러너에 실제 닫기 게이트도 새로 뚫어줌). `WK-079` 금지 목록이 함수·객체 리터럴 형태로 뚫리던 것 → 대안 추가. 2회차에서 "Open Folder"·`F6` 위양성, 객체 메서드/속성 우회, 비교 문서 경로 서술 낡음을 추가로 잡아 반영.
+  - **3회차 — 미해결 Critical 2건, 반영은 했으나 반대 벤더 재확인은 못 받음**: (1) 클래스 필드(`static Parser = () => {}`)·계산된 속성(`['Parser']() {}`) 형태의 금지 이름 우회 — 대안 2개 추가, 오탐 0건 확인. (2) `NFR-8`의 "존재만 확인" 문제 — 실제 Electron/Chromium에서 합성 `KeyboardEvent` Enter가 네이티브 버튼의 클릭을 **일으키지 않음**을 실측으로 확인(플랫폼 한계, `FR-N3` 선례와 같은 종류)하고, 구조 확인 + `.click()`으로 낸 실제 효과 확인의 조합으로 최대한 강화(New File/Folder/Refresh/Collapse All/New Tab), `F6`은 두 번 연속 이동을 요구하도록, `Shift+F6`·`Ctrl+Shift+Tab`을 추가해 29개로. `npm.cmd test`로 회귀 없음은 확인했지만 **이 보완이 실제로 해소됐다는 판정은 반대 벤더가 아니라 구현자(Claude) 자신이 내린 것**이다.
+  - **3회차 Major — 비교 문서 §3-5의 VS Code 쪽 전제가 틀렸던 것도 발견해 고쳤다**: "VS Code에는 칸 닫기 명령이 없다"는 서술이 사실이 아니었다(VS Code 기본 단축키 `workbench.action.closeEditorsInGroup` 존재) — v0.2가 File 메뉴에 `Close Editor Group`을 둔 것은 "새로 생긴 의도적 다름"이 아니라 "v0.2에서 없어진 의도적 다름"(§2-1과 같은 종류)으로 재분류했다.
+  - **사람 확인 사항 — 3건**: (1) 위 3회차 미해결 Critical 2건을 이 상태로 Phase 7을 닫는 근거로 받아들일지. (2) `docs/vscode-comparison.md` §1·§2·§4·§5에 같은 종류의 v0.1-ID 접두어 누락(일부는 현재 SPEC에서 다른 뜻으로 재사용된 ID라 더 나쁨)이 남아 있다 — 이번엔 고치지 않았다(다음 버전 초반 정리 권장, 아래 계획 외 기록). (3) `PLAN.md`의 "SPEC 0.1절 대체 10건" 문구가 실제 22행과 안 맞는다 — 사용자 결정(2026-09-11)으로 지금은 두고 `PROGRESS.md`에만 기록(아래).
+  - **검증**: `npm.cmd test` — v0.1 Phase 1~7 · v0.2 Phase 1~7 두 갈래 매 단계(1·2·3회차, `package.json` 버전 올림 뒤 포함) 전건 0 failures. 기록 `docs/reviews/A15.md`.
+
 - **A14 반대 벤더 검토 반영** (Phase 6, 필수 통과 아님 — 3회로 한도, 미해결 Critical 0건)
   - **3회에 걸쳐 Major 11건 전부 반영**: (1) **CSP가 벗기던 vscode-icons SVG 색** — `style="fill"` 속성과 `<style>` 블럭을 표현 속성으로 다시 쓰는 `inlineStyleToAttrs()`(~1170개 자산이 색 없이 렌더되던 실제 버그). (2) 색 테마 전환 시 `render()`가 아니라 `refreshThemeColors()`로 제자리 재칠 — 인라인 입력 · 포커스 · 스크롤 보존, 라이트 변형 SVG는 innerHTML만 교체. (3) `scrollbar-color` 축약형 제거 — Chromium이 그게 있으면 `::-webkit-scrollbar*`(hover · active 포함)를 통째로 무시. (4) `.tree-list overflow: auto` + `.tree-row width: max-content` — 긴 이름에서 실제 가로 스크롤. (5) vscode-icons 세 테마 각각 다른 `filter`. (6) seti 회색 아이콘을 어둡게. (7~11) 스위트 강화 — 두 아이콘 테마 · 참조 데이터 일치 · 실제 두 축 스크롤 · CSP 안전성 실측 · Electron 러너의 **실제 maximize/restore + `setZoomFactor` 배율 변경**.
   - **사람 확인 사항**: `FR-X10`("모든 아이콘 색") ↔ `FR-X13`("같은 SVG") 긴장은 "마크업 그대로, CSS 필터로 색만"으로 풀었다 — 필터 세기는 사용자 눈으로 최종 판정. seti 회색 파일 아이콘 대비가 낮은 종류가 보이면 회색 계산 재조정 필요.
@@ -211,3 +241,15 @@
   - **무엇을 했나**: 열기 규칙이 바뀌면서 v0.1 스위트가 깨진 것을 **의도된 변경과 회귀로 갈랐다.** `SPEC.md` 0.1절의 대체 목록에 있는 것(`v0.1 FR-A6`·`FR-B1`·`FR-B3`)은 단언을 v0.2 규칙으로 다시 쓰거나(전자 둘) 매니페스트에서 제거했고(`P4-FR-B3`·`P4-FR-B3-DUP`), `docs/phase7-fr-matrix.md`의 `FR-B3` 행은 후속 판정(`V2P1-FR-P8`)을 가리키게 바꿨다. 나머지 실패는 전부 **스위트 설정**이 옛 규칙(`addNewTab` 뒤 `openItem`이 빈 탭에 흡수됨)에 기대고 있던 것이라, 24곳을 `openItem(..., { mode: 'pinned' })` 한 번으로 합쳤다 — 단언의 뜻은 그대로다.
   - **그 밖에 두 곳**: `verify-dist.mjs`의 환경 버전 검사가 `PLAN.md`만 보고 있었는데 v0.2는 그 값을 `SPEC.md` 3절에 둔다. 요구가 아니라 기록 위치가 바뀐 것이라 두 문서를 함께 보도록 넓혔다. `verify-phase7.mjs`의 133건 매트릭스 검사는 **v0.1 SPEC 스냅샷**(`docs/history/v0.1/SPEC.md`)을 읽도록 고정했다 — 그 매트릭스는 v0.1의 마감 게이트이고 양쪽이 history에 얼어 있다. v0.2 매트릭스는 자기 Phase 7(`WK-082`)이 만든다.
   - **검증**: `npm.cmd test` — typecheck · verify-dist · verify-phase2~7 · verify-v02-phase1 전건 0 failures, 두 갈래 divergence 0건.
+
+- **`package.json` 버전을 `0.2.0`으로 올림 (Phase 7, A15 검토 중)**
+  - **요청**: A15 1회차가 제목줄·About이 여전히 `v0.1.0`을 보여준다고 지적했다(`FR-C7`). `package.json`의 `version`은 major·minor를 사람이 정한다는 규칙(`AGENTS.md`)이라 에이전트가 스스로 올리지 않고, 지금 올릴지 버전 마감 때 올릴지를 사용자에게 물었다.
+  - **결정**: **사용자가 지금 `0.2.0`으로 올리기로 결정**했다(2026-09-11). `package.json`·`package-lock.json`(`npm install --package-lock-only`로 재생성)을 고쳤다.
+  - **검증**: `npm.cmd run build` + `npm.cmd test` 전건 0 failures. 제목줄·About이 `appInfoBase()` 한 곳에서 `Workbench-Kit v0.2 (...)`를 낸다.
+- **`SPEC.md` 0.1절 대체 행 수(22)와 `PLAN.md` Phase 7 완료 조건 문구("10건")가 안 맞는다 (WK-080, A15 검토 중 발견)**
+  - **발견**: Phase 3~5 착수 전 확인에서 계획 외로 SPEC 0.1절 표를 여러 번 보완한 결과(위 기록들) 표가 22행으로 늘었는데, `PLAN.md`의 Phase 7 완료 조건은 여전히 "대체한 10건"이라고 적혀 있다. `PLAN.md`는 사람만 고치는 문서라 에이전트가 손대지 않는다.
+  - **처리**: `verify-v02-phase7.mjs`의 검사는 실제 값(22)에 정확히 고정했다. `PLAN.md`의 "10건" 문구 자체의 처분은 **사용자에게 물어 확정**했다 — 지금은 그대로 두고 이 기록으로 남기며, 버전 마감(`VERSIONING.md`) 시점에 문구를 정리한다(2026-09-11 결정).
+- **`docs/vscode-comparison.md` §3(분할 영역)이 v0.1 이전 경로와 현재 없는 FR ID를 인용하고 있었다 (A15 검토 중 발견)**
+  - **발견**: A15 2·3회차가 §3-2("세로 띠" 분할 경로가 v0.2에서 없어진 것을 안 반영)와, 같은 표의 다른 행(1·3·4·5)이 현재 `SPEC.md`에 없는 v0.1 전용 ID(`FR-D4`~`FR-D8`)를 접두어 없이 인용하는 것, §3-5가 VS Code 쪽 사실 자체를 잘못 적어(VS Code에 실제로 있는 `Close Group` 명령을 "없다"고 서술) 판정이 거꾸로 됐던 것을 지적했다.
+  - **조치**: §3의 다섯 행을 모두 다시 썼다 — v0.1 전용 ID는 `v0.1` 접두어를 붙이고, §3-2/§3-5는 VS Code 쪽 서술을 공식 문서로 대조해 고치고, §3-5의 판정을 "의도적 다름"에서 "같음(v0.2에서 없어짐)"으로 되돌렸다. "이 문서를 어떻게 읽나" 요약도 맞춰 고쳤다.
+  - **남은 것**: 같은 종류(현재 SPEC에 없는 v0.1 전용 ID를 접두어 없이 인용, 일부는 다른 뜻으로 재사용된 ID와 충돌)가 §1·§2·§4·§5에도 있다고 A15 3회차가 지적했다. 문서 전체로 범위가 넓어 이번엔 §3만 고치고 나머지는 **다음 버전 초반 정리 대상**으로 남긴다(`docs/reviews/A15.md` 6절).

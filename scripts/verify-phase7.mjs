@@ -109,6 +109,82 @@ for (const iconFile of ['src/icons/seti.ts', 'src/icons/vscode-icons.ts']) {
   const iconSource = fs.readFileSync(path.join(rootDir, iconFile), 'utf8');
   assert(!iconReimplPattern.test(iconSource), `${iconFile} contains 0 inline hand-drawn SVG path data (NFR-4)`);
 }
+
+// --------------------------------------------------------------------------
+// 2a. WK-079 (A7 carry-over): the reimplementation blocklist must hold OUTSIDE
+// the two named files too — a reimplementation moved to `src/core/panes.ts`
+// or `src/anything.ts` must still be caught. Walk EVERY .ts under src/ (minus
+// the legitimate vendor call sites and the type-only test view) and apply the
+// combined layout + editor + tokenizer pattern. Also confirm the real library
+// factory is instantiated SOMEWHERE in src, not merely in a file we happened
+// to name. (Human decision 2026-09-10 — the one A7/A8 residual v0.2 addresses.)
+// --------------------------------------------------------------------------
+console.log('\n--- 2a. Reimplementation blocklist holds repo-wide (WK-079, NFR-4) ---');
+function walkTs(dir) {
+  const out = [];
+  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+    const full = path.join(dir, entry.name);
+    if (entry.isDirectory()) {
+      if (entry.name === 'assets' || entry.name === 'data' || entry.name === 'node_modules') continue;
+      out.push(...walkTs(full));
+    } else if (entry.name.endsWith('.ts')) {
+      out.push(full);
+    }
+  }
+  return out;
+}
+const allSrcTs = walkTs(path.join(rootDir, 'src'));
+// A15 round-1 Critical finding: a `class \w*Name` regex only catches a class
+// declaration. The same blocklisted name as a factory function
+// (`function createPaneManager()`), an arrow-function const
+// (`const paneManager = () => {...}`), or an object-literal factory
+// (`const paneManager = {...}`) sailed straight through, and case sensitivity
+// meant even `class panemanager` would. The pattern below matches the
+// blocklist names after `class`/`function`/`interface` OR after a
+// `const`/`let`/`var` binding (covering arrow functions and object
+// literals alike), case-insensitively.
+// A15 round-2 Critical finding: the exact blocklisted name used as an
+// object-literal method shorthand (`Parser() {...}`) or a property assigned
+// a function/object (`Parser: () => {...}`, `Parser: {...}`) still had no
+// `class`/`function`/`const` keyword in front of it, so it still sailed
+// through. A third alternative below matches the blocklist name directly
+// followed by either shorthand-method or property-value syntax.
+// A15 round-3 Critical finding: a class field assignment (`static Parser =
+// () => {...}`, or an instance field `Parser = () => {...}`) and a computed
+// property method (`['Parser']() {...}`) still had neither a keyword in
+// front nor the exact `NAME(`/`NAME:` shape the round-2 fix covered. Two
+// more alternatives below close those.
+const REIMPL_NAMES =
+  'PaneManager|SplitLayout|SplitView(?!Container)|TabGroupManager|GridCoordinator|WorkspaceGroups|LayoutEngine|PanelGrid|DockManager|Tokenizer|Highlighter|CodeEditor|SyntaxColorizer|TextBuffer|Lexer|Parser|Grammar';
+const combinedReimplPattern = new RegExp(
+  `\\b(?:class|function\\*?|interface)\\s+\\w*(?:${REIMPL_NAMES})\\b` +
+    `|\\b(?:const|let|var)\\s+\\w*(?:${REIMPL_NAMES})\\w*\\s*[:=]` +
+    `|\\b(?:${REIMPL_NAMES})\\s*(?:\\([^)]*\\)\\s*\\{|:\\s*(?:async\\s*)?(?:function|\\([^)]*\\)\\s*=>|\\{))` +
+    `|\\b(?:static\\s+)?(?:get\\s+|set\\s+)?(?:${REIMPL_NAMES})\\s*=\\s*(?:async\\s*)?(?:\\([^)]*\\)\\s*=>|function)` +
+    `|\\[\\s*['"\`](?:${REIMPL_NAMES})['"\`]\\s*\\]\\s*\\(`,
+  'i'
+);
+let reimplHits = [];
+for (const file of allSrcTs) {
+  const rel = path.relative(rootDir, file).replace(/\\/g, '/');
+  const src = fs.readFileSync(file, 'utf8');
+  if (combinedReimplPattern.test(src)) reimplHits.push(rel);
+}
+assert(
+  reimplHits.length === 0,
+  `No .ts under src/ (${allSrcTs.length} files scanned) declares a class, function, or const/let/var binding whose name matches the pane/tab/grid/editor/tokenizer reimplementation blocklist, in any case (WK-079). Hits: ${JSON.stringify(reimplHits)}`
+);
+const anySrcHasDockviewCall = allSrcTs.some((f) => /createDockview\s*\(/.test(fs.readFileSync(f, 'utf8')));
+const anySrcHasMonacoCall = allSrcTs.some((f) => /monaco\.editor\.create\s*\(/.test(fs.readFileSync(f, 'utf8')));
+assert(anySrcHasDockviewCall, "dockview-core's createDockview() is instantiated somewhere in src/ — the real library owns pane/tab/view lifecycle, wherever that file is named (WK-079, NFR-4)");
+assert(anySrcHasMonacoCall, "monaco.editor.create() is instantiated somewhere in src/ — the real library owns tokenizing/editing (WK-079, NFR-4)");
+// The hand-drawn-SVG ban also holds repo-wide, not just in the 2 icon files.
+const svgReimplHits = allSrcTs.filter((f) => {
+  const rel = path.relative(rootDir, f).replace(/\\/g, '/');
+  if (rel.startsWith('src/icons/')) return false; // icon files legitimately embed vendor svg strings via import
+  return /<svg[\s\S]{0,400}<path\s+d=/.test(fs.readFileSync(f, 'utf8'));
+});
+assert(svgReimplHits.length === 0, `No non-icon .ts under src/ embeds hand-drawn <svg><path d="..."> data (WK-079). Hits: ${JSON.stringify(svgReimplHits)}`);
 assert(
   fs.existsSync(path.join(rootDir, 'src/icons/data/seti.json')) && fs.existsSync(path.join(rootDir, 'src/icons/assets/seti.woff')),
   'seti resolver uses the real bundled seti-ui icon font + mapping data, not hand-drawn icon glyphs (NFR-4)'
@@ -153,9 +229,17 @@ for (const area of ['탐색기', '탭 (Tabs)', '분할 영역', '선택과 포�
 const divergenceMarkerCount = (comparisonText.match(/의도적 다름/g) || []).length;
 assert(divergenceMarkerCount >= 5, `vscode-comparison.md records multiple intentional divergences, not just Zen (found ${divergenceMarkerCount} mentions, NFR-3's 2026-09-09 revision)`);
 assert(comparisonText.includes('Zen'), 'Zen mode is recorded as one of the divergences (NFR-3, D-12)');
-for (const decisionId of ['D-5', 'D-13', 'D-20', 'D-22']) {
+// v0.2 (WK-081): the D-5 "no preview tabs" divergence is GONE — v0.2 adopted
+// preview tabs (D-1), and the doc now records that flip. The remaining
+// divergences are backed by D-13 (multi-window), D-20 (Welcome View),
+// D-22 (right-click), D-7 (uniform 30px), D-15 (tab-strip +).
+for (const decisionId of ['D-13', 'D-20', 'D-22', 'D-7', 'D-15']) {
   assert(comparisonText.includes(decisionId), `vscode-comparison.md cites ${decisionId} as backing for one of its non-Zen divergences (NFR-3)`);
 }
+assert(
+  /없어진 "?의도적 다름"?[\s\S]{0,120}미리보기 탭/.test(comparisonText),
+  'vscode-comparison.md records that the v0.1 "no preview tabs" divergence went away in v0.2 (WK-081, NFR-5)'
+);
 
 // --------------------------------------------------------------------------
 // 4. Checklist doc splitting check types (FR-R3)

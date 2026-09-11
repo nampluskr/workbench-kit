@@ -582,7 +582,7 @@ export class EditorController {
     for (const panel of panels) {
       if (!panel.params?.isDirty) continue;
       const choice = await this.dialogController.show(
-        `저장하지 않은 변경 내용이 있습니다: ${panel.title || panel.id}`
+        `Do you want to save the changes you made to ${panel.title || panel.id}?`
       );
       if (choice === 'cancel') return false;
       if (choice === 'save') {
@@ -612,7 +612,7 @@ export class EditorController {
       rawClose();
       return true;
     }
-    const choice = await this.dialogController.show(`저장하지 않은 변경 내용이 있습니다: ${panel.title || panel.id}`);
+    const choice = await this.dialogController.show(`Do you want to save the changes you made to ${panel.title || panel.id}?`);
     if (choice === 'cancel') return false;
     if (choice === 'save') {
       const ok = this.saveHandler ? await this.saveHandler(panel.id) : false;
@@ -661,7 +661,7 @@ export class EditorController {
   ): Promise<boolean> {
     const doomed = this.resolveReplaceTarget(groupOrPanel);
     if (!doomed?.params?.isDirty || !this.dialogController) return true;
-    const choice = await this.dialogController.show(`저장하지 않은 변경 내용이 있습니다: ${doomed.title || doomed.id}`);
+    const choice = await this.dialogController.show(`Do you want to save the changes you made to ${doomed.title || doomed.id}?`);
     if (choice === 'cancel') return false;
     if (choice === 'save') {
       const ok = this.saveHandler ? await this.saveHandler(doomed.id) : false;
@@ -690,7 +690,7 @@ export class EditorController {
    */
   public async confirmQuit(): Promise<boolean> {
     if (!this.hasDirtyPanels() || !this.dialogController) return true;
-    const choice = await this.dialogController.show('저장하지 않은 변경 내용이 있습니다.');
+    const choice = await this.dialogController.show('Do you want to save the changes you made before closing?');
     if (choice === 'cancel') return false;
     if (choice === 'save') {
       for (const panel of this.api.panels) {

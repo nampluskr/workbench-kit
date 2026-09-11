@@ -41,8 +41,8 @@ assert(
   'docs/vscode-comparison.md §6 marks the uniform 30px chrome as an intentional divergence, citing D-7 (FR-D3)'
 );
 assert(
-  /§6-1\(공통 30px 치수, D-7 — v0\.2 추가\)/.test(currentDoc),
-  'the "how to read" summary now enumerates §6-1 among the intentional divergences — the divergence count grew vs v0.1 (FR-D3)'
+  /§6-1\(공통 30px 치수[\s\S]{0,40}D-7/.test(currentDoc) && /새로 생긴 "?의도적 다름"?[\s\S]{0,80}§6-1/.test(currentDoc),
+  'the "how to read" summary enumerates §6-1 among the intentional divergences and marks it a v0.2 addition — the divergence count grew vs v0.1 (FR-D3)'
 );
 const dimensionsCss = fs.readFileSync(path.join(rootDir, 'src/style.css'), 'utf8');
 assert(

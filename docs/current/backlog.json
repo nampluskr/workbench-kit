@@ -470,7 +470,7 @@
     },
     {
       "id": "WK-078",
-      "status": "todo",
+      "status": "done",
       "priority": "P7",
       "category": "껍데기",
       "title": "제품 UI 텍스트 영어 통일",
@@ -482,11 +482,11 @@
       "deps": [
         "WK-063"
       ],
-      "done_at": null
+      "done_at": "2026-09-11"
     },
     {
       "id": "WK-079",
-      "status": "todo",
+      "status": "done",
       "priority": "P7",
       "category": "검증",
       "title": "이름 기반 정적 검사 보강",
@@ -496,11 +496,11 @@
       "note": "NFR-7. A7 이월분 중 이번 버전에서 다루는 유일한 항목이다 (사람 결정 2026-09-10)",
       "parent": null,
       "deps": [],
-      "done_at": null
+      "done_at": "2026-09-11"
     },
     {
       "id": "WK-080",
-      "status": "todo",
+      "status": "done",
       "priority": "P7",
       "category": "검증",
       "title": "v0.1 회귀 대조",
@@ -510,11 +510,11 @@
       "note": "NFR-2. 대체 목록이 회귀와 의도된 변경의 경계다",
       "parent": null,
       "deps": [],
-      "done_at": null
+      "done_at": "2026-09-11"
     },
     {
       "id": "WK-081",
-      "status": "todo",
+      "status": "done",
       "priority": "P7",
       "category": "문서",
       "title": "기준 문서 divergence 갱신",
@@ -526,11 +526,11 @@
       "deps": [
         "WK-077"
       ],
-      "done_at": null
+      "done_at": "2026-09-11"
     },
     {
       "id": "WK-082",
-      "status": "todo",
+      "status": "done",
       "priority": "P7",
       "category": "검증",
       "title": "70건 전건 대조와 키보드 경로",
@@ -542,7 +542,7 @@
       "deps": [
         "WK-080"
       ],
-      "done_at": null
+      "done_at": "2026-09-11"
     }
   ]
 }

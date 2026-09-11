@@ -29,6 +29,21 @@ declare const __WB_VERSION__: string;
 declare const __WB_COMMIT_DATE__: string;
 
 /**
+ * The one place `package.json`'s version and the last-commit date turn into
+ * display text — the title bar (FR-C7) and Help > About both read it, so
+ * neither can drift from `package.json` or from each other (A15 round-1
+ * Critical finding: About used to hardcode its own copy of this string
+ * independently of the title bar's, so the two could show different
+ * versions). The version NUMBER itself is `package.json`'s — an agent does
+ * not change it on its own (project versioning policy); this only formats
+ * whatever it is.
+ */
+function appInfoBase(): string {
+  const [major, minor] = __WB_VERSION__.split('.');
+  return `Workbench-Kit v${major}.${minor} (${__WB_COMMIT_DATE__})`;
+}
+
+/**
  * Everything a real app-extension author is meant to use (FR-I1 ~ FR-I11,
  * FR-N10, FR-N12, FR-G6). Unlike `window.__workbenchApp` (a full-access
  * diagnostic hook the Phase 1-4 test harnesses already depend on), this
@@ -120,7 +135,7 @@ export class WorkbenchApp {
 
     // Help > About (FR-Q5, D-23, WK-037): required attribution for the two
     // CC-licensed icon sets.
-    this.aboutDialog = new AboutDialogController(this.layout.root, 'workbench-kit v0.1.0');
+    this.aboutDialog = new AboutDialogController(this.layout.root, appInfoBase());
     this.menu.setAction('help:about', () => this.aboutDialog.show());
 
     // Initialize TreeController and Explorer view titlebar (FR-A, D-9, D-30)
@@ -488,8 +503,7 @@ export class WorkbenchApp {
       const isElectron = typeof window !== 'undefined' && (Boolean(window.workbenchHost) || (navigator.userAgent && navigator.userAgent.includes('Electron')));
       const isPywebview = typeof window !== 'undefined' && (Boolean(window.pywebview) || (navigator.userAgent && navigator.userAgent.includes('pywebview')));
       const branch = isElectron ? 'Electron' : (isPywebview ? 'PyWebView' : '');
-      const [major, minor] = __WB_VERSION__.split('.');
-      const base = `Workbench-Kit v${major}.${minor} (${__WB_COMMIT_DATE__})`;
+      const base = appInfoBase();
       this.layout.windowTitle.textContent = branch ? `${base} - ${branch}` : base;
     };
     updateAppInfo();

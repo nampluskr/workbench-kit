@@ -85,7 +85,7 @@ export function createWorkbenchLayout(container: HTMLElement): WorkbenchLayoutEl
           <span id="statusbar-path" class="statusbar-path"></span>
         </div>
         <div id="statusbar-center" class="statusbar-item statusbar-center">
-          <span id="statusbar-message" class="statusbar-message">workbench-kit v0.1 ready</span>
+          <span id="statusbar-message" class="statusbar-message">Ready</span>
         </div>
         <div id="statusbar-right" class="statusbar-item statusbar-right">
           <div id="statusbar-app-items" class="statusbar-app-items"></div>

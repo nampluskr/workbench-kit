@@ -26,7 +26,7 @@ export class AboutDialogController {
     const dialogEl = document.createElement('div');
     dialogEl.className = 'workbench-confirm-dialog workbench-about-dialog';
     dialogEl.setAttribute('role', 'dialog');
-    dialogEl.setAttribute('aria-label', '정보');
+    dialogEl.setAttribute('aria-label', 'About');
 
     const titleEl = document.createElement('div');
     titleEl.className = 'about-dialog-title';
@@ -46,7 +46,7 @@ export class AboutDialogController {
     const closeBtn = document.createElement('button');
     closeBtn.className = 'confirm-dialog-btn';
     closeBtn.dataset.choice = 'close';
-    closeBtn.textContent = '닫기';
+    closeBtn.textContent = 'Close';
     closeBtn.addEventListener('click', () => this.hide());
     buttonsEl.appendChild(closeBtn);
     dialogEl.appendChild(buttonsEl);

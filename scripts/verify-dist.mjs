@@ -379,11 +379,11 @@ assert(
 
 // 5b. Executed DOM State Parity (C2-1)
 assert(
-  electronInspection && electronInspection.statusbarText === 'workbench-kit v0.1 ready',
+  electronInspection && electronInspection.statusbarText === 'Ready',
   `Electron executed frontend script (status: "${electronInspection?.statusbarText}")`
 );
 assert(
-  pywebviewInspection && pywebviewInspection.statusbarText === 'workbench-kit v0.1 ready',
+  pywebviewInspection && pywebviewInspection.statusbarText === 'Ready',
   `pywebview executed frontend script (status: "${pywebviewInspection?.statusbarText}")`
 );
 assert(

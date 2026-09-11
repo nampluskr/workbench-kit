@@ -51,9 +51,9 @@ export class ConfirmDialogController {
       this.pendingResolve = resolve;
 
       const buttons: { id: ConfirmDialogChoice; label: string }[] = [
-        { id: 'save', label: '저장' },
-        { id: 'discard', label: '저장 안 함' },
-        { id: 'cancel', label: '취소' },
+        { id: 'save', label: 'Save' },
+        { id: 'discard', label: "Don't Save" },
+        { id: 'cancel', label: 'Cancel' },
       ];
 
       for (const btn of buttons) {

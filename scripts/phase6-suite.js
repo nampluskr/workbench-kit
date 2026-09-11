@@ -482,7 +482,7 @@ window.__runPhase6TestSuite = async function runPhase6TestSuite() {
     record(
       'P6-FR-L2',
       cancelCloseClicked && app.confirmDialog.isOpen() && dialogButtons.length === 3 && dialogButtons.includes('save') && dialogButtons.includes('discard') && dialogButtons.includes('cancel'),
-      "Clicking the tab's own close button on a dirty tab shows a confirm dialog with exactly [저장, 저장 안 함, 취소] (FR-L2)"
+      "Clicking the tab's own close button on a dirty tab shows a confirm dialog with exactly [Save, Don't Save, Cancel] (FR-L2)"
     );
     await clickDialogButton('cancel');
     await wait(30);
@@ -500,7 +500,7 @@ window.__runPhase6TestSuite = async function runPhase6TestSuite() {
     record(
       'P6-FR-L4',
       !editor.getPanels().some((p) => p.id === panelCancel.id) && saveCallCount === saveCallsBeforeDiscard,
-      '저장 안 함 closes the tab with 0 additional save calls (FR-L4, FR-P7)'
+      "Don't Save closes the tab with 0 additional save calls (FR-L4, FR-P7)"
     );
 
     // FR-L3: Save calls the app-registered handler exactly once, then closes
@@ -515,7 +515,7 @@ window.__runPhase6TestSuite = async function runPhase6TestSuite() {
     record(
       'P6-FR-L3',
       saveCallCount === saveCallsBeforeSave + 1 && !editor.getPanels().some((p) => p.id === panelSave.id),
-      '저장 calls the save handler exactly once and then closes the tab (FR-L3)'
+      "Save calls the save handler exactly once and then closes the tab (FR-L3)"
     );
 
     // FR-L6: quitting with a dirty tab open shows the same confirm dialog.
@@ -549,7 +549,7 @@ window.__runPhase6TestSuite = async function runPhase6TestSuite() {
     const quitPromise2 = editor.confirmQuit();
     await clickDialogButton('discard');
     const quitResultDiscarded = await quitPromise2;
-    record('P6-FR-L6-DISCARD', quitResultDiscarded === true, "저장 안 함 during quit confirms it's OK to quit (FR-L6)");
+    record('P6-FR-L6-DISCARD', quitResultDiscarded === true, "Don't Save during quit confirms it's OK to quit (FR-L6)");
 
     // ------------------------------------------------------------------------
     // 5. Status bar messages and progress (FR-G2 ~ FR-G4, FR-N10a, FR-N10b, WK-035)
