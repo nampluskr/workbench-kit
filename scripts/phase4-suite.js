@@ -202,16 +202,47 @@ window.__runPhase4TestSuite = async function runPhase4TestSuite() {
     );
 
     // ------------------------------------------------------------------------
-    // 6. New Tab button, and jumping to an already-open target (FR-B2)
+    // 5b. [+] takes over the group's preview spot, same as a tree pick
+    // (v0.2 FR-P14 / D-14). Re-queried rather than reusing the element
+    // captured at the top: an editor.clear() in between makes dockview
+    // rebuild the group header, which detaches the old button.
     // ------------------------------------------------------------------------
-    // Re-queried rather than reusing the element captured at the top: an
-    // editor.clear() in between makes dockview rebuild the group header, which
-    // detaches the old button and would make this click silently do nothing.
+    // State coming in: docB.txt sits alone in the group's preview spot
+    // (step 5). [+] must replace it, not add beside it.
     const newTabBtnNow = document.querySelector('.editor-group-header-actions .tab-action-new');
     clickEl(newTabBtnNow);
-    record('P4-FR-C1-2', editor.getPanelCount() === 2, 'Adding 2nd tab via + button increases tab count to 2');
+    record(
+      'V2P4-FR-P14-REUSE',
+      editor.getPanelCount() === 1 && editor.getActivePanel()?.title === 'Untitled' && editor.getActivePanel()?.params?.targetId == null,
+      '[+] with a preview spot already present (docB.txt) replaces it instead of adding a 2nd tab, and the count stays 1 (FR-P14)'
+    );
 
-    // Open docC.txt so there is a second distinct target on screen
+    // Confirm docB.txt back into the group before touching count-based
+    // FR-B2/FR-B4 assertions below — otherwise [+]'s replace above would
+    // have silently made docB.txt no longer open, which those assertions
+    // do not intend to exercise. Enter is now two-step (D-16): the first
+    // press reclaims the blank Untitled spot as a PREVIEW of docB.txt, and a
+    // second press on the same still-focused row is what confirms it.
+    tree.focusItemById('/workspace/docB.txt');
+    sendTreeKey('Enter');
+    sendTreeKey('Enter');
+    record(
+      'V2P4-FR-P14-CONFIRM-REOPEN',
+      editor.getPanelCount() === 1 && editor.getActivePanel()?.params?.targetId === '/workspace/docB.txt',
+      'Two Enters on docB.txt reclaim the spot [+] took (replacing the blank Untitled) and then confirm it (FR-P7, D-16)'
+    );
+
+    // ------------------------------------------------------------------------
+    // 6. New Tab button, and jumping to an already-open target (FR-B2)
+    // ------------------------------------------------------------------------
+    const newTabBtnNow2 = document.querySelector('.editor-group-header-actions .tab-action-new');
+    clickEl(newTabBtnNow2);
+    record('P4-FR-C1-2', editor.getPanelCount() === 2, 'With docB.txt now confirmed (not a preview spot), [+] adds a distinct 2nd tab');
+
+    // Open docC.txt so there is a second distinct target on screen. It lands
+    // in the blank Untitled [+] just made (FR-P14's blank-spot reuse), so the
+    // count does not move — mirroring how a confirmed pick reuses a never-
+    // shown preview spot (FR-P11's comment in editor.ts).
     tree.focusItemById('/workspace/docC.txt');
     sendTreeKey('Enter');
     const countBeforeJump = editor.getPanelCount();
@@ -230,6 +261,14 @@ window.__runPhase4TestSuite = async function runPhase4TestSuite() {
     // ------------------------------------------------------------------------
     // 7. Folder opens using identical rules as files (FR-B4)
     // ------------------------------------------------------------------------
+    // docC.txt is still sitting in the group's preview spot (D-16's two-step
+    // Enter never touched it — the FR-B2 jump above just activated docB.txt
+    // without disturbing docC.txt's preview flag). Confirm it first so there
+    // is no preview spot left for folderX to land in — otherwise folderX
+    // would replace it instead of adding a genuinely new tab, which is not
+    // what this step means to exercise.
+    tree.focusItemById('/workspace/docC.txt');
+    sendTreeKey('Enter');
     const countBeforeFolder = editor.getPanelCount();
     tree.focusItemById('/workspace/folderX');
     sendTreeKey('Enter');
@@ -365,7 +404,7 @@ window.__runPhase4TestSuite = async function runPhase4TestSuite() {
     // ------------------------------------------------------------------------
     editor.clear();
     const gMain = editor.getActiveGroup();
-    editor.openItem('/workspace/docA.txt', 'docA.txt', { mode: 'pinned' }, gMain);
+    const panelMainA = editor.openItem('/workspace/docA.txt', 'docA.txt', { mode: 'pinned' }, gMain);
 
     // In 1-group state, Ctrl+Enter from tree opens beside (FR-A14)
     tree.focusItemById('/workspace/docB.txt');
@@ -389,10 +428,32 @@ window.__runPhase4TestSuite = async function runPhase4TestSuite() {
     record('P4-FR-A14-2D-COUNT', editor.getGroupCount() === 3, 'openBeside in 2D layout reuses spatial beside group without creating 4th group (FR-A14)');
     record('P4-FR-A14-2D-TARGET', panelBeside2D && panelBeside2D.group === gTopRight, 'openBeside target is strictly the spatial right-hand group (FR-A14, D-19)');
 
-    // Test FR-B2 duplicate protection under openBeside:
-    // docA.txt is open in gMain. Calling openBeside with docA.txt MUST jump to gMain!
+    // v0.2 FR-P15/D-15 narrows the FR-B2/D-5 duplicate check to the target
+    // group only. Active group is gMain, which already holds docA.txt
+    // (pinned). openBeside resolves the target to gTopRight (spatial right
+    // neighbor of gMain) — a DIFFERENT group, currently showing docC.txt as
+    // its preview. Opening docA.txt beside must fill gTopRight's preview
+    // spot with docA.txt, NOT jump back to gMain: the panel count should not
+    // move (a preview reuse, same as any other pick), but docA.txt now
+    // exists as two independent panels in two different groups at once.
+    // openBeside(docC.txt) above left gTopRight active (it sets the active
+    // group to wherever it resolved as "beside"); reactivate gMain so the
+    // next openBeside call resolves its beside target from gMain again.
+    await uiActivateGroup(gMain);
+    record('P4-FR-A14-DUP-PRECONDITION', editor.getActiveGroup() === gMain, 'Active group is gMain before the duplicate-check assertion (sanity check on test setup)');
+    const panelCountBeforeDup = editor.getPanelCount();
     const jumpedBeside = editor.openBeside('/workspace/docA.txt', 'docA.txt');
-    record('P4-FR-A14-DUP', editor.getActivePanel()?.params?.targetId === '/workspace/docA.txt' && jumpedBeside && jumpedBeside.group === gMain, 'openBeside jumps to existing panel across workbench without duplicating (FR-B2, FR-A14)');
+    const docACopies = editor.getPanels().filter((p) => p.params?.targetId === '/workspace/docA.txt');
+    record(
+      'P4-FR-A14-DUP',
+      editor.getPanelCount() === panelCountBeforeDup &&
+        jumpedBeside &&
+        jumpedBeside.params?.targetId === '/workspace/docA.txt' &&
+        jumpedBeside.group === gTopRight &&
+        jumpedBeside.id !== panelMainA.id &&
+        docACopies.length === 2,
+      'openBeside no longer dedups across the workbench: docA.txt fills gTopRight\'s preview spot as a distinct 2nd panel even though it is already open, confirmed, in gMain (FR-P15, D-15 — supersedes v0.1 FR-B2/FR-A14 dup check)'
+    );
 
     // ------------------------------------------------------------------------
     // 11. Header Split Buttons Click (FR-D1, FR-D2)

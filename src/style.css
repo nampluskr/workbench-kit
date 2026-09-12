@@ -30,7 +30,7 @@
   --titlebar-height: var(--area-size);
   --statusbar-height: var(--area-size);
   --activitybar-width: var(--area-size);
-  --sidebar-width: 280px;
+  --sidebar-width: 240px;
   --close-hover-bg: #e81123;
 }
 
@@ -198,6 +198,63 @@ html, body, #app {
   width: 100%;
   height: 100%;
   overflow: hidden;
+  position: relative;
+}
+
+/*
+ * Edge/corner resize grips (user request, 2026-09-12). Electron's frameless
+ * window already gets native OS edge-resize; pywebview's WebView2 child
+ * covers the window pixel-for-pixel, so the OS never sees the cursor at the
+ * true edge to hit-test against. These invisible strips give the cursor
+ * feedback everywhere, and their mousedown starts a native resize via
+ * core/window.ts's startResize() — a no-op on Electron, where the OS
+ * handles it below the page entirely.
+ */
+.resize-grip {
+  position: fixed;
+  z-index: 100;
+  -webkit-app-region: no-drag;
+}
+
+.resize-grip-n, .resize-grip-s {
+  left: 5px;
+  right: 5px;
+  height: 5px;
+  cursor: ns-resize;
+}
+
+.resize-grip-n { top: 0; }
+.resize-grip-s { bottom: 0; }
+
+.resize-grip-e, .resize-grip-w {
+  top: 5px;
+  bottom: 5px;
+  width: 5px;
+  cursor: ew-resize;
+}
+
+.resize-grip-e { right: 0; }
+.resize-grip-w { left: 0; }
+
+.resize-grip-nw, .resize-grip-se {
+  width: 5px;
+  height: 5px;
+  cursor: nwse-resize;
+}
+
+.resize-grip-ne, .resize-grip-sw {
+  width: 5px;
+  height: 5px;
+  cursor: nesw-resize;
+}
+
+.resize-grip-nw { top: 0; left: 0; }
+.resize-grip-ne { top: 0; right: 0; }
+.resize-grip-sw { bottom: 0; left: 0; }
+.resize-grip-se { bottom: 0; right: 0; }
+
+.workbench-root.zen-mode .resize-grip {
+  display: none;
 }
 
 /* 1. Titlebar */
@@ -301,7 +358,10 @@ html, body, #app {
 
 .activity-bar-item {
   width: var(--activitybar-width);
-  height: 50px;
+  /* Square, matching width, like .sidebar-action-btn/.editor-action-btn —
+     50px tall on a 30px-wide bar left large gaps between icons (user
+     request, 2026-09-12). */
+  height: var(--activitybar-width);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -322,7 +382,11 @@ html, body, #app {
 /* 3. Sidebar */
 .workbench-sidebar {
   width: var(--sidebar-width);
-  min-width: 260px;
+  /* Lowered from 260px toward VS Code's narrower range (user request,
+     2026-09-12). A9's Critical finding was at 170px — the title + shell's
+     4 actions (~187px incl. header padding) did not fit. 200px keeps a
+     (tighter) margin above that floor. */
+  min-width: 200px;
   background-color: var(--sidebar-bg);
   color: var(--sidebar-fg);
   display: flex;
@@ -595,7 +659,11 @@ body.is-resizing-sidebar {
  * need (.claude/rules/dockview-css.md).
  */
 .tree-indent-unit {
-  flex: 0 0 14px;
+  /* Matches the twistie's own width (18px, see .tree-twistie below) so the
+     guide line centered in this unit lines up with the twistie center of the
+     row above it, instead of sitting flush at the unit's left edge (user
+     report, 2026-09-12: guides looked biased to the left). */
+  flex: 0 0 18px;
   align-self: stretch;
   position: relative;
   pointer-events: none;
@@ -604,7 +672,7 @@ body.is-resizing-sidebar {
 .tree-indent-unit::before {
   content: "";
   position: absolute;
-  left: 0;
+  left: 9px;
   top: 0;
   bottom: 0;
   width: 1px;
@@ -616,8 +684,10 @@ body.is-resizing-sidebar {
 }
 
 .tree-row.selected {
-  background-color: var(--menu-hover-bg);
-  color: var(--menu-hover-fg);
+  /* Same inner color the editor uses to mark its active area (--tab-active-bg/
+     -fg), not the blue menu-hover accent — user request, 2026-09-12. */
+  background-color: var(--tab-active-bg);
+  color: var(--tab-active-fg);
 }
 
 /*
@@ -635,7 +705,9 @@ body.is-resizing-sidebar {
 }
 
 .tree-list:focus .tree-row.selected.focused {
-  outline: 1px solid var(--menu-hover-fg);
+  /* Same ring color the editor's active-tab-with-focus ring uses
+     (--tab-active-fg), so both areas share border AND fill color. */
+  outline: 1px solid var(--tab-active-fg);
   outline-offset: -1px;
 }
 
@@ -1183,18 +1255,82 @@ body.is-resizing-sidebar {
   display: flex;
   flex: 1 1 auto;
   height: 100%;
-  overflow: hidden;
+  /* Was overflow: hidden — dockview's own scrollLeft-driven overflow scroll
+     (this is the element it measures/scrolls) had no visible affordance at
+     all once tabs hit their floor width and the row genuinely overflowed
+     (user report, 2026-09-12: "scroll isn't shown properly"). A real,
+     themed horizontal scrollbar (FR-X11 pattern) replaces that silence. */
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+
+/* Thinner than the shared 10px scrollbar (FR-X11) — this row is pinned to
+   the common 30px chrome thickness (D-7), and a 10px bar would eat a third
+   of it. */
+.dv-tabs-and-actions-container .dv-scrollable::-webkit-scrollbar {
+  height: 5px;
+}
+
+.dv-tabs-and-actions-container .dv-scrollable::-webkit-scrollbar-track {
+  background-color: var(--scrollbar-track);
+}
+
+.dv-tabs-and-actions-container .dv-scrollable::-webkit-scrollbar-thumb {
+  background-color: var(--scrollbar-thumb);
+  border-radius: 5px;
+}
+
+.dv-tabs-and-actions-container .dv-scrollable::-webkit-scrollbar-thumb:hover {
+  background-color: var(--scrollbar-thumb-hover);
+}
+
+.dv-tabs-and-actions-container .dv-scrollable::-webkit-scrollbar-thumb:active {
+  background-color: var(--scrollbar-thumb-active);
 }
 
 .dv-tabs-container {
   display: flex;
   position: relative;
   height: 100%;
-  overflow: hidden;
+  /* Clipping now happens once, on the ancestor .dv-scrollable above — a
+     second overflow: hidden here would clip tabs before that ancestor's
+     scrollbar ever gets a chance to reveal them. */
+  overflow: visible;
+  /* The missing piece: without this, a flex item that is itself a flex
+     container defaults its automatic minimum size in a way that refused to
+     shrink below the tabs' natural widths at all here — every added tab
+     went straight past .dv-scrollable's edge into the scrollbar instead of
+     the shrink phase ever running (user report, 2026-09-12). min-width: 0
+     lets .dv-scrollable's flex actually narrow this box, which is what
+     then squeezes the .dv-tab children down toward their own 80px floor. */
+  min-width: 0;
 }
 
 .dv-tab {
-  flex-shrink: 0;
+  /* VS Code's "shrink to fit" tab sizing (user request, 2026-09-12), not
+     dockview's own vendor default of flex-shrink: 0 (.claude/rules/
+     dockview-css.md — that default came straight from the injected
+     stylesheet this CSP blocks). `flex-basis: auto` sizes each tab to its
+     OWN title as long as there is room — short titles stay short, nothing is
+     truncated just because tabs exist — capped at 240px so one very long
+     name cannot hog the whole bar. Only once the row of natural (capped)
+     widths no longer fits does flex-shrink kick in, shrinking every tab
+     together (title truncates via the existing .dv-default-tab-content
+     ellipsis rule) down to 80px. Only past that floor does dockview's own
+     scrollLeft-driven overflow scroll take over — exactly where VS Code
+     switches too. */
+  /* flex-basis: auto alone measured this tab's "natural" size through its
+     child .dv-default-tab-content, which is itself overflow: hidden (so
+     ellipsis can truncate it) — that makes its contribution to the auto
+     basis collapse toward the non-text parts (icon, close button) instead
+     of the untruncated title, so every tab landed on the 80px floor even
+     with a nearly-empty bar. width: max-content forces the basis to the
+     REAL full-title size instead; flex-shrink still applies on top of that
+     once there really isn't room. */
+  flex: 0 1 auto;
+  width: max-content;
+  max-width: 240px;
+  min-width: 80px;
   display: flex;
   align-items: center;
   height: 100%;

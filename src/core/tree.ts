@@ -91,6 +91,7 @@ export class TreeController {
   private onSelectCallbacks: ((nodes: TreeNode[]) => void)[] = [];
   private onOpenCallbacks: ((node: TreeNode) => void)[] = [];
   private onConfirmCallbacks: ((node: TreeNode) => void)[] = [];
+  private onEnterOpenCallbacks: ((node: TreeNode) => void)[] = [];
   private onOpenToSideCallbacks: ((node: TreeNode) => void)[] = [];
   private onRootChangeCallbacks: ((root: TreeNode | null) => void)[] = [];
 
@@ -194,13 +195,28 @@ export class TreeController {
   }
 
   /**
-   * The user said "keep this one" — Enter on the tree, or a double click on a
-   * file row (v0.2 FR-P4, FR-P7). Distinct from onOpen, which is just a look.
+   * The user said "keep this one" — a double click on a file/folder row
+   * (v0.2 FR-P4). Plain `Enter` no longer fires this directly (D-16) — it
+   * fires `onEnterOpen` instead, which decides preview-vs-confirm itself.
    */
   public onConfirm(cb: (node: TreeNode) => void): () => void {
     this.onConfirmCallbacks.push(cb);
     return () => {
       this.onConfirmCallbacks = this.onConfirmCallbacks.filter((c) => c !== cb);
+    };
+  }
+
+  /**
+   * Plain `Enter` on a focused tree row (v0.2 FR-P7, FR-T3, D-16). Unlike
+   * `onConfirm`, this does not by itself mean "keep this one" — the first
+   * press is browsing (preview), same as a click, and a second press on a
+   * target already sitting in the preview spot is what confirms it. The
+   * caller (main.ts) makes that call by checking current preview state.
+   */
+  public onEnterOpen(cb: (node: TreeNode) => void): () => void {
+    this.onEnterOpenCallbacks.push(cb);
+    return () => {
+      this.onEnterOpenCallbacks = this.onEnterOpenCallbacks.filter((c) => c !== cb);
     };
   }
 
@@ -663,6 +679,10 @@ export class TreeController {
     this.onConfirmCallbacks.forEach((cb) => cb(node));
   }
 
+  private emitEnterOpen(node: TreeNode): void {
+    this.onEnterOpenCallbacks.forEach((cb) => cb(node));
+  }
+
   private emitOpenToSide(node: TreeNode): void {
     this.onOpenToSideCallbacks.forEach((cb) => cb(node));
   }
@@ -743,16 +763,18 @@ export class TreeController {
       return;
     }
 
-    // Enter: confirm the focused item (v0.2 FR-P7, FR-T3).
-    // In v0.1 this meant "open in the current tab" (v0.1 FR-A6). That meaning
-    // went away with the current-tab concept itself: a pick now lands in the
-    // preview spot, so Enter is what says "keep this one" (D-2).
+    // Enter: open the focused item, preview-first (v0.2 FR-P7, FR-T3, D-16).
+    // In v0.1 this meant "open in the current tab" (v0.1 FR-A6); D-2 then
+    // made it confirm immediately. D-16 reverses that: the first press is
+    // browsing, same as a click, and a second press on the same item (now
+    // sitting in the preview spot) is what confirms it. main.ts decides
+    // which by checking current preview state before calling openItem.
     if (e.key === 'Enter' && !e.ctrlKey && !e.shiftKey && !e.altKey) {
       e.preventDefault();
       e.stopPropagation();
       const node = this.getNodeById(this.focusedId);
       if (node) {
-        this.emitConfirm(node);
+        this.emitEnterOpen(node);
       }
       return;
     }

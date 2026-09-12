@@ -89,8 +89,9 @@ const replacementRows = (table01.match(/^\| `?v0\.1 /gm) || []).length;
 // human-written — an agent does not edit it; flagged in PROGRESS.md instead,
 // see WK-080's 계획 외 entry). Pin the exact current count here so a future
 // silent row deletion is caught, instead of merely checking "still roughly
-// big enough".
-const EXPECTED_REPLACEMENT_ROWS = 22;
+// big enough". FR-P14/FR-P15 (사용자 UI 검토 중, 2026-09-12) added two more
+// rows (v0.1 FR-C1 일부, v0.1 FR-B2) after Phase 7 originally closed at 22.
+const EXPECTED_REPLACEMENT_ROWS = 24;
 assert(
   replacementRows === EXPECTED_REPLACEMENT_ROWS,
   `SPEC 0.1 replacement table lists exactly the ${EXPECTED_REPLACEMENT_ROWS} v0.1 requirements v0.2 supersedes as of Phase 7 (found ${replacementRows}) (WK-080, NFR-2)`

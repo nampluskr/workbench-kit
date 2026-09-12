@@ -74,6 +74,22 @@ export class ActivityBarController {
     }
   }
 
+  /**
+   * Swaps an item's icon in place (e.g. the titlebar/statusbar toggle's
+   * chevron direction flipping with visibility, user request 2026-09-12).
+   * Patches the rendered `<i>` directly rather than a full re-render, so a
+   * toggle press does not rebuild every button in the group.
+   */
+  public setItemIcon(id: string, iconClass: string): void {
+    const item = this.findItem(id);
+    if (!item) return;
+    item.iconClass = iconClass;
+    const btn = (this.topContainer.querySelector(`[data-item-id="${id}"]`) ||
+      this.bottomContainer.querySelector(`[data-item-id="${id}"]`)) as HTMLElement | null;
+    const iconEl = btn?.querySelector('i');
+    if (iconEl) iconEl.className = `codicon ${iconClass}`;
+  }
+
   public render(): void {
     this.renderGroup(this.topContainer, this.topItems);
     this.renderGroup(this.bottomContainer, this.bottomItems);

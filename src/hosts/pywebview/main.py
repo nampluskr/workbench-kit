@@ -143,6 +143,24 @@ class WindowApi:
         if self._window:
             request_confirmed_close(self._window)
 
+    def get_window_bounds(self):
+        if not self._window:
+            return None
+        return {
+            "x": self._window.x,
+            "y": self._window.y,
+            "width": self._window.width,
+            "height": self._window.height,
+        }
+
+    def set_window_bounds(self, x, y, width, height):
+        if not self._window:
+            return
+        width = max(200, int(width))
+        height = max(150, int(height))
+        self._window.resize(width, height)
+        self._window.move(int(x), int(y))
+
     def open_folder_dialog(self):
         if self._window:
             result = self._window.create_file_dialog(webview.FOLDER_DIALOG)

@@ -474,7 +474,9 @@ window.__runV02Phase1Suite = async function runV02Phase1Suite() {
       'ArrowRight on a file does nothing — no rows appear and no tab opens (FR-T2)'
     );
 
-    // (나) nothing open yet for this target: Enter opens it already confirmed
+    // (나) nothing open yet for this target: Enter opens it into the preview
+    // spot first, same as a click (D-16) — it does not confirm on the first
+    // press.
     editor.clear();
     await wait(80);
     tree.focusItemById(fileC);
@@ -485,11 +487,22 @@ window.__runV02Phase1Suite = async function runV02Phase1Suite() {
       editor.getPanelCount() === 1 &&
         enterPanel &&
         enterPanel.title === 'gamma.txt' &&
-        looksPreview(enterPanel.id) === false,
-      'Enter on something not open yet opens it straight into a confirmed tab (FR-P7)'
+        looksPreview(enterPanel.id) === true,
+      'Enter on something not open yet opens it into the preview spot, not confirmed yet (FR-P7, D-16)'
     );
 
-    // (가) already sitting in the preview spot: Enter confirms that tab
+    // A second Enter on the SAME still-focused item confirms it (D-16) — the
+    // pair together is the two-step FR-P7 now describes.
+    await sendTreeKey('Enter');
+    record(
+      'V2P1-FR-P7-SECOND-ENTER-CONFIRMS',
+      editor.getPanelCount() === 1 &&
+        editor.getActivePanel().id === enterPanel.id &&
+        looksPreview(enterPanel.id) === false,
+      'A second Enter on the item already sitting in the preview spot confirms that same tab (FR-P7, D-16)'
+    );
+
+    // (가) already sitting in the preview spot via a click: Enter confirms it
     editor.clear();
     await wait(80);
     await pickRow(fileA);
@@ -501,10 +514,10 @@ window.__runV02Phase1Suite = async function runV02Phase1Suite() {
       editor.getPanelCount() === 1 &&
         editor.getActivePanel().id === previewForEnter.id &&
         looksPreview(previewForEnter.id) === false,
-      'Enter on what is already in the preview spot confirms that same tab (FR-P7)'
+      'Enter on what is already in the preview spot (put there by a click) confirms that same tab (FR-P7)'
     );
 
-    // FR-T3: expansion survives the confirm
+    // FR-T3: expansion survives the two-step Enter, and applies to folders too
     editor.clear();
     await wait(80);
     tree.collapseAll();
@@ -515,11 +528,19 @@ window.__runV02Phase1Suite = async function runV02Phase1Suite() {
     await sendTreeKey('Enter');
     const folderEnterPanel = editor.getActivePanel();
     record(
-      'V2P1-FR-T3',
+      'V2P1-FR-T3-PREVIEW',
       visibleRowIds().length === rowsAfterExpand &&
         folderEnterPanel &&
+        looksPreview(folderEnterPanel.id) === true,
+      'After ArrowRight expands a folder, a first Enter opens it into the preview spot — not confirmed yet — and the expansion stays (FR-T3, D-16)'
+    );
+    await sendTreeKey('Enter');
+    record(
+      'V2P1-FR-T3',
+      visibleRowIds().length === rowsAfterExpand &&
+        editor.getActivePanel().id === folderEnterPanel.id &&
         looksPreview(folderEnterPanel.id) === false,
-      'After ArrowRight expands a folder, Enter confirms it while the expansion stays (FR-T3)'
+      'A second Enter on the same folder confirms it while the expansion stays (FR-T3, D-16)'
     );
 
     const success = results.every((r) => r.pass);

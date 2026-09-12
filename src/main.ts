@@ -1,5 +1,5 @@
 import { createWorkbenchLayout, WorkbenchLayoutElements } from './core/layout';
-import { setupWindowControls, closeWindow } from './core/window';
+import { setupWindowControls, setupResizeGrips, closeWindow } from './core/window';
 import { ConfirmDialogController } from './core/dialog';
 import { AboutDialogController } from './core/about';
 import { StatusMessageController } from './core/statusmessage';
@@ -96,6 +96,7 @@ export class WorkbenchApp {
       this.layout.windowMaxBtn,
       this.layout.windowCloseBtn
     );
+    setupResizeGrips(this.layout.root);
     this.menu = new MenuController(this.layout.menuBtn, this.layout.root);
     this.activityBar = new ActivityBarController(
       this.layout.activityBarTop,
@@ -217,9 +218,21 @@ export class WorkbenchApp {
     this.setupSidebarResize();
 
     // Bind sidebar, titlebar, statusbar, and zen toggles
+    // Titlebar/statusbar toggles also flip their Activity Bar chevron to
+    // point the opposite way once hidden (user request, 2026-09-12) —
+    // wrapped here so it happens the same way whether triggered from the
+    // menu or the Activity Bar button itself.
+    const toggleTitlebar = () => {
+      const visible = this.viewState.toggleTitlebar();
+      this.activityBar.setItemIcon('activity:toggle-titlebar', visible ? 'codicon-chevron-up' : 'codicon-chevron-down');
+    };
+    const toggleStatusbar = () => {
+      const visible = this.viewState.toggleStatusbar();
+      this.activityBar.setItemIcon('activity:toggle-statusbar', visible ? 'codicon-chevron-down' : 'codicon-chevron-up');
+    };
     this.menu.setAction('view:toggle-sidebar', () => this.viewState.toggleSidebar());
-    this.menu.setAction('view:toggle-titlebar', () => this.viewState.toggleTitlebar());
-    this.menu.setAction('view:toggle-statusbar', () => this.viewState.toggleStatusbar());
+    this.menu.setAction('view:toggle-titlebar', toggleTitlebar);
+    this.menu.setAction('view:toggle-statusbar', toggleStatusbar);
     this.menu.setAction('view:zen-mode', () => this.viewState.toggleZenMode());
     // Each row's check mark is read from the live state whenever the menu is
     // drawn, so a change made by key, title bar or Activity Bar shows the next
@@ -230,8 +243,8 @@ export class WorkbenchApp {
     this.menu.setCheckedProvider('view:toggle-statusbar', () => this.viewState.getState().statusbarVisible);
 
     this.activityBar.setAction('activity:toggle-sidebar', () => this.viewState.toggleSidebar());
-    this.activityBar.setAction('activity:toggle-titlebar', () => this.viewState.toggleTitlebar());
-    this.activityBar.setAction('activity:toggle-statusbar', () => this.viewState.toggleStatusbar());
+    this.activityBar.setAction('activity:toggle-titlebar', toggleTitlebar);
+    this.activityBar.setAction('activity:toggle-statusbar', toggleStatusbar);
 
     // Ensure menu controller state is closed when entering Zen mode (FR-F5, D-12)
     this.viewState.onZenEnter(() => this.menu.closeMenu());
@@ -339,10 +352,14 @@ export class WorkbenchApp {
       // spot, which is not necessarily the active one. Both the question and
       // the answer have to name that same panel.
       //
-      // A9 Round-3 (Major): a target that is already open is jumped to, not
-      // loaded into the preview spot, so nothing is overwritten and asking
-      // would be a false alarm whose "Discard" discards nothing.
-      const alreadyOpen = this.editor.getPanels().some((p) => p.params?.targetId === node.id);
+      // A9 Round-3 (Major): a target that is already open in THIS group is
+      // jumped to, not loaded into the preview spot, so nothing is
+      // overwritten and asking would be a false alarm whose "Discard"
+      // discards nothing. FR-P15/D-15 narrowed this to the active group —
+      // the target being open, confirmed, in some OTHER group no longer
+      // stops the active group's dirty preview from being the real target.
+      const activeGroupForCheck = this.editor.getActiveGroup();
+      const alreadyOpen = Boolean(activeGroupForCheck?.panels.some((p) => p.params?.targetId === node.id));
       const doomed = mode === 'preview' && !alreadyOpen ? this.editor.getPreviewPanel() : undefined;
       if (doomed?.params?.isDirty) {
         pendingOpen = { node, mode };
@@ -365,9 +382,18 @@ export class WorkbenchApp {
     };
 
     this.tree.onOpen((node) => openFromTree(node, 'preview'));
-    // Enter, or a double click on a file row: the user is keeping this one
-    // (v0.2 FR-P4, FR-P7, FR-T3).
+    // A double click on a file/folder row: the user is keeping this one
+    // (v0.2 FR-P4).
     this.tree.onConfirm((node) => openFromTree(node, 'pinned'));
+    // Plain Enter: preview-first, like a click, unless the focused item is
+    // already the active group's preview spot — a second Enter on the same
+    // item is what confirms it (v0.2 FR-P7, FR-T3, D-16).
+    this.tree.onEnterOpen((node) => {
+      const activeGroup = this.editor.getActiveGroup();
+      const currentPreview = activeGroup ? this.editor.getPreviewPanel(activeGroup) : undefined;
+      const alreadyPreviewing = currentPreview?.params?.targetId === node.id;
+      openFromTree(node, alreadyPreviewing ? 'pinned' : 'preview');
+    });
     this.tree.onOpenToSide((node) => {
       const activeGroup = this.editor.getActiveGroup();
       const besideGroup = activeGroup ? this.editor.findBesideGroup(activeGroup) : undefined;
@@ -524,9 +550,11 @@ export class WorkbenchApp {
     const sidebar = this.layout.sidebar;
     if (!handle || !sidebar) return;
 
-    // Wide enough for the full EXPLORER label + the 4 shell actions + room for
-    // a few app actions, at the header's padding (A13 Critical + R3 Major).
-    const MIN = 260;
+    // Wide enough for the full EXPLORER label + the 4 shell actions, at the
+    // header's padding (A13 Critical + R3 Major) — lowered from 260 toward
+    // VS Code's narrower range (user request, 2026-09-12); app actions clip
+    // first and soonest at this width, by design (.sidebar-app-actions).
+    const MIN = 200;
     const clamp = (px: number) => {
       const max = Math.max(MIN, Math.round((window.innerWidth || 1280) * 0.6));
       return Math.min(max, Math.max(MIN, px));

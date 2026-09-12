@@ -264,9 +264,21 @@ export class EditorHeaderActionsRenderer implements IHeaderActionsRenderer {
 
     newBtn?.addEventListener('click', (e) => {
       e.stopPropagation();
-      if (this.group) {
-        this.editorController.addNewTab(this.group);
+      if (!this.group) return;
+      const group = this.group;
+      // FR-P14/D-14: [+] now takes over the group's preview spot, so a dirty
+      // preview there needs the same save/discard/cancel gate a tree browse
+      // gets before it is silently overwritten (D-18). Stays synchronous in
+      // the common (no dirty preview) case.
+      const doomed = this.editorController.getPreviewPanel(group);
+      if (doomed?.params?.isDirty) {
+        void (async () => {
+          if (!(await this.editorController.confirmReplaceIfDirty(doomed))) return;
+          this.editorController.addNewTab(group);
+        })();
+        return;
       }
+      this.editorController.addNewTab(group);
     });
   }
 
@@ -509,13 +521,34 @@ export class EditorController {
   }
 
   /**
-   * Adds a new blank tab to the specified group (or active group) (FR-C1).
-   * Tab is appended at the right end and activated.
+   * Adds a new blank tab to the specified group (or active group) (FR-P14).
+   * The tab it makes is itself a preview spot, so it competes for the same
+   * one-per-group slot (FR-P10) as a tree browse: pressing [+] again while
+   * that spot still holds an untouched `Untitled` reuses it instead of piling
+   * up, and browsing elsewhere in the tree replaces it too (D-14). Callers
+   * that might overwrite a dirty preview spot must confirm first — this stays
+   * synchronous and unconditional, mirroring `openItem`.
    */
   public addNewTab(targetGroup?: DockviewGroupPanel): IDockviewPanel {
     const group = targetGroup || this.getActiveGroup() || this.api.groups[0];
-    const id = `tab-${++this.panelCounter}`;
 
+    const previewSpot = this.getPreviewPanel(group);
+    if (previewSpot) {
+      previewSpot.setTitle('Untitled');
+      previewSpot.update({
+        params: {
+          isUserCreatedEmptyTab: true,
+          targetId: null,
+          isPreview: true,
+          isDirty: false,
+        },
+      });
+      previewSpot.api.setActive();
+      this.applyPreviewClass(previewSpot);
+      return previewSpot;
+    }
+
+    const id = `tab-${++this.panelCounter}`;
     const panel = this.api.addPanel({
       id,
       component: 'editor-panel',
@@ -527,15 +560,13 @@ export class EditorController {
       params: {
         isUserCreatedEmptyTab: true,
         targetId: null,
-        // Pressing [+] is the user asking for a place to keep, so the tab it
-        // makes is confirmed, not the replaceable preview spot (FR-P10 allows
-        // only one preview per group, and this must not compete for it).
-        isPreview: false,
+        isPreview: true,
       },
     });
     this.wirePanelClose(panel);
 
     panel.api.setActive();
+    this.applyPreviewClass(panel);
     return panel;
   }
 
@@ -800,8 +831,11 @@ export class EditorController {
     const mode: EditorOpenMode = options?.mode || 'preview';
     const group = targetGroup || this.getActiveGroup() || this.api.groups[0];
 
-    // Rule FR-B2: Target is already open in any panel across workbench -> jump to it (D-5)
-    const existingPanel = this.api.panels.find((p) => p.params?.targetId === targetId);
+    // FR-P15/D-15: duplicate check is scoped to the TARGET GROUP only, not the
+    // whole workbench (narrows v0.1 FR-B2/D-5). The same target may sit open,
+    // confirmed, in another group at the same time — this deliberately does
+    // not find it there.
+    const existingPanel = group.panels.find((p) => p.params?.targetId === targetId);
     if (existingPanel) {
       if (mode === 'pinned') this.pinPanel(existingPanel);
       existingPanel.api.setActive();
@@ -970,23 +1004,19 @@ export class EditorController {
 
   /**
    * Opens an item in the beside pane (FR-A14, Ctrl+Enter, FR-I4).
-   * - First checks workbench-wide duplicate rule (FR-B2, D-5).
    * - Spatially locates adjacent group (FR-A14, D-19, FR-D6).
    * - If no horizontal neighbor exists: splits right and opens in the new pane.
    * - If adjacent group exists: opens in that beside group.
+   * The duplicate check (FR-P15/D-15) is left entirely to `openItem`, which
+   * scopes it to whichever group this resolves to — the same target may
+   * already be open, confirmed, elsewhere in the workbench, and that no
+   * longer matters here.
    */
   public openBeside(
     targetId: string,
     title?: string,
     options?: EditorOpenOptions
   ): IDockviewPanel {
-    // Rule FR-B2: If target is already open anywhere across workbench, jump to it (FR-B2, D-5)
-    const existingPanel = this.api.panels.find((p) => p.params?.targetId === targetId);
-    if (existingPanel) {
-      existingPanel.api.setActive();
-      return existingPanel;
-    }
-
     const activeGroup = this.getActiveGroup() || this.api.groups[0];
 
     // Spatially locate adjacent beside group (FR-A14, D-19)

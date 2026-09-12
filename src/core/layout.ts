@@ -91,6 +91,15 @@ export function createWorkbenchLayout(container: HTMLElement): WorkbenchLayoutEl
           <div id="statusbar-app-items" class="statusbar-app-items"></div>
         </div>
       </footer>
+
+      <div class="resize-grip resize-grip-n" data-resize-grip="top"></div>
+      <div class="resize-grip resize-grip-s" data-resize-grip="bottom"></div>
+      <div class="resize-grip resize-grip-e" data-resize-grip="right"></div>
+      <div class="resize-grip resize-grip-w" data-resize-grip="left"></div>
+      <div class="resize-grip resize-grip-nw" data-resize-grip="topleft"></div>
+      <div class="resize-grip resize-grip-ne" data-resize-grip="topright"></div>
+      <div class="resize-grip resize-grip-sw" data-resize-grip="bottomleft"></div>
+      <div class="resize-grip resize-grip-se" data-resize-grip="bottomright"></div>
     </div>
   `;
 
