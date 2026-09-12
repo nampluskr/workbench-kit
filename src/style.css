@@ -19,6 +19,17 @@
 :root {
   --font-family: system-ui, -apple-system, BlinkMacSystemFont, Roboto, Helvetica, Arial, sans-serif;
   /*
+   * dockview's tab-overflow popover sets z-index: var(--dv-overlay-z-index)
+   * inline and expects the host app to supply it (the same contract as the
+   * --dv-tab-* tokens above) — left undefined, that inline z-index computes
+   * to `auto`, so the popover ties with .dv-content-container (also
+   * position: relative, z-index: auto) and loses on DOM order: the editor's
+   * content paints over it and swallows its clicks. Not itself a `dv-*`
+   * class the CSP blocks, but the same missing-token failure shape
+   * (.claude/rules/dockview-css.md; user report, 2026-09-13).
+   */
+  --dv-overlay-z-index: 100;
+  /*
    * The one common chrome thickness (v0.2 FR-D1, D-7): title bar height,
    * status bar height, activity bar width, explorer header height and the
    * editor tab strip height are ALL this value. A single token makes FR-D1's
@@ -1445,6 +1456,37 @@ body.is-resizing-sidebar {
   display: flex;
   align-items: center;
   height: 100%;
+}
+
+/*
+ * The "›N" overflow popover lives outside the .dv-groupview >
+ * .dv-tabs-and-actions-container path that every tab colour/background rule
+ * above targets, so its cloned .dv-tab items got only the page's inherited
+ * text colour and no background at all — invisible in the dark and gray
+ * themes (.claude/rules/dockview-css.md class of bug: dockview ships this
+ * popover's real paint in the injected stylesheet this app's CSP blocks).
+ * Hand-copied here (user report, 2026-09-13).
+ */
+.dv-tabs-overflow-container {
+  background-color: var(--tab-inactive-bg);
+  border: 1px solid var(--border-color);
+  box-shadow: 0 5px 15px rgba(0, 0, 0, 0.35);
+}
+
+.dv-tabs-overflow-container .dv-tab {
+  background-color: var(--tab-inactive-bg);
+  color: var(--tab-inactive-fg);
+  border-right: none;
+  border-bottom: 1px solid var(--dv-tab-divider-color);
+}
+
+.dv-tabs-overflow-container .dv-tab:hover {
+  background-color: var(--tab-active-bg);
+  color: var(--tab-active-fg);
+}
+
+.dv-tabs-overflow-container .dv-tab .dv-default-tab-action {
+  visibility: visible;
 }
 
 .editor-group-header-actions {
