@@ -224,11 +224,11 @@ export class WorkbenchApp {
     // menu or the Activity Bar button itself.
     const toggleTitlebar = () => {
       const visible = this.viewState.toggleTitlebar();
-      this.activityBar.setItemIcon('activity:toggle-titlebar', visible ? 'codicon-chevron-up' : 'codicon-chevron-down');
+      this.activityBar.setItemIcon('activity:toggle-titlebar', visible ? 'codicon-chevron-down' : 'codicon-chevron-up');
     };
     const toggleStatusbar = () => {
       const visible = this.viewState.toggleStatusbar();
-      this.activityBar.setItemIcon('activity:toggle-statusbar', visible ? 'codicon-chevron-down' : 'codicon-chevron-up');
+      this.activityBar.setItemIcon('activity:toggle-statusbar', visible ? 'codicon-chevron-up' : 'codicon-chevron-down');
     };
     this.menu.setAction('view:toggle-sidebar', () => this.viewState.toggleSidebar());
     this.menu.setAction('view:toggle-titlebar', toggleTitlebar);

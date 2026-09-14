@@ -63,7 +63,7 @@ for (const token of forbiddenTokens) {
 // --------------------------------------------------------------------------
 console.log('\n--- 2. Verifying Theme Tokens & Contrast (Major 2, Major 3) ---');
 // Dark Modern tokens
-assert(css.includes('--menu-bg: #1f1f1f;'), 'Dark Modern specifies exact menu.background #1f1f1f');
+assert(css.includes('--menu-bg: #272727;'), 'Dark menu.background is #272727 (chrome lightened to Monokai Dimmed, user request 2026-09-14)');
 assert(css.includes('--menu-hover-bg: #0078d4;'), 'Dark Modern specifies exact menu.selectionBackground #0078d4');
 assert(css.includes('--activitybar-fg: #d7d7d7;'), 'Dark Modern specifies exact activityBar.foreground #d7d7d7');
 
@@ -80,13 +80,13 @@ assert(
   'Normal menu shortcut uses opacity: 1 and var(--menu-shortcut-fg)'
 );
 
-const darkShortcutContrast = contrastRatio('#909090', '#1f1f1f');
+const darkShortcutContrast = contrastRatio('#909090', '#272727');
 assert(darkShortcutContrast >= 4.5, `Dark menu normal shortcut contrast >= 4.5:1 (calculated: ${darkShortcutContrast.toFixed(2)}:1)`);
 
 const lightShortcutContrast = contrastRatio('#505050', '#ffffff');
 assert(lightShortcutContrast >= 4.5, `Light menu normal shortcut contrast >= 4.5:1 (calculated: ${lightShortcutContrast.toFixed(2)}:1)`);
 
-const grayShortcutContrast = contrastRatio('#111111', '#848484');
+const grayShortcutContrast = contrastRatio('#1a1a1a', '#c0c0c0');
 assert(grayShortcutContrast >= 4.5, `Gray menu normal shortcut contrast >= 4.5:1 (calculated: ${grayShortcutContrast.toFixed(2)}:1)`);
 
 const lightHoverContrast = contrastRatio('#ffffff', '#005fb8');
@@ -96,24 +96,21 @@ const darkHoverContrast = contrastRatio('#ffffff', '#0078d4');
 assert(darkHoverContrast >= 4.5, `Dark menu hover shortcut contrast >= 4.5:1 (calculated: ${darkHoverContrast.toFixed(2)}:1)`);
 
 // Gray Theme tokens & contrast
-const grayBgContrast = contrastRatio('#111111', '#848484');
-assert(grayBgContrast >= 4.5, `Gray body text on #848484 contrast >= 4.5:1 (calculated: ${grayBgContrast.toFixed(2)}:1)`);
+assert(css.includes('--editor-bg: #c0c0c0;') && css.includes('--sidebar-bg: #a6a6a6;'), 'Gray theme uses editor #c0c0c0 and chrome #a6a6a6');
 
-const grayTitlebarContrast = contrastRatio('#111111', '#7d7d7d');
-assert(grayTitlebarContrast >= 4.5, `Gray titlebar text on #7d7d7d contrast >= 4.5:1 (calculated: ${grayTitlebarContrast.toFixed(2)}:1)`);
+const grayBgContrast = contrastRatio('#1a1a1a', '#c0c0c0');
+assert(grayBgContrast >= 4.5, `Gray body text on #c0c0c0 contrast >= 4.5:1 (calculated: ${grayBgContrast.toFixed(2)}:1)`);
 
-const grayTabInactiveContrast = contrastRatio('#222222', '#7d7d7d');
-assert(grayTabInactiveContrast >= 3.0, `Gray inactive tab text on #7d7d7d contrast >= 3.0:1 (calculated: ${grayTabInactiveContrast.toFixed(2)}:1)`);
+const grayTitlebarContrast = contrastRatio('#1a1a1a', '#a6a6a6');
+assert(grayTitlebarContrast >= 4.5, `Gray titlebar text on #a6a6a6 contrast >= 4.5:1 (calculated: ${grayTitlebarContrast.toFixed(2)}:1)`);
 
-// Check interpolation ratio consistency across Gray backgrounds
-// Dark: #1f1f1f (31) / #181818 (24) / #2b2b2b (43)
-// Light: #ffffff (255) / #f8f8f8 (248) / #e5e5e5 (229)
-// Gray: #848484 (132) / #7d7d7d (125) / #7f7f7f (127)
-const tEditor = (132 - 31) / (255 - 31);
-const tChrome = (125 - 24) / (248 - 24);
-const tBorder = (127 - 43) / (229 - 43);
-assert(Math.abs(tEditor - tChrome) < 0.001, `Gray editor and chrome use identical interpolation ratio (${tEditor.toFixed(5)} vs ${tChrome.toFixed(5)})`);
-assert(Math.abs(tEditor - tBorder) < 0.005, `Gray border uses consistent interpolation ratio (${tBorder.toFixed(5)})`);
+const grayTabInactiveContrast = contrastRatio('#333333', '#a6a6a6');
+assert(grayTabInactiveContrast >= 3.0, `Gray inactive tab text on #a6a6a6 contrast >= 3.0:1 (calculated: ${grayTabInactiveContrast.toFixed(2)}:1)`);
+
+// The gray editor must stand apart from its chrome (replaces the v0.1
+// mid-gray interpolation rule, dropped by user request 2026-09-14).
+const grayAreaSeparation = contrastRatio('#c0c0c0', '#a6a6a6');
+assert(grayAreaSeparation >= 1.3, `Gray editor #c0c0c0 separates from chrome #a6a6a6 >= 1.3:1 (calculated: ${grayAreaSeparation.toFixed(2)}:1)`);
 
 // --------------------------------------------------------------------------
 // 3. Icon Resolution, Compound Extensions & Light Themes (Major 2, Major 4)

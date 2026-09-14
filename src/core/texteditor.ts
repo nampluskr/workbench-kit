@@ -52,6 +52,8 @@ export class TextEditorView {
       // Minimap off (X-12, FR-P5)
       minimap: { enabled: false },
       contextmenu: false,
+      // Matches the 5px tab-row / explorer scrollbars in style.css.
+      scrollbar: { verticalScrollbarSize: 5, horizontalScrollbarSize: 5 },
     });
 
     // Multi-cursor off (X-12, FR-P5): collapse any secondary cursor back to

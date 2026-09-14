@@ -50,26 +50,33 @@
 [data-theme="dark"] {
   --bg-color: #1f1f1f;
   --text-color: #cccccc;
-  --titlebar-bg: #181818;
-  --titlebar-fg: #cccccc;
-  --activitybar-bg: #181818;
+  /* Chrome (titlebar/activitybar/sidebar/statusbar/tabs/menu) lightened to
+     match the user's actual running VS Code theme (Monokai Dimmed), which
+     they asked to check — user request, 2026-09-14. --editor-bg and the
+     active-tab colors are unchanged on purpose (same request). */
+  --titlebar-bg: #505050;
+  --titlebar-fg: #e0e0e0;
+  --activitybar-bg: #353535;
   --activitybar-fg: #d7d7d7;
-  --sidebar-bg: #181818;
+  --sidebar-bg: #272727;
   --sidebar-fg: #cccccc;
   --editor-bg: #1f1f1f;
-  --statusbar-bg: #181818;
-  --statusbar-fg: #cccccc;
+  --statusbar-bg: #505050;
+  --statusbar-fg: #e0e0e0;
   --border-color: #2b2b2b;
   --button-hover-bg: rgba(255, 255, 255, 0.1);
-  --menu-bg: #1f1f1f;
+  --menu-bg: #272727;
   --menu-hover-bg: #0078d4;
   --menu-hover-fg: #ffffff;
   --menu-shortcut-fg: #909090;
-  --tabs-bg: #181818;
+  --tabs-bg: #282828;
   --tab-active-bg: #1f1f1f;
   --tab-active-fg: #ffffff;
-  --tab-inactive-bg: #181818;
-  --tab-inactive-fg: #909090;
+  --tab-inactive-bg: #404040;
+  --tab-inactive-fg: #b8b8b8;
+  /* Soft gray ring for the tree cursor and the focused tab: still >= 3:1 on
+     the sidebar and on the selection (FR-F11), without the old white glare. */
+  --focus-ring: #7a7a7a;
   --tree-indent-guide: rgba(255, 255, 255, 0.1);
   --scrollbar-track: rgba(255, 255, 255, 0.04);
   --scrollbar-thumb: rgba(204, 204, 204, 0.28);
@@ -97,14 +104,16 @@
 [data-theme="light"] {
   --bg-color: #ffffff;
   --text-color: #3b3b3b;
-  --titlebar-bg: #f8f8f8;
+  /* Chrome a step darker than the white editor so the two areas separate
+     (user request, 2026-09-14). */
+  --titlebar-bg: #f0f0f0;
   --titlebar-fg: #333333;
-  --activitybar-bg: #f8f8f8;
+  --activitybar-bg: #f0f0f0;
   --activitybar-fg: #1f1f1f;
-  --sidebar-bg: #f8f8f8;
+  --sidebar-bg: #f0f0f0;
   --sidebar-fg: #3b3b3b;
   --editor-bg: #ffffff;
-  --statusbar-bg: #f8f8f8;
+  --statusbar-bg: #f0f0f0;
   --statusbar-fg: #333333;
   --border-color: #e5e5e5;
   --button-hover-bg: rgba(0, 0, 0, 0.07);
@@ -112,11 +121,12 @@
   --menu-hover-bg: #005fb8;
   --menu-hover-fg: #ffffff;
   --menu-shortcut-fg: #505050;
-  --tabs-bg: #f8f8f8;
+  --tabs-bg: #f0f0f0;
   --tab-active-bg: #ffffff;
   --tab-active-fg: #333333;
-  --tab-inactive-bg: #f8f8f8;
-  --tab-inactive-fg: #868686;
+  --tab-inactive-bg: #f0f0f0;
+  --tab-inactive-fg: #6c6c6c;
+  --focus-ring: #8a8a8a;
   --tree-indent-guide: rgba(0, 0, 0, 0.15);
   --scrollbar-track: rgba(0, 0, 0, 0.03);
   --scrollbar-thumb: rgba(100, 100, 100, 0.35);
@@ -140,30 +150,33 @@
   --dv-drag-over-border-color: #005fb8;
 }
 
-/* Gray Theme (Linear interpolation t = 0.45089 between Dark and Light, L* in [54, 56]) */
+/* Gray Theme. Lighter than the old mid-gray (L* ~55) midpoint, which capped
+   even near-black text at ~5:1 and read as washed out (user request,
+   2026-09-14): text now sits at ~9.6:1 on the editor, ~7.2:1 on chrome. */
 [data-theme="gray"] {
-  --bg-color: #848484;
-  --text-color: #111111;
-  --titlebar-bg: #7d7d7d;
-  --titlebar-fg: #111111;
-  --activitybar-bg: #7d7d7d;
-  --activitybar-fg: #111111;
-  --sidebar-bg: #7d7d7d;
-  --sidebar-fg: #111111;
-  --editor-bg: #848484;
-  --statusbar-bg: #7d7d7d;
-  --statusbar-fg: #111111;
-  --border-color: #7f7f7f;
+  --bg-color: #c0c0c0;
+  --text-color: #1a1a1a;
+  --titlebar-bg: #a6a6a6;
+  --titlebar-fg: #1a1a1a;
+  --activitybar-bg: #a6a6a6;
+  --activitybar-fg: #1a1a1a;
+  --sidebar-bg: #a6a6a6;
+  --sidebar-fg: #1a1a1a;
+  --editor-bg: #c0c0c0;
+  --statusbar-bg: #a6a6a6;
+  --statusbar-fg: #1a1a1a;
+  --border-color: #9a9a9a;
   --button-hover-bg: rgba(0, 0, 0, 0.1);
-  --menu-bg: #848484;
+  --menu-bg: #c0c0c0;
   --menu-hover-bg: #5a5a5a;
   --menu-hover-fg: #ffffff;
-  --menu-shortcut-fg: #111111;
-  --tabs-bg: #7d7d7d;
-  --tab-active-bg: #848484;
-  --tab-active-fg: #111111;
-  --tab-inactive-bg: #7d7d7d;
-  --tab-inactive-fg: #222222;
+  --menu-shortcut-fg: #1a1a1a;
+  --tabs-bg: #a6a6a6;
+  --tab-active-bg: #c0c0c0;
+  --tab-active-fg: #1a1a1a;
+  --tab-inactive-bg: #a6a6a6;
+  --tab-inactive-fg: #333333;
+  --focus-ring: #505050;
   --tree-indent-guide: rgba(0, 0, 0, 0.2);
   --scrollbar-track: rgba(0, 0, 0, 0.06);
   --scrollbar-thumb: rgba(17, 17, 17, 0.30);
@@ -529,13 +542,19 @@ body.is-resizing-sidebar {
  * hover/active. So the styling is done ENTIRELY through the ::-webkit
  * pseudo-elements below, which do give rest / hover / active (A14 R3-3).
  */
-.tree-list::-webkit-scrollbar,
-.sidebar-content::-webkit-scrollbar,
-.dv-content-container::-webkit-scrollbar,
 .workbench-menu-dropdown::-webkit-scrollbar,
 .menu-submenu::-webkit-scrollbar {
   width: 10px;
   height: 10px;
+}
+
+/* Same thickness as the tab row's bar (user request, 2026-09-14); the monaco
+   editor's own bars are sized to match in texteditor.ts. */
+.tree-list::-webkit-scrollbar,
+.sidebar-content::-webkit-scrollbar,
+.dv-content-container::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
 }
 
 .tree-list::-webkit-scrollbar-track,
@@ -663,18 +682,17 @@ body.is-resizing-sidebar {
 }
 
 /*
- * One unit per ancestor depth (v0.2 FR-X8). The unit itself is the 14px
- * indent step; its ::before is the vertical guide for that level, sitting at
- * the unit's left edge = that depth's indent position (FR-X9). Structural,
+ * One unit per ancestor depth (v0.2 FR-X8). The unit itself is the 10px
+ * indent step; its ::before is the vertical guide for that level, sitting
+ * under that depth's twistie glyph (FR-X9). Structural,
  * because this app's CSP blocks the inline `style` a per-row padding would
  * need (.claude/rules/dockview-css.md).
  */
 .tree-indent-unit {
-  /* Matches the twistie's own width (18px, see .tree-twistie below) so the
-     guide line centered in this unit lines up with the twistie center of the
-     row above it, instead of sitting flush at the unit's left edge (user
-     report, 2026-09-12: guides looked biased to the left). */
-  flex: 0 0 18px;
+  /* Narrower than the 18px twistie box on purpose (user request, 2026-09-14):
+     it sets both the spacing between guide lines and the gap from a guide
+     to the next row's ">". */
+  flex: 0 0 10px;
   align-self: stretch;
   position: relative;
   pointer-events: none;
@@ -683,7 +701,10 @@ body.is-resizing-sidebar {
 .tree-indent-unit::before {
   content: "";
   position: absolute;
-  left: 9px;
+  /* Centre of the twistie glyph: codicons forces the <i> to 16px (overriding
+     .tree-twistie's font-size), and .tree-twistie has no left padding, so the
+     "v" is centred 8px in from the box edge. */
+  left: 8px;
   top: 0;
   bottom: 0;
   width: 1px;
@@ -709,16 +730,16 @@ body.is-resizing-sidebar {
  * because a ring in the selection colour would vanish into its background.
  */
 .tree-list:focus .tree-row.focused {
-  /* The text colour, not the accent: the accent sits too close to the gray
-     theme's background to read as a mark (FR-F11). */
-  outline: 1px solid var(--sidebar-fg);
+  /* A per-theme soft gray, not the accent: the accent sits too close to the
+     gray theme's background to read as a mark (FR-F11). */
+  outline: 1px solid var(--focus-ring);
   outline-offset: -1px;
 }
 
 .tree-list:focus .tree-row.selected.focused {
-  /* Same ring color the editor's active-tab-with-focus ring uses
-     (--tab-active-fg), so both areas share border AND fill color. */
-  outline: 1px solid var(--tab-active-fg);
+  /* Same ring color the editor's active-tab-with-focus ring uses, so both
+     areas share border AND fill color. */
+  outline: 1px solid var(--focus-ring);
   outline-offset: -1px;
 }
 
@@ -727,7 +748,11 @@ body.is-resizing-sidebar {
   height: 18px;
   display: flex;
   align-items: center;
-  justify-content: center;
+  /* Left-aligned so the glyph centre sits at a fixed 8px from the box edge,
+     which .tree-indent-unit::before's left relies on to put the guide
+     straight under this "v" (user request, 2026-09-14). */
+  justify-content: flex-start;
+  padding-left: 0px;
   font-size: 13px;
   flex-shrink: 0;
 }
@@ -1275,9 +1300,8 @@ body.is-resizing-sidebar {
   overflow-y: hidden;
 }
 
-/* Thinner than the shared 10px scrollbar (FR-X11) — this row is pinned to
-   the common 30px chrome thickness (D-7), and a 10px bar would eat a third
-   of it. */
+/* Thin because this row is pinned to the common 30px chrome thickness (D-7);
+   the explorer and editor bars use the same thickness. */
 .dv-tabs-and-actions-container .dv-scrollable::-webkit-scrollbar {
   height: 5px;
 }
@@ -1301,6 +1325,7 @@ body.is-resizing-sidebar {
 
 .dv-tabs-container {
   display: flex;
+  align-items: center;
   position: relative;
   height: 100%;
   /* Clipping now happens once, on the ancestor .dv-scrollable above — a
@@ -1344,8 +1369,12 @@ body.is-resizing-sidebar {
   min-width: 80px;
   display: flex;
   align-items: center;
-  height: 100%;
+  /* Same height as a tree row (.tree-row) so the active tab's fill and focus
+     ring match the explorer selection; the 30px strip (FR-D1) is unchanged
+     and centres the tab (user request, 2026-09-14). */
+  height: 22px;
   box-sizing: border-box;
+  position: relative;
   padding: 0 10px;
   cursor: pointer;
   border-right: 1px solid var(--dv-tab-divider-color);
@@ -1383,11 +1412,24 @@ body.is-resizing-sidebar {
   justify-content: center;
   border: none;
   background: none;
-  color: inherit;
+  /* The theme's soft border colour, same as the focus ring (user request,
+     2026-09-14). */
+  color: var(--focus-ring);
   font: inherit;
   cursor: pointer;
   padding: 2px;
   border-radius: 3px;
+}
+
+/* Hand copy of dockview's .dv-svg rule, which the CSP blocks
+   (.claude/rules/dockview-css.md): without it the close "X" path falls back
+   to the SVG default black fill and vanishes on the dark theme. */
+.dv-svg {
+  display: inline-block;
+  fill: currentcolor;
+  line-height: 1;
+  stroke: currentcolor;
+  stroke-width: 0;
 }
 
 .dv-tab.dv-active-tab .dv-default-tab-action {
@@ -1422,15 +1464,29 @@ body.is-resizing-sidebar {
   color: var(--dv-inactivegroup-hiddenpanel-tab-color);
 }
 
+/* Fills the gap between the 22px active tab and the bottom of the 30px strip
+   with the tab's own colour, so the tab runs straight into the editor below
+   (user request, 2026-09-14). */
+.dv-tab.dv-active-tab::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 100%;
+  height: calc((var(--area-size) - 22px) / 2);
+  background-color: inherit;
+  pointer-events: none;
+}
+
 /*
  * Every group keeps showing its active tab (the rules above); only the group
  * that holds keyboard focus adds a ring to it (v0.2 FR-F10). Keyed off
  * :focus-within, so there is at most one — only one element can hold focus.
  */
 .dv-groupview:focus-within > .dv-tabs-and-actions-container .dv-tabs-container > .dv-tab.dv-active-tab {
-  /* Same reasoning as the tree cursor ring: the active tab's own foreground
-     contrasts with its background in every theme, the accent does not. */
-  outline: 1px solid var(--tab-active-fg);
+  /* Same ring as the tree cursor: a soft gray that still reads >= 3:1 on the
+     active tab in every theme, which the accent does not. */
+  outline: 1px solid var(--focus-ring);
   outline-offset: -1px;
 }
 

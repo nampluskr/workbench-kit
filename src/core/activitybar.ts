@@ -12,12 +12,12 @@ export interface ActivityBarItem {
  * splitting stays in each group's header and in the menu.
  */
 export const DEFAULT_ACTIVITY_BAR_TOP_ITEMS: ActivityBarItem[] = [
-  { id: 'activity:toggle-titlebar', label: 'Toggle Title Bar', iconClass: 'codicon-chevron-up' },
+  { id: 'activity:toggle-titlebar', label: 'Toggle Title Bar', iconClass: 'codicon-chevron-down' },
   { id: 'activity:toggle-sidebar', label: 'Toggle Explorer', iconClass: 'codicon-files' },
 ];
 
 export const DEFAULT_ACTIVITY_BAR_BOTTOM_ITEMS: ActivityBarItem[] = [
-  { id: 'activity:toggle-statusbar', label: 'Toggle Status Bar', iconClass: 'codicon-chevron-down' },
+  { id: 'activity:toggle-statusbar', label: 'Toggle Status Bar', iconClass: 'codicon-chevron-up' },
 ];
 
 export class ActivityBarController {

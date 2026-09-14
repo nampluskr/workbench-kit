@@ -312,6 +312,9 @@ export class EditorController {
         className: 'workbench-dockview-theme',
       },
       disableFloatingGroups: true,
+      // Tab overflow is shown by the .dv-scrollable scrollbar instead; dockview's
+      // "›N" count measures .dv-tabs-container, which no longer scrolls.
+      disableTabsOverflowList: true,
       noPanelsOverlay: 'emptyGroup',
       createComponent: (options) => {
         let stats = this.panelLifecycleStats.get(options.id);
