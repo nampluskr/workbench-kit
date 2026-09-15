@@ -9,10 +9,29 @@ import 'monaco-editor/languages/definitions/javascript/register';
 // ones D-18 turns on are pulled in individually.
 import 'monaco-editor/editor/contrib/find/browser/findController';
 
+import type { ColorThemeId } from './icontheme';
+
 export interface TextViewOptions {
   value: string;
   language?: string;
   readOnly?: boolean;
+}
+
+/**
+ * Points monaco's own theme at the app's colour theme (D-19). The COLOURS do
+ * not travel this way: monaco publishes a theme's colours through a
+ * <style class="monaco-colors"> element it injects at runtime, which this
+ * app's CSP blocks — the --vscode-* block in style.css carries them instead.
+ * What this call still decides is the editor root's theme class, which
+ * monaco's bundled stylesheet scopes a handful of rules by (the find
+ * widget's dark variants). Gray takes the light base: its editor background
+ * is the light end of this app's palette.
+ *
+ * The shell owns this so an app gets a themed editor without wiring monaco
+ * itself (FR-P6).
+ */
+export function setEditorColorTheme(theme: ColorThemeId): void {
+  monaco.editor.setTheme(theme === 'dark' ? 'vs-dark' : 'vs');
 }
 
 /**

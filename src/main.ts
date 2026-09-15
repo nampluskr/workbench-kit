@@ -3,7 +3,7 @@ import { setupWindowControls, setupResizeGrips, closeWindow } from './core/windo
 import { ConfirmDialogController } from './core/dialog';
 import { AboutDialogController } from './core/about';
 import { StatusMessageController } from './core/statusmessage';
-import { TextEditorView } from './core/texteditor';
+import { TextEditorView, setEditorColorTheme } from './core/texteditor';
 import { MenuController } from './core/menu';
 import { ActivityBarController } from './core/activitybar';
 import { ViewStateManager } from './core/viewstate';
@@ -108,8 +108,13 @@ export class WorkbenchApp {
     this.iconTheme.registerResolver('seti', new SetiResolver());
     this.iconTheme.registerResolver('vscode-icons', new VscodeIconsResolver());
     this.iconTheme.registerResolver('simple', new SimpleResolver());
+    // The editor area follows the colour theme like every other area (D-11,
+    // D-19). Its colours come from style.css's --vscode-* block; this call
+    // only keeps monaco's own theme class in step — see setEditorColorTheme.
+    setEditorColorTheme(this.theme.getTheme());
     this.theme.onThemeChange((theme) => {
       this.iconTheme.setColorTheme(theme);
+      setEditorColorTheme(theme);
       // Repaint the tree's icon colours for the new theme in place (FR-X14).
       // A full re-render would drop an open inline-input row, focus and scroll
       // position (A14 R1-3), so this only touches colour. `this.tree` exists by
