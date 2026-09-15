@@ -131,6 +131,10 @@ class WindowApi:
             self._window.minimize()
 
     def maximize(self):
+        # Returned to the renderer, which flips the button's icon to match
+        # (codicon-chrome-maximize <-> codicon-chrome-restore) — pywebview's
+        # JS bridge is a request/response round-trip per call, unlike
+        # Electron's fire-and-forget IPC send (user request, 2026-09-15).
         if self._window:
             if getattr(self._window, "is_maximized", False):
                 self._window.restore()
@@ -138,6 +142,8 @@ class WindowApi:
             else:
                 self._window.maximize()
                 self._window.is_maximized = True
+            return self._window.is_maximized
+        return None
 
     def close(self):
         if self._window:

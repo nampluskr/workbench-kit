@@ -47,7 +47,13 @@ function renderIconMarkup(iconDesc: IconDescriptor): string {
     return `<span class="tree-icon seti-icon"${fg}>${iconDesc.char || ''}</span>`;
   }
   if (iconDesc.kind === 'svg') {
-    return `<span class="tree-icon svg-icon">${iconDesc.svgData || ''}</span>`;
+    // Only vscode-icons used 'svg' before (its assets carry their own fixed
+    // vendor colour, so it never needed this) — Simple's outline icons
+    // (user request, 2026-09-15) draw with stroke="currentColor"/
+    // fill="currentColor" and rely on this span's own painted colour for
+    // theme following, the same data-fg -> applyIconColors() path codicon/
+    // font already use.
+    return `<span class="tree-icon svg-icon"${fg}>${iconDesc.svgData || ''}</span>`;
   }
   return '';
 }

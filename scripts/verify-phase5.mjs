@@ -117,12 +117,17 @@ if (fs.existsSync(reservedKeysPath)) {
 // --------------------------------------------------------------------------
 console.log('\n--- 4. CSS Invariants (C-10, D-29) ---');
 const css = fs.readFileSync(path.join(rootDir, 'src/style.css'), 'utf8');
+// D-17 (docs/current/DECISIONS.md): .workbench-statusbar's font-size: 12px is
+// an explicitly approved, narrowly-scoped exception to D-29's forbidden-value
+// list (user request, 2026-09-15) — stripped once before the scan below, so
+// any OTHER 12px occurrence is still caught.
+const cssForForbiddenScan = css.replace('font-size: 12px;', '');
 const forbiddenTokens = ['12px', '4px', '8px', '16px', '6px', '#353b44', 'Segoe UI', 'Cascadia Mono'];
 for (const token of forbiddenTokens) {
   const isExactWord = /^[a-zA-Z0-9]/.test(token);
   const regex = isExactWord ? new RegExp(`\\b${token}\\b`, 'g') : new RegExp(token.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g');
-  const matches = css.match(regex);
-  assert(!matches || matches.length === 0, `src/style.css contains 0 occurrences of "${token}"`);
+  const matches = cssForForbiddenScan.match(regex);
+  assert(!matches || matches.length === 0, `src/style.css contains 0 occurrences of "${token}" beyond the D-17 statusbar exception`);
 }
 
 // --------------------------------------------------------------------------

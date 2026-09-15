@@ -9,7 +9,21 @@ export interface WindowBounds {
 
 export interface WindowControlsBridge {
   minimize: () => void;
-  maximize: () => void;
+  /**
+   * Toggles maximize/restore. pywebview's bridge call resolves to the new
+   * maximized state directly (its JS API is a request/response round-trip
+   * per call); Electron's IPC send is fire-and-forget, so its state instead
+   * arrives separately through onMaximizedChange (user request, 2026-09-15:
+   * the button icon flips between codicon-chrome-maximize/-restore).
+   */
+  maximize: () => void | boolean | Promise<boolean | null>;
+  /**
+   * Electron-only: pushes the window's real maximized state whenever it
+   * changes, from ANY cause — this button, double-clicking the draggable
+   * titlebar region, or an OS-level Snap — so the icon never drifts out of
+   * sync with the actual window.
+   */
+  onMaximizedChange?: (callback: (isMaximized: boolean) => void) => void;
   close: () => void;
   /**
    * Reads/writes the window's own bounds (user request, 2026-09-12).
@@ -53,13 +67,22 @@ export function minimizeWindow(): void {
   }
 }
 
-export function maximizeWindow(): void {
+/**
+ * Returns the new maximized state when the bridge call itself reports one
+ * (pywebview); returns null when it doesn't (Electron, where
+ * onMaximizedChange delivers the state on its own instead — see
+ * WindowControlsBridge.maximize).
+ */
+export async function maximizeWindow(): Promise<boolean | null> {
   if (window.workbenchHost?.maximize) {
-    window.workbenchHost.maximize();
+    const result = await window.workbenchHost.maximize();
+    return typeof result === 'boolean' ? result : null;
   } else if (window.pywebview?.api?.maximize) {
-    window.pywebview.api.maximize();
+    const result = await window.pywebview.api.maximize();
+    return typeof result === 'boolean' ? result : null;
   } else {
     console.log('[Window] Maximize requested (no host bridge)');
+    return null;
   }
 }
 
@@ -161,6 +184,22 @@ async function beginResize(direction: ResizeDirection, downEvent: MouseEvent): P
   document.addEventListener('mouseup', onUp);
 }
 
+/**
+ * Flips the maximize button's icon (codicon-chrome-maximize <->
+ * codicon-chrome-restore, the usual "duplicated square" restore glyph) and
+ * label to match the window's real state (user request, 2026-09-15).
+ */
+function applyMaximizedIcon(maxBtn: HTMLElement, isMaximized: boolean): void {
+  const icon = maxBtn.querySelector('i');
+  if (icon) {
+    icon.classList.toggle('codicon-chrome-maximize', !isMaximized);
+    icon.classList.toggle('codicon-chrome-restore', isMaximized);
+  }
+  const label = isMaximized ? 'Restore' : 'Maximize';
+  maxBtn.setAttribute('aria-label', label);
+  maxBtn.title = label;
+}
+
 export function setupWindowControls(minBtn: HTMLElement, maxBtn: HTMLElement, closeBtn: HTMLElement): void {
   minBtn.addEventListener('click', (e) => {
     e.stopPropagation();
@@ -168,10 +207,14 @@ export function setupWindowControls(minBtn: HTMLElement, maxBtn: HTMLElement, cl
   });
   maxBtn.addEventListener('click', (e) => {
     e.stopPropagation();
-    maximizeWindow();
+    void maximizeWindow().then((isMaximized) => {
+      if (isMaximized !== null) applyMaximizedIcon(maxBtn, isMaximized);
+    });
   });
   closeBtn.addEventListener('click', (e) => {
     e.stopPropagation();
     closeWindow();
   });
+
+  window.workbenchHost?.onMaximizedChange?.((isMaximized) => applyMaximizedIcon(maxBtn, isMaximized));
 }

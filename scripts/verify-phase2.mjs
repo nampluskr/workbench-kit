@@ -52,10 +52,17 @@ console.log('\n--- 1. Verifying Zero Tab-Explorer-Templates Values in CSS (Criti
 const cssPath = path.join(rootDir, 'src/style.css');
 const css = fs.readFileSync(cssPath, 'utf8');
 
+// D-17 (docs/current/DECISIONS.md): .workbench-statusbar's font-size: 12px is
+// an explicitly approved, narrowly-scoped exception to D-29's forbidden-value
+// list (user request, 2026-09-15) — stripped once before the scan below, so
+// any OTHER 12px occurrence is still caught.
+const STATUSBAR_FONT_SIZE_D17_EXCEPTION = 'font-size: 12px;';
+const cssForForbiddenScan = css.replace(STATUSBAR_FONT_SIZE_D17_EXCEPTION, '');
+
 const forbiddenTokens = ['12px', '4px', '8px', '16px', '6px'];
 for (const token of forbiddenTokens) {
-  const matches = css.match(new RegExp(`\\b${token}\\b`, 'g'));
-  assert(!matches || matches.length === 0, `src/style.css contains 0 occurrences of "${token}" (found: ${matches ? matches.length : 0})`);
+  const matches = cssForForbiddenScan.match(new RegExp(`\\b${token}\\b`, 'g'));
+  assert(!matches || matches.length === 0, `src/style.css contains 0 occurrences of "${token}" (found: ${matches ? matches.length : 0}) beyond the D-17 statusbar exception`);
 }
 
 // --------------------------------------------------------------------------

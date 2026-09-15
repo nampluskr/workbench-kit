@@ -240,9 +240,14 @@ console.log('[PASS] Third-party license texts and manifest are present in licens
 
 // Verify zero tab-explorer-templates tokens in src/style.css (FR-M5, C-10, D-29)
 const styleSrc = fs.readFileSync(path.join(rootDir, 'src/style.css'), 'utf8');
+// D-17 (docs/current/DECISIONS.md): .workbench-statusbar's font-size: 12px is
+// an explicitly approved, narrowly-scoped exception to D-29's forbidden-value
+// list (user request, 2026-09-15) — stripped once before the scan below, so
+// any OTHER 12px occurrence is still caught.
+const styleSrcForForbiddenScan = styleSrc.replace('font-size: 12px;', '');
 for (const val of ['12px', '4px', '8px', '16px', '6px']) {
-  const m = styleSrc.match(new RegExp(`\\b${val}\\b`, 'g'));
-  assert(!m || m.length === 0, `src/style.css contains zero occurrences of prohibited value "${val}" (FR-M5, D-29)`);
+  const m = styleSrcForForbiddenScan.match(new RegExp(`\\b${val}\\b`, 'g'));
+  assert(!m || m.length === 0, `src/style.css contains zero occurrences of prohibited value "${val}" (FR-M5, D-29) beyond the D-17 statusbar exception`);
 }
 console.log('[PASS] src/style.css contains zero tab-explorer-templates typography, spacing, or radius values (FR-M5, D-29)');
 

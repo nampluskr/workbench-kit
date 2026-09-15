@@ -354,7 +354,8 @@ window.__runV02Phase4Suite = async function runV02Phase4Suite() {
     }
 
     // ------------------------------------------------------------------------
-    // FR-M9 — Icon Theme: VS Code Built-in · VS Code Icons
+    // FR-M9 — Icon Theme: VS Code Built-in · VS Code Icons · Simple
+    // (Simple added 2026-09-15 — D-18 reverses the earlier "no Simple" line)
     // ------------------------------------------------------------------------
     {
       await app.openFolder(dirs[0]);
@@ -366,7 +367,6 @@ window.__runV02Phase4Suite = async function runV02Phase4Suite() {
       let opened = await openChild('view', 'view:icon-theme');
       const labels = opened.rows.map(labelOf);
       const listShown = visible(opened.list) && opened.rows.every(visible);
-      const menuText = dropdown() ? dropdown().textContent : '';
       const start = iconOf();
       const pick = async (label) => {
         const o = await openChild('view', 'view:icon-theme');
@@ -376,6 +376,8 @@ window.__runV02Phase4Suite = async function runV02Phase4Suite() {
       };
       await pick('VS Code Icons');
       const colored = iconOf();
+      await pick('Simple');
+      const simple = iconOf();
       opened = await openChild('view', 'view:icon-theme');
       const markedIcons = opened.rows.filter((r) => visible(r.querySelector('.menu-item-check .codicon-check'))).map(labelOf);
 
@@ -393,12 +395,12 @@ window.__runV02Phase4Suite = async function runV02Phase4Suite() {
       const back = iconOf();
       record(
         'V2P4-FR-M9',
-        JSON.stringify(labels) === JSON.stringify(['VS Code Built-in', 'VS Code Icons']) && listShown && !/Simple/.test(menuText) &&
-          Boolean(start) && Boolean(colored) && start !== colored && back === start &&
-          JSON.stringify(markedIcons) === JSON.stringify(['VS Code Icons']) &&
+        JSON.stringify(labels) === JSON.stringify(['VS Code Built-in', 'VS Code Icons', 'Simple']) && listShown &&
+          Boolean(start) && Boolean(colored) && Boolean(simple) && start !== colored && colored !== simple && back === start &&
+          JSON.stringify(markedIcons) === JSON.stringify(['Simple']) &&
           deleteDefaultPrevented === false && iconThemeUnchangedByDelete,
-        'Icon Theme lists VS Code Built-in · VS Code Icons and no Simple; choosing each redraws the tree icons, the chosen one is marked, and Delete in this submenu is left to the app (FR-M9, A12 R3) ' +
-          JSON.stringify({ labels, changed: start !== colored, restored: back === start, markedIcons, deleteDefaultPrevented })
+        'Icon Theme lists VS Code Built-in · VS Code Icons · Simple; choosing each redraws the tree icons, the chosen one is marked, and Delete in this submenu is left to the app (FR-M9, A12 R3, D-18) ' +
+          JSON.stringify({ labels, changed: start !== colored, simpleChanged: colored !== simple, restored: back === start, markedIcons, deleteDefaultPrevented })
       );
     }
 

@@ -10,7 +10,7 @@ import { ViewStateManager } from './core/viewstate';
 import { FocusAreaController } from './core/focusareas';
 import { ThemeManager, ColorTheme } from './core/theme';
 import { IconThemeManager, FileIconThemeId } from './core/icontheme';
-import { SetiResolver, VscodeIconsResolver } from './icons';
+import { SetiResolver, VscodeIconsResolver, SimpleResolver } from './icons';
 import { TreeController, TreeNode } from './core/tree';
 import { ExplorerTitlebarController } from './core/sidebar';
 import { FileSystemTreeProvider, promptOpenFolderDialog } from './providers/filesystem';
@@ -107,6 +107,7 @@ export class WorkbenchApp {
     this.iconTheme = new IconThemeManager('seti', this.theme.getTheme());
     this.iconTheme.registerResolver('seti', new SetiResolver());
     this.iconTheme.registerResolver('vscode-icons', new VscodeIconsResolver());
+    this.iconTheme.registerResolver('simple', new SimpleResolver());
     this.theme.onThemeChange((theme) => {
       this.iconTheme.setColorTheme(theme);
       // Repaint the tree's icon colours for the new theme in place (FR-X14).
@@ -292,14 +293,18 @@ export class WorkbenchApp {
     renderThemeIcon(this.theme.getTheme());
     renderZenIcon(this.viewState.isZenMode);
 
-    // View > Icon Theme: choose one of the two, still from the View menu only
-    // (v0.2 FR-M9, v0.1 FR-Q1a). Phase 7 finding: switching the theme alone
-    // only flips internal state — already-rendered tree rows keep resolving
-    // icons at render time, so without an explicit re-render the visible
-    // icons would not change until some unrelated refresh redrew the tree.
+    // View > Icon Theme: choose one of the three, still from the View menu
+    // only (v0.2 FR-M9, v0.1 FR-Q1a; Simple added 2026-09-15, reversing
+    // FR-M9's earlier "Simple does not exist" requirement — DECISIONS.md
+    // D-18). Phase 7 finding: switching the theme alone only flips internal
+    // state —
+    // already-rendered tree rows keep resolving icons at render time, so
+    // without an explicit re-render the visible icons would not change until
+    // some unrelated refresh redrew the tree.
     const iconThemes: { id: FileIconThemeId; label: string }[] = [
       { id: 'seti', label: 'VS Code Built-in' },
       { id: 'vscode-icons', label: 'VS Code Icons' },
+      { id: 'simple', label: 'Simple' },
     ];
     this.menu.setSubmenuProvider('view:icon-theme', () =>
       iconThemes.map((t) => ({

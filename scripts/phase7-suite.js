@@ -475,7 +475,28 @@ window.__runPhase7TestSuite = async function runPhase7TestSuite() {
     function iconClassForTrackedRow() {
       if (!trackedRowId) return null;
       const row = document.querySelector(`.tree-row[data-id="${CSS.escape(trackedRowId)}"] .tree-icon`);
-      return row ? row.className : null;
+      // This is an ICON-theme identity key, deliberately blind to colour —
+      // the colour axis (does the icon follow the COLOR theme) is checked
+      // separately by q2VisuallyValid's fg-vs-bg contrast below; conflating
+      // the two would make "3 icon themes x 3 colours, each icon recolours"
+      // look like 9 distinct icon themes instead of 3.
+      //
+      // className alone stopped being enough once Simple (2026-09-15, D-18)
+      // joined VS Code Icons as a second 'svg'-kind theme — both produce the
+      // identical class "tree-icon svg-icon", so outerHTML content is needed
+      // too. outerHTML (not innerHTML) because codicon/font kinds paint
+      // colour on an inner child (data-fg + style="color:…" — inside
+      // innerHTML already) while svg kinds paint it on the wrapping span
+      // itself (tree.ts renderIconMarkup) — a case innerHTML alone misses.
+      // Both colour-carrying forms are normalized away below, then Simple's
+      // own per-call-unique open-folder mask id (src/icons/simple.ts —
+      // needed so two open folders on screen don't fight over one <mask>) is
+      // normalized too, so what is left identifies the icon theme alone.
+      if (!row) return null;
+      return row.outerHTML
+        .replace(/data-fg="[^"]*"/g, 'data-fg="X"')
+        .replace(/style="color:[^"]*"/g, 'style="color:X"')
+        .replace(/simple-folder-open-mask-\d+/g, 'simple-folder-open-mask');
     }
     if (testDir) {
       const firstRowEl = document.querySelector('.tree-row');
@@ -509,19 +530,20 @@ window.__runPhase7TestSuite = async function runPhase7TestSuite() {
 
     // Round-1 adversarial finding (Critical): this used to be a bare
     // `record(id, true, ...)` — a hardcoded pass proving nothing. Actually
-    // drive all 3 color themes x 2 icon themes and check each combination
-    // renders with the state it was just set to, proving the two axes don't
-    // clobber each other.
+    // drive all 3 color themes x 3 icon themes (Simple added 2026-09-15,
+    // D-18) and check each combination renders with the state it was just
+    // set to, proving the two axes don't clobber each other.
     let q2Ok = true;
     let q2VisuallyValid = true;
     const q2Combos = [];
     const sidebarEl = document.getElementById('sidebar');
     const editorContainerEl = document.getElementById('editor-container');
+    const ICON_THEME_IDS = ['seti', 'vscode-icons', 'simple'];
     for (const colorT of ['light', 'gray', 'dark']) {
-      for (let i = 0; i < 2; i++) {
+      for (let i = 0; i < ICON_THEME_IDS.length; i++) {
         theme.setTheme(colorT);
         clickMenuRow('view', 'view:icon-theme');
-        clickMenuRow('view', i === 1 ? 'view:icon-theme:vscode-icons' : 'view:icon-theme:seti');
+        clickMenuRow('view', `view:icon-theme:${ICON_THEME_IDS[i]}`);
         await wait(20);
         const rowIcon = iconClassForTrackedRow();
         const combo = { colorT, appliedColor: document.documentElement.dataset.theme, iconClass: rowIcon };
@@ -545,15 +567,17 @@ window.__runPhase7TestSuite = async function runPhase7TestSuite() {
         }
       }
     }
-    // Restore the icon theme to its starting set (2 toggles happened above
-    // per color, i.e. an even number overall, so it's already back) and a
-    // sane color theme.
+    // The inner loop's last iteration lands on 'simple' (ICON_THEME_IDS[2]),
+    // not the starting 'seti' — explicitly put it back, plus a sane color
+    // theme.
+    clickMenuRow('view', 'view:icon-theme');
+    clickMenuRow('view', 'view:icon-theme:seti');
     theme.setTheme('dark');
     const distinctIconClasses = new Set(q2Combos.map((c) => c.iconClass)).size;
     record(
       'P7-FR-Q2',
-      Boolean(testDir) && q2Ok && distinctIconClasses === 2 && q2VisuallyValid,
-      `All 3 color themes x 2 icon-theme states rendered independently (color theme always matched what was just set, exactly 2 distinct icon-theme classes across all 6 combinations) and — in every one of the 6 combinations — the sidebar and editor never overlap and the tracked tree label's text color never equals its background (NFR-6) (FR-Q2; combos: ${JSON.stringify(q2Combos)})`
+      Boolean(testDir) && q2Ok && distinctIconClasses === 3 && q2VisuallyValid,
+      `All 3 color themes x 3 icon-theme states rendered independently (color theme always matched what was just set, exactly 3 distinct icon-theme renders across all 9 combinations) and — in every one of the 9 combinations — the sidebar and editor never overlap and the tracked tree label's text color never equals its background (NFR-6) (FR-Q2, D-18; combos: ${JSON.stringify(q2Combos)})`
     );
 
     // FR-N9's left zone (statusbarPath): now that a real folder/tree is

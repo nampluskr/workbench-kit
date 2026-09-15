@@ -908,7 +908,12 @@ body.is-resizing-sidebar {
   align-items: center;
   justify-content: space-between;
   padding: 0 10px;
-  font-size: 13px;
+  /* D-17 (docs/current/DECISIONS.md): explicit, narrowly-scoped exception to
+     D-29's forbidden-value list (user request, 2026-09-15). verify-dist.mjs
+     and verify-phase2.mjs strip exactly this declaration (matched as a
+     literal string) before their D-29 scan — do not add this same font size
+     to any other rule in this file, or the exception silently widens. */
+  font-size: 12px;
   flex-shrink: 0;
 }
 
@@ -1402,8 +1407,9 @@ body.is-resizing-sidebar {
   position: relative;
   /* Left (before the title) and right (after the close "X") both trimmed
      from 10px; right kept tighter than left since it has no divider-clearing
-     need the way the left edge does (user request, 2026-09-15). */
-  padding: 0 2px 0 3px;
+     need the way the left edge does (user request, 2026-09-15; left
+     re-adjusted to 5px, 2026-09-15). */
+  padding: 0 2px 0 5px;
   cursor: pointer;
   border-right: 1px solid var(--dv-tab-divider-color);
 }
