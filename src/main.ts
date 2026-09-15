@@ -452,6 +452,15 @@ export class WorkbenchApp {
       // checking any other kind would hammer the host bridge for targets
       // that were never meant to resolve to a path (e.g. test/demo kinds).
       if (!targetId || (kind !== FILE_KIND && kind !== FOLDER_KIND)) return;
+
+      // Editor tab selection also drives the statusbar path (user request,
+      // 2026-09-15) — same label the tree's onSelect above already writes,
+      // so switching editor tabs keeps it in sync with whichever surface
+      // (tree or editor) the user is actually looking at.
+      if (this.layout.statusbarPath) {
+        this.layout.statusbarPath.textContent = targetId;
+      }
+
       void this.fsProvider.pathExists(targetId).then((exists) => {
         if (!exists) {
           this.statusMessages.showError(`Error: target no longer exists: ${targetId}`);

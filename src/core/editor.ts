@@ -430,8 +430,10 @@ export class EditorController {
     this.api.onDidLayoutChange(() => {
       // dockview rebuilds tab elements when panels move between groups or the
       // layout is restored, which drops the class carrying preview state. Put
-      // it back before anyone reads the tab bar (FR-P9).
+      // it back before anyone reads the tab bar (FR-P9). The dirty class
+      // (user request, 2026-09-15) rides along for the same reason.
       this.refreshPreviewClasses();
+      this.refreshDirtyClasses();
       // Safety net only. A drag between groups is resolved above by confirming
       // the moved tab, so this should find nothing. It runs after the current
       // event turn so that the move handler always gets there first — run
@@ -440,6 +442,7 @@ export class EditorController {
       queueMicrotask(() => {
         this.reconcilePreviewUniqueness();
         this.refreshPreviewClasses();
+        this.refreshDirtyClasses();
       });
       this.layoutChangeListeners.forEach((cb) => cb());
     });
@@ -1200,6 +1203,29 @@ export class EditorController {
     const newTitle = dirty ? `● ${baseTitle}` : baseTitle;
     panel.setTitle(newTitle);
     panel.update({ params: { isDirty: dirty } });
+    this.applyDirtyClass(panel);
+  }
+
+  /**
+   * Mirrors a panel's dirty state onto its rendered tab (user request,
+   * 2026-09-15): the ● is the title's own first character (dockview's
+   * default tab only takes plain text, so there is no separate DOM node for
+   * it), and a preview tab's title is italic (`workbench-preview-tab`
+   * above). Without this class, `::first-letter` in style.css would have no
+   * dirty-only hook to keep the ● upright while the rest of the title stays
+   * italic.
+   */
+  private applyDirtyClass(panel: IDockviewPanel): void {
+    const el = document.querySelector(`.dv-tab[data-tab-panel-id="${panel.id}"]`);
+    if (!el) return;
+    el.classList.toggle('workbench-dirty-tab', panel.params?.isDirty === true);
+  }
+
+  /** Re-applies dirty marking to every tab, after dockview rebuilds them. */
+  private refreshDirtyClasses(): void {
+    for (const panel of this.api.panels) {
+      this.applyDirtyClass(panel);
+    }
   }
 
   /**

@@ -966,7 +966,20 @@ def main():
 
     window.events.loaded += on_loaded
 
-    webview.start()
+    # Electron persists its Chromium profile (recent folders, last folder)
+    # across launches by default. pywebview does not: webview.start() with no
+    # storage_path defaults to private_mode=True, which points WebView2's
+    # UserDataFolder at a fresh tempfile.TemporaryDirectory() every run
+    # (webview/platforms/winforms.py init_storage()), so localStorage never
+    # survives a restart and Explorer/Recent Folders always come back empty.
+    # An explicit storage_path makes pywebview use a persistent profile too,
+    # matching Electron's behavior (FR-K1).
+    storage_path = os.path.join(
+        os.environ.get("LOCALAPPDATA") or tempfile.gettempdir(),
+        "workbench-kit",
+        "pywebview",
+    )
+    webview.start(storage_path=storage_path)
 
 
 if __name__ == "__main__":

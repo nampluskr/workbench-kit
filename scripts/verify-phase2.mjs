@@ -64,12 +64,12 @@ for (const token of forbiddenTokens) {
 console.log('\n--- 2. Verifying Theme Tokens & Contrast (Major 2, Major 3) ---');
 // Dark Modern tokens
 assert(css.includes('--menu-bg: #272727;'), 'Dark menu.background is #272727 (chrome lightened to Monokai Dimmed, user request 2026-09-14)');
-assert(css.includes('--menu-hover-bg: #0078d4;'), 'Dark Modern specifies exact menu.selectionBackground #0078d4');
+assert(css.includes('--menu-hover-bg: #454545;'), 'Dark menu selection uses a neutral gray, not the VS Code blue accent (user request 2026-09-15)');
 assert(css.includes('--activitybar-fg: #d7d7d7;'), 'Dark Modern specifies exact activityBar.foreground #d7d7d7');
 
 // Light Modern tokens
 assert(css.includes('--menu-bg: #ffffff;'), 'Light Modern specifies exact menu.background #ffffff');
-assert(css.includes('--menu-hover-bg: #005fb8;'), 'Light Modern specifies exact menu.selectionBackground #005fb8');
+assert(css.includes('--menu-hover-bg: #e0e0e0;'), 'Light menu selection uses a neutral gray, not the VS Code blue accent (user request 2026-09-15)');
 assert(css.includes('--activitybar-fg: #1f1f1f;'), 'Light Modern specifies exact activityBar.foreground #1f1f1f');
 
 // Menu shortcut contrast (Major 3)
@@ -89,11 +89,27 @@ assert(lightShortcutContrast >= 4.5, `Light menu normal shortcut contrast >= 4.5
 const grayShortcutContrast = contrastRatio('#1a1a1a', '#c0c0c0');
 assert(grayShortcutContrast >= 4.5, `Gray menu normal shortcut contrast >= 4.5:1 (calculated: ${grayShortcutContrast.toFixed(2)}:1)`);
 
-const lightHoverContrast = contrastRatio('#ffffff', '#005fb8');
+const lightHoverContrast = contrastRatio('#1f1f1f', '#e0e0e0');
 assert(lightHoverContrast >= 4.5, `Light menu hover shortcut contrast >= 4.5:1 (calculated: ${lightHoverContrast.toFixed(2)}:1)`);
 
-const darkHoverContrast = contrastRatio('#ffffff', '#0078d4');
+const darkHoverContrast = contrastRatio('#ffffff', '#454545');
 assert(darkHoverContrast >= 4.5, `Dark menu hover shortcut contrast >= 4.5:1 (calculated: ${darkHoverContrast.toFixed(2)}:1)`);
+
+const grayHoverContrast = contrastRatio('#1a1a1a', '#a6a6a6');
+assert(grayHoverContrast >= 4.5, `Gray menu hover shortcut contrast >= 4.5:1 (calculated: ${grayHoverContrast.toFixed(2)}:1)`);
+
+// The hover highlight itself must still read as a distinct fill against the
+// menu's own background in each theme (not just against its own text) — a
+// weaker bar than FR-F11's tree-selection ratio (documented as already
+// sub-1.3 in some themes), since this is a solid fill, not a thin ring.
+const darkHoverVsMenuBg = contrastRatio('#454545', '#272727');
+assert(darkHoverVsMenuBg >= 1.2, `Dark menu hover fill stands off menu background >= 1.2:1 (calculated: ${darkHoverVsMenuBg.toFixed(2)}:1)`);
+
+const lightHoverVsMenuBg = contrastRatio('#e0e0e0', '#ffffff');
+assert(lightHoverVsMenuBg >= 1.2, `Light menu hover fill stands off menu background >= 1.2:1 (calculated: ${lightHoverVsMenuBg.toFixed(2)}:1)`);
+
+const grayHoverVsMenuBg = contrastRatio('#a6a6a6', '#c0c0c0');
+assert(grayHoverVsMenuBg >= 1.2, `Gray menu hover fill stands off menu background >= 1.2:1 (calculated: ${grayHoverVsMenuBg.toFixed(2)}:1)`);
 
 // Gray Theme tokens & contrast
 assert(css.includes('--editor-bg: #c0c0c0;') && css.includes('--sidebar-bg: #a6a6a6;'), 'Gray theme uses editor #c0c0c0 and chrome #a6a6a6');

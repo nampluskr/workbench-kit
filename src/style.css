@@ -66,7 +66,11 @@
   --border-color: #2b2b2b;
   --button-hover-bg: rgba(255, 255, 255, 0.1);
   --menu-bg: #272727;
-  --menu-hover-bg: #0078d4;
+  /* A soft neutral-gray highlight instead of VS Code's stock blue accent, to
+     match the rest of the chrome (already de-blued 2026-09-14) — same family
+     as --tab-inactive-bg, one step up from --menu-bg (user request,
+     2026-09-15). */
+  --menu-hover-bg: #454545;
   --menu-hover-fg: #ffffff;
   --menu-shortcut-fg: #909090;
   --tabs-bg: #282828;
@@ -118,8 +122,11 @@
   --border-color: #e5e5e5;
   --button-hover-bg: rgba(0, 0, 0, 0.07);
   --menu-bg: #ffffff;
-  --menu-hover-bg: #005fb8;
-  --menu-hover-fg: #ffffff;
+  /* Same de-blued, soft neutral-gray family as dark/gray (user request,
+     2026-09-15) — dark text since a light hover background can't carry
+     white text. */
+  --menu-hover-bg: #e0e0e0;
+  --menu-hover-fg: #1f1f1f;
   --menu-shortcut-fg: #505050;
   --tabs-bg: #f0f0f0;
   --tab-active-bg: #ffffff;
@@ -168,8 +175,12 @@
   --border-color: #9a9a9a;
   --button-hover-bg: rgba(0, 0, 0, 0.1);
   --menu-bg: #c0c0c0;
-  --menu-hover-bg: #5a5a5a;
-  --menu-hover-fg: #ffffff;
+  /* Lighter than the old #5a5a5a, which read as too heavy a highlight (user
+     request, 2026-09-15) — reuses this theme's own chrome tone
+     (--titlebar-bg) instead of a separate dark gray, same family as the
+     dark/light hovers above. */
+  --menu-hover-bg: #a6a6a6;
+  --menu-hover-fg: #1a1a1a;
   --menu-shortcut-fg: #1a1a1a;
   --tabs-bg: #a6a6a6;
   --tab-active-bg: #c0c0c0;
@@ -897,8 +908,22 @@ body.is-resizing-sidebar {
   align-items: center;
   justify-content: space-between;
   padding: 0 10px;
-  font-size: 11px;
+  font-size: 13px;
   flex-shrink: 0;
+}
+
+/*
+ * Windows' Korean-locale system-ui font (Malgun Gothic) draws the backslash
+ * codepoint (U+005C) with a won-sign (￦) glyph — a legacy code-page-949
+ * convention it keeps for compatibility. The character itself is a real "\"
+ * the whole way through (host, bridge, DOM text); only the glyph is wrong.
+ * statusbar-path and the preset-info item are the two statusbar spots that
+ * show Windows paths, so they get an explicit non-substituting font stack
+ * instead of inheriting --font-family (user report, 2026-09-15).
+ */
+.statusbar-path,
+.statusbar-app-item {
+  font-family: Consolas, 'SFMono-Regular', Menlo, monospace;
 }
 
 .statusbar-item {
@@ -1375,7 +1400,10 @@ body.is-resizing-sidebar {
   height: 22px;
   box-sizing: border-box;
   position: relative;
-  padding: 0 10px;
+  /* Left (before the title) and right (after the close "X") both trimmed
+     from 10px; right kept tighter than left since it has no divider-clearing
+     need the way the left edge does (user request, 2026-09-15). */
+  padding: 0 2px 0 3px;
   cursor: pointer;
   border-right: 1px solid var(--dv-tab-divider-color);
 }
@@ -1387,6 +1415,9 @@ body.is-resizing-sidebar {
   display: flex;
   align-items: center;
   white-space: nowrap;
+  /* Space between the title and the close "X" — widened from 2px, which cut
+     off the trailing glyph of an italic (preview) title such as "Untitled"'s
+     "d" (user request, 2026-09-15). */
   gap: 5px;
 }
 
@@ -1406,6 +1437,20 @@ body.is-resizing-sidebar {
   font-style: italic;
 }
 
+/*
+ * The dirty dot (●) is plain text prepended to the panel title — dockview's
+ * default tab only accepts a title string, no separate DOM node per
+ * character (node_modules/dockview-core DefaultTab.render() sets
+ * textContent). ::first-letter is the only way to style just that leading
+ * character apart from the rest, so it stays upright even when the title
+ * around it is italic (a dirty preview tab) — user request, 2026-09-15.
+ * Scoped to .workbench-dirty-tab (editor.ts applyDirtyClass) so a clean
+ * tab's own first title letter is never touched.
+ */
+.dv-tab.workbench-dirty-tab .dv-default-tab-content::first-letter {
+  font-style: normal;
+}
+
 .dv-tab .dv-default-tab-action {
   display: flex;
   align-items: center;
@@ -1417,7 +1462,9 @@ body.is-resizing-sidebar {
   color: var(--focus-ring);
   font: inherit;
   cursor: pointer;
-  padding: 2px;
+  /* Trimmed from 2px so the icon's own box hugs it tighter (user request,
+     2026-09-15). */
+  padding: 1px;
   border-radius: 3px;
 }
 
@@ -1488,6 +1535,20 @@ body.is-resizing-sidebar {
      active tab in every theme, which the accent does not. */
   outline: 1px solid var(--focus-ring);
   outline-offset: -1px;
+  /*
+   * Every pane but the leftmost has a dockview group-boundary separator
+   * (.dv-view:not(:first-child)::before, z-index 5) and a resize sash
+   * (.dv-sash, z-index 99) sitting exactly on its left edge — the same x
+   * position as this ring's left segment. Neither is part of a stacking
+   * context its .dv-view/.dv-groupview ancestors establish (position with
+   * z-index:auto doesn't create one), so they paint above this ring's
+   * default z-index:auto and cut off its left side in every pane except the
+   * one against the explorer (user report, 2026-09-15). Beating the sash's
+   * 99 (the higher of the two) is enough for the separator too; matching
+   * --dv-overlay-z-index (100) rather than tying the sash at 99 avoids
+   * relying on DOM paint order to break a tie.
+   */
+  z-index: 100;
 }
 
 /* The content area takes focus only so the group can show it; the ring on the
