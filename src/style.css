@@ -661,8 +661,76 @@ html, body, #app {
 }
 
 .foldertabs-tab-label {
+  flex: 1 1 auto;
   overflow: hidden;
   text-overflow: ellipsis;
+  min-width: 0;
+}
+
+/* Hidden until hover/focus, like .sidebar-action-btn's app-actions (v0.3 D-4:
+   "hover 시 x를 보이고"). Kept in the DOM (not display:none) so it stays
+   reachable by keyboard focus within the row. */
+.foldertabs-tab-close {
+  flex: 0 0 auto;
+  width: 18px;
+  height: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  color: inherit;
+  cursor: pointer;
+  border-radius: 3px;
+  font-size: 13px;
+  padding: 0;
+  margin-left: 4px;
+  opacity: 0;
+  outline: none;
+}
+
+.foldertabs-tab:hover .foldertabs-tab-close,
+.foldertabs-tab-close:focus {
+  opacity: 0.8;
+}
+
+.foldertabs-tab-close:hover {
+  opacity: 1;
+  background-color: var(--button-hover-bg);
+}
+
+/* Inline rename row (v0.3 D-4): Enter saves, Escape cancels. */
+.foldertabs-tab.renaming {
+  cursor: default;
+}
+
+.foldertabs-tab-rename-input {
+  flex: 1 1 auto;
+  min-width: 0;
+  height: 20px;
+  background-color: var(--bg-color);
+  color: var(--sidebar-fg);
+  border: 1px solid var(--focus-ring);
+  border-radius: 2px;
+  padding: 0 4px;
+  font-family: inherit;
+  font-size: inherit;
+  outline: none;
+}
+
+/* Vertical drag reorder (v0.3 D-4): a themed line shows where the tab would
+   land, drawn on the neighbouring row rather than a separate floating
+   element so it never needs its own z-index/positioning story. */
+.foldertabs-list.dragging .foldertabs-tab {
+  cursor: grabbing;
+}
+
+.foldertabs-tab.drop-before {
+  box-shadow: inset 0 2px 0 0 var(--focus-ring);
+}
+
+.foldertabs-tab.drop-after {
+  box-shadow: inset 0 -2px 0 0 var(--focus-ring);
 }
 
 /* 3. Sidebar */

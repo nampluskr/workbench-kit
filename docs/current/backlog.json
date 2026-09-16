@@ -110,7 +110,7 @@
     },
     {
       "id": "WK-088",
-      "status": "todo",
+      "status": "done",
       "priority": "P2",
       "category": "탐색기",
       "title": "탭 세로 드래그 정렬",
@@ -122,11 +122,11 @@
       "deps": [
         "WK-083"
       ],
-      "done_at": null
+      "done_at": "2026-09-16"
     },
     {
       "id": "WK-089",
-      "status": "todo",
+      "status": "done",
       "priority": "P2",
       "category": "탐색기",
       "title": "탭 hover × 닫기와 활성 이동 규칙",
@@ -138,11 +138,11 @@
       "deps": [
         "WK-083"
       ],
-      "done_at": null
+      "done_at": "2026-09-16"
     },
     {
       "id": "WK-090",
-      "status": "todo",
+      "status": "done",
       "priority": "P2",
       "category": "탐색기",
       "title": "Rename Folder Tab 인라인 편집",
@@ -154,11 +154,11 @@
       "deps": [
         "WK-083"
       ],
-      "done_at": null
+      "done_at": "2026-09-16"
     },
     {
       "id": "WK-091",
-      "status": "todo",
+      "status": "done",
       "priority": "P2",
       "category": "탐색기",
       "title": "별칭과 (N) 번호 상호작용",
@@ -171,11 +171,11 @@
         "WK-090",
         "WK-085"
       ],
-      "done_at": null
+      "done_at": "2026-09-16"
     },
     {
       "id": "WK-092",
-      "status": "todo",
+      "status": "done",
       "priority": "P2",
       "category": "탐색기",
       "title": "레일 세로 스크롤",
@@ -187,7 +187,7 @@
       "deps": [
         "WK-088"
       ],
-      "done_at": null
+      "done_at": "2026-09-16"
     },
     {
       "id": "WK-093",

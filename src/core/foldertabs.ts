@@ -63,6 +63,18 @@ export class FolderTabsController {
   private tabs: FolderTab[] = [];
   private activeId: string | null = null;
   private nextSeq = 1;
+  /** The tab whose row currently shows the inline rename input (D-4), or none. */
+  private renamingId: string | null = null;
+  /** What the input showed when rename opened — used to detect "confirmed unchanged" (A2 R1 Major finding). */
+  private renamingInitialValue: string | null = null;
+  /**
+   * The live typed value, kept outside the DOM so an incidental re-render
+   * (theme change, another tab closing, a drag elsewhere) does not silently
+   * erase what the user is mid-typing — only Enter/Escape are defined
+   * outcomes for a rename (D-4); a render() triggered by something else is
+   * not one of them (A2 R1 Minor finding).
+   */
+  private renamingDraftValue: string | null = null;
 
   private listEl: HTMLElement;
   private addBtn: HTMLButtonElement;
@@ -87,6 +99,9 @@ export class FolderTabsController {
     this.iconTheme = iconTheme;
 
     this.addBtn?.addEventListener('click', () => this.onAddRequested?.());
+    // F2 is deliberately NOT bound here (D-4) — it stays reserved for the
+    // app view, so Rename only ever starts from this header icon.
+    this.renameBtn?.addEventListener('click', () => this.beginRename());
     this.render();
   }
 
@@ -111,8 +126,10 @@ export class FolderTabsController {
   public addTab(path: string): FolderTab {
     const norm = normalizePath(path);
     const key = comparableKey(norm);
+    // Aliased tabs have already given up their slot (D-4/D-3) — they must
+    // not count as "used" here, or a freed slot would never be handed out.
     const usedSlots = new Set(
-      this.tabs.filter((t) => comparableKey(t.path) === key).map((t) => t.numberSlot)
+      this.tabs.filter((t) => !t.alias && comparableKey(t.path) === key).map((t) => t.numberSlot)
     );
     let slot = 1;
     while (usedSlots.has(slot)) slot++;
@@ -207,6 +224,200 @@ export class FolderTabsController {
     return tab.numberSlot <= 1 ? base : `${base} (${tab.numberSlot})`;
   }
 
+  /**
+   * Sets or clears a tab's display alias (D-4). A non-empty alias makes the
+   * tab give up its `(N)` slot immediately, freeing it for the next same-path
+   * tab; clearing the alias re-acquires the smallest slot free at that
+   * moment, which may differ from the one it had before (D-3's explicitly
+   * rejected alternative was "keep the old slot reserved").
+   */
+  public setAlias(id: string, alias: string | null): void {
+    const tab = this.tabs.find((t) => t.id === id);
+    if (!tab) return;
+    const trimmed = alias?.trim() || null;
+    if (trimmed) {
+      tab.alias = trimmed;
+    } else {
+      tab.alias = null;
+      const key = comparableKey(tab.path);
+      const usedSlots = new Set(
+        this.tabs
+          .filter((t) => t.id !== tab.id && !t.alias && comparableKey(t.path) === key)
+          .map((t) => t.numberSlot)
+      );
+      let slot = 1;
+      while (usedSlots.has(slot)) slot++;
+      tab.numberSlot = slot;
+    }
+    this.render();
+  }
+
+  /** Opens the inline rename row for a tab (default: the active one). Disabled with 0 active tab (D-4). */
+  public beginRename(id?: string): void {
+    const targetId = id ?? this.getActiveTab()?.id ?? null;
+    if (!targetId || !this.tabs.some((t) => t.id === targetId)) return;
+    this.renamingId = targetId;
+    this.renamingInitialValue = this.displayName(this.tabs.find((t) => t.id === targetId)!);
+    this.renamingDraftValue = null;
+    this.render();
+  }
+
+  private commitRename(id: string, value: string): void {
+    this.renamingId = null;
+    const initial = this.renamingInitialValue;
+    this.renamingInitialValue = null;
+    this.renamingDraftValue = null;
+    // Confirming the prefilled value unchanged (e.g. pressing Enter without
+    // typing anything) must not turn an auto "(N)" name into a sticky alias
+    // — that alias would release its slot, and the next same-path tab could
+    // then take the freed number and show the SAME text (A2 R1 Major
+    // finding). Treat "unchanged" as a plain close, not a new alias.
+    if (value.trim() === initial) {
+      this.render();
+      return;
+    }
+    this.setAlias(id, value);
+  }
+
+  private cancelRename(): void {
+    this.renamingId = null;
+    this.renamingInitialValue = null;
+    this.renamingDraftValue = null;
+    this.render();
+  }
+
+  /**
+   * Reorders by vertical drag (D-4). `targetIndex` is "insert before this
+   * index", in the PRE-removal array — the same index space
+   * `updateDropIndicator` computes while dragging. Removing the dragged tab
+   * first shifts every later index down by 1, so that shift is corrected
+   * here before inserting, not left for the caller to get right.
+   */
+  private reorderTab(draggedId: string, targetIndex: number): void {
+    const fromIndex = this.tabs.findIndex((t) => t.id === draggedId);
+    if (fromIndex === -1) return;
+    let insertAt = targetIndex;
+    if (fromIndex < insertAt) insertAt -= 1;
+    const [tab] = this.tabs.splice(fromIndex, 1);
+    insertAt = Math.max(0, Math.min(insertAt, this.tabs.length));
+    this.tabs.splice(insertAt, 0, tab);
+    this.render();
+  }
+
+  private dropTargetIndex: number | null = null;
+
+  /**
+   * Vertical drag reorder (D-4). Only begins an actual drag once the pointer
+   * has moved a few pixels, so a plain click still activates the tab as
+   * normal — the browser's own `click` event only fires when pointerdown and
+   * pointerup land on the same element, so a real drag never also triggers
+   * an unwanted activation on drop.
+   */
+  private beginDrag(tab: FolderTab, e: PointerEvent, row: HTMLElement): void {
+    if (e.button !== 0) return;
+    const startX = e.clientX;
+    const startY = e.clientY;
+    const pointerId = e.pointerId;
+    let dragging = false;
+    let captured = false;
+
+    const cleanup = () => {
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onUp);
+      window.removeEventListener('pointercancel', onCancel);
+      this.listEl.classList.remove('dragging');
+      this.clearDropIndicators();
+      this.dropTargetIndex = null;
+      if (captured) {
+        try {
+          row.releasePointerCapture(pointerId);
+        } catch {
+          // already released (e.g. the row was removed) — nothing to undo
+        }
+      }
+    };
+
+    const onMove = (ev: PointerEvent) => {
+      if (ev.pointerId !== pointerId) return;
+      if (!dragging && Math.hypot(ev.clientX - startX, ev.clientY - startY) > 4) {
+        dragging = true;
+        this.listEl.classList.add('dragging');
+        // Pointer capture keeps every subsequent move/up routed to this
+        // drag even if the cursor leaves the row or the window — without it
+        // a pointerup over an unrelated element (or outside the window
+        // entirely) could still land here from a stale prior drag (A2 R1
+        // Major finding: "drops anywhere in the window").
+        try {
+          row.setPointerCapture(pointerId);
+          captured = true;
+        } catch {
+          // capture unavailable — the pointerId guard above still filters events
+        }
+      }
+      if (!dragging) return;
+      this.updateDropIndicator(ev.clientX, ev.clientY, tab.id);
+    };
+    const onUp = (ev: PointerEvent) => {
+      if (ev.pointerId !== pointerId) return;
+      const shouldCommit = dragging && this.dropTargetIndex !== null;
+      const targetIndex = this.dropTargetIndex;
+      cleanup();
+      if (shouldCommit && targetIndex !== null) {
+        this.reorderTab(tab.id, targetIndex);
+      }
+    };
+    // A cancelled pointer (touch scroll took over, capture was lost, …)
+    // must discard the drag WITHOUT reordering — only pointerup commits
+    // (A2 R1 Major finding: an uncleared pointercancel left the rail armed
+    // for a later, unrelated pointerup to commit a stale drop target).
+    const onCancel = (ev: PointerEvent) => {
+      if (ev.pointerId !== pointerId) return;
+      cleanup();
+    };
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', onUp);
+    window.addEventListener('pointercancel', onCancel);
+  }
+
+  private clearDropIndicators(): void {
+    Array.from(this.listEl.children).forEach((el) => {
+      el.classList.remove('drop-before', 'drop-after');
+    });
+  }
+
+  /**
+   * Shows where the dragged tab would land and records that index for drop.
+   * A pointer outside the rail's own box clears the indicator and the drop
+   * target — dropping over the Explorer or the editor must not reorder
+   * anything (A2 R1 Major finding).
+   */
+  private updateDropIndicator(clientX: number, clientY: number, draggedId: string): void {
+    this.clearDropIndicators();
+    const railRect = this.listEl.getBoundingClientRect();
+    if (clientX < railRect.left || clientX > railRect.right || clientY < railRect.top || clientY > railRect.bottom) {
+      this.dropTargetIndex = null;
+      return;
+    }
+
+    const rows = Array.from(this.listEl.children) as HTMLElement[];
+    for (const row of rows) {
+      if (row.getAttribute('data-id') === draggedId) continue;
+      const rect = row.getBoundingClientRect();
+      if (clientY < rect.top + rect.height / 2) {
+        row.classList.add('drop-before');
+        this.dropTargetIndex = this.tabs.findIndex((t) => t.id === row.getAttribute('data-id'));
+        return;
+      }
+    }
+    // Below every other row — insert at the end ("before" the one-past-last
+    // position, same pre-removal index space `reorderTab` expects).
+    this.dropTargetIndex = this.tabs.length;
+    const lastRow = rows[rows.length - 1];
+    if (lastRow && lastRow.getAttribute('data-id') !== draggedId) {
+      lastRow.classList.add('drop-after');
+    }
+  }
+
   private render(): void {
     if (!this.listEl) return;
     this.listEl.innerHTML = '';
@@ -221,17 +432,102 @@ export class FolderTabsController {
       row.tabIndex = 0;
 
       const icon = this.iconTheme.resolveIcon(folderNameOf(tab.path), true);
-      row.innerHTML =
-        renderIconMarkup(icon) +
-        `<span class="foldertabs-tab-label">${escapeHtml(this.displayName(tab))}</span>`;
+      const iconMarkup = renderIconMarkup(icon);
 
-      row.addEventListener('click', () => this.activateTab(tab.id));
+      if (tab.id === this.renamingId) {
+        row.classList.add('renaming');
+        row.innerHTML = iconMarkup;
+        const input = document.createElement('input');
+        input.type = 'text';
+        input.className = 'foldertabs-tab-rename-input';
+        // A re-render an incidental cause triggered (theme change, another
+        // tab closing, …) restores the DRAFT the user was typing, not the
+        // original prefill — see renamingDraftValue's doc comment.
+        input.value = this.renamingDraftValue ?? this.displayName(tab);
+        input.setAttribute('aria-label', `Rename ${this.displayName(tab)}`);
+        input.addEventListener('input', () => {
+          this.renamingDraftValue = input.value;
+        });
+        input.addEventListener('click', (e) => e.stopPropagation());
+        input.addEventListener('pointerdown', (e) => e.stopPropagation());
+        input.addEventListener('keydown', (e) => {
+          if (e.key === 'Enter') {
+            e.preventDefault();
+            this.commitRename(tab.id, input.value);
+          } else if (e.key === 'Escape') {
+            e.preventDefault();
+            this.cancelRename();
+          }
+        });
+        row.appendChild(input);
+
+        // The close (×) control stays reachable even while renaming (D-4's
+        // "hover 시 ×를 보이고" has no exception for this state — A2 R1
+        // Minor finding). Drag stays off: starting a row-level drag from
+        // inside a focused text input almost always means the user meant to
+        // select/move the caret, not reorder tabs.
+        const closeBtnRenaming = document.createElement('button');
+        closeBtnRenaming.type = 'button';
+        closeBtnRenaming.className = 'foldertabs-tab-close';
+        closeBtnRenaming.title = 'Close';
+        closeBtnRenaming.setAttribute('aria-label', `Close ${this.displayName(tab)}`);
+        closeBtnRenaming.innerHTML = '<i class="codicon codicon-close"></i>';
+        closeBtnRenaming.addEventListener('pointerdown', (e) => e.stopPropagation());
+        // Without this, Enter/Space on the focused × bubbles to the row's own
+        // keydown handler and ACTIVATES the tab instead of closing it — the
+        // button's native click still fires (stopPropagation only blocks
+        // bubbling, not the target's own default action) (A2 R2 Major finding).
+        closeBtnRenaming.addEventListener('keydown', (e) => e.stopPropagation());
+        closeBtnRenaming.addEventListener('click', (e) => {
+          e.stopPropagation();
+          this.renamingId = null;
+          this.renamingInitialValue = null;
+          this.renamingDraftValue = null;
+          this.removeTab(tab.id);
+        });
+        row.appendChild(closeBtnRenaming);
+
+        this.listEl.appendChild(row);
+        // Focus after it is actually in the document (v0.2 FR-X-style
+        // pattern already used elsewhere for inline input rows). Restoring a
+        // draft does not fight the user for the caret since it only happens
+        // on a re-render they didn't type into just now.
+        requestAnimationFrame(() => {
+          input.focus();
+          if (this.renamingDraftValue === null) input.select();
+        });
+        continue;
+      }
+
+      row.innerHTML =
+        iconMarkup +
+        `<span class="foldertabs-tab-label">${escapeHtml(this.displayName(tab))}</span>` +
+        `<button type="button" class="foldertabs-tab-close" title="Close" aria-label="Close ${escapeHtml(this.displayName(tab))}"><i class="codicon codicon-close"></i></button>`;
+
+      row.addEventListener('click', () => {
+        // A click on a different tab while another is mid-rename cancels
+        // that rename first (D-4 only defines Enter/Escape as outcomes —
+        // this is the 3rd way a rename ends, by moving away from it).
+        if (this.renamingId && this.renamingId !== tab.id) this.cancelRename();
+        this.activateTab(tab.id);
+      });
       row.addEventListener('keydown', (e) => {
         if (e.key === 'Enter' || e.key === ' ') {
           e.preventDefault();
           this.activateTab(tab.id);
         }
       });
+
+      const closeBtn = row.querySelector<HTMLButtonElement>('.foldertabs-tab-close');
+      closeBtn?.addEventListener('click', (e) => {
+        e.stopPropagation();
+        this.removeTab(tab.id);
+      });
+      closeBtn?.addEventListener('pointerdown', (e) => e.stopPropagation());
+      // Same fix as the renaming-row close button above (A2 R2 Major finding).
+      closeBtn?.addEventListener('keydown', (e) => e.stopPropagation());
+
+      row.addEventListener('pointerdown', (e) => this.beginDrag(tab, e, row));
 
       this.listEl.appendChild(row);
     }

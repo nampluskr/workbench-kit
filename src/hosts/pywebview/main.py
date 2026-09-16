@@ -30,6 +30,7 @@ is_v02_phase5_test = "--v02-phase5-test" in sys.argv
 is_v02_phase6_test = "--v02-phase6-test" in sys.argv
 is_v02_phase7_test = "--v02-phase7-test" in sys.argv
 is_v03_phase1_test = "--v03-phase1-test" in sys.argv
+is_v03_phase2_test = "--v03-phase2-test" in sys.argv
 loaded_called = False
 
 INSPECTION_EXPRESSION = """
@@ -782,6 +783,65 @@ def main():
                     os._exit(1)
 
             t = threading.Thread(target=run_v03_phase1, daemon=True)
+            t.start()
+            return
+
+        if is_v03_phase2_test:
+            def run_v03_phase2():
+                # 3 real, distinct folders: close/reorder need at least 3 to
+                # prove "the one below" vs "the one above" unambiguously.
+                dir1 = tempfile.mkdtemp(prefix="wb-v03p2-fixture-")
+                dir2 = tempfile.mkdtemp(prefix="wb-v03p2-fixture2-")
+                dir3 = tempfile.mkdtemp(prefix="wb-v03p2-fixture3-")
+                try:
+                    for d in (dir1, dir2, dir3):
+                        with open(os.path.join(d, "alpha.txt"), "w", encoding="utf-8") as f:
+                            f.write("alpha")
+
+                    time.sleep(0.3)
+                    suite_path = os.path.join(root_dir, "scripts", "v03-phase2-suite.js")
+                    with open(suite_path, "r", encoding="utf-8") as f:
+                        suite_code = f.read()
+                    window.evaluate_js("window.__testTmpDir = " + json.dumps(dir1) + ";")
+                    window.evaluate_js("window.__testTmpDir2 = " + json.dumps(dir2) + ";")
+                    window.evaluate_js("window.__testTmpDir3 = " + json.dumps(dir3) + ";")
+                    window.evaluate_js(suite_code)
+                    window.evaluate_js("""
+                        (async () => {
+                            try {
+                                const res = await window.__runV03Phase2Suite();
+                                window.__v03Phase2Results = JSON.stringify(res);
+                            } catch (e) {
+                                window.__v03Phase2Results = JSON.stringify({ success: false, results: [{ id: 'RUNNER_ERR', pass: false, msg: String(e) }] });
+                            }
+                        })();
+                    """)
+                    for _ in range(300):
+                        time.sleep(0.1)
+                        res = window.evaluate_js("window.__v03Phase2Results")
+                        if res:
+                            sys.stdout.write(f"[pywebview] v0.3 Phase 2 Results: {res}\n")
+                            sys.stdout.flush()
+                            window.destroy()
+                            for d in (dir1, dir2, dir3):
+                                shutil.rmtree(d, ignore_errors=True)
+                            os._exit(0)
+                            return
+                    sys.stderr.write("[pywebview] Error: v0.3 Phase 2 test timed out waiting for results\n")
+                    sys.stderr.flush()
+                    window.destroy()
+                    for d in (dir1, dir2, dir3):
+                        shutil.rmtree(d, ignore_errors=True)
+                    os._exit(1)
+                except Exception as e:
+                    sys.stderr.write(f"[pywebview] Error executing v0.3 Phase 2 test: {e}\n")
+                    sys.stderr.flush()
+                    window.destroy()
+                    for d in (dir1, dir2, dir3):
+                        shutil.rmtree(d, ignore_errors=True)
+                    os._exit(1)
+
+            t = threading.Thread(target=run_v03_phase2, daemon=True)
             t.start()
             return
 

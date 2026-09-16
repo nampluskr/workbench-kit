@@ -123,9 +123,10 @@ export class WorkbenchApp {
       // the time any theme change can fire.
       this.tree?.refreshThemeColors();
       // Folder tabs re-resolve their icon colour from the same iconTheme, and
-      // the active-tab accent reads theme tokens too (v0.3 D-1). The rail has
-      // no inline-input row yet (that arrives with Phase 2 rename), so a full
-      // re-render is safe here, unlike the tree's colour-only path above.
+      // the active-tab accent reads theme tokens too (v0.3 D-1). Phase 2's
+      // rename DOES have an inline-input row now — refresh() preserves a
+      // draft the user is mid-typing (FolderTabsController.renamingDraftValue),
+      // the same guard the tree's colour-only path avoids the full rebuild for.
       this.folderTabs?.refresh();
     });
 
@@ -180,6 +181,20 @@ export class WorkbenchApp {
       // activation this triggers, instead of returning before the Explorer
       // root has actually resolved (A1 R2 Minor finding).
       this.lastActivationPromise = this.activateFolderTab(tab);
+    });
+    // Closing the last folder tab returns the Explorer to its pre-open empty
+    // state (v0.3 D-4, WK-089) — the same shape `closeFolder()` produces.
+    this.folderTabs.onEmpty(() => {
+      this.currentFolderRequestId++;
+      this.tree.clearRoot();
+      if (this.layout.statusbarPath) {
+        this.layout.statusbarPath.textContent = '';
+      }
+      // Invalidating currentFolderRequestId makes an in-flight
+      // activateFolderTab() return before its own stopProgress() call —
+      // without this, closing a tab whose folder was still loading left
+      // "Opening folder: …" showing forever (A2 R1 Major finding).
+      this.statusMessages.stopProgress();
     });
 
     this.loadRecentFolders();
@@ -730,6 +745,10 @@ export class WorkbenchApp {
     if (this.layout.statusbarPath) {
       this.layout.statusbarPath.textContent = '';
     }
+    // Same fix as the onEmpty() handler above — a folder still loading when
+    // this fires would otherwise leave "Opening folder: …" stuck forever
+    // (A2 R1 Major finding, same root cause).
+    this.statusMessages.stopProgress();
     // Without this the folder tab that had been active stayed visually
     // active while pointing at an empty Explorer, and clicking it again did
     // nothing (activateTab() treats "already active" as a no-op) — A1 R1

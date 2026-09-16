@@ -3,9 +3,6 @@ const path = require('path');
 const fs = require('fs');
 const os = require('os');
 
-// Same fs:read-dir handler as src/hosts/electron/main.cjs — duplicated here
-// because this runner is a standalone Electron main process that never
-// requires main.cjs (which would also create its own window).
 ipcMain.handle('fs:read-dir', async (_e, dirPath) => {
   try {
     const entries = await fs.promises.readdir(dirPath, { withFileTypes: true });
@@ -31,11 +28,11 @@ ipcMain.handle('fs:read-dir', async (_e, dirPath) => {
 app.commandLine.appendSwitch('disable-gpu');
 app.commandLine.appendSwitch('no-sandbox');
 app.commandLine.appendSwitch('disable-dev-shm-usage');
-app.setPath('userData', path.join(os.tmpdir(), 'wb-v03p1-userdata-' + Math.random().toString(36).slice(2)));
+app.setPath('userData', path.join(os.tmpdir(), 'wb-v03p2-userdata-' + Math.random().toString(36).slice(2)));
 
 const rootDir = path.resolve(__dirname, '..');
 const distIndexPath = path.join(rootDir, 'dist', 'index.html');
-const suitePath = path.join(__dirname, 'v03-phase1-suite.js');
+const suitePath = path.join(__dirname, 'v03-phase2-suite.js');
 
 let failureCount = 0;
 
@@ -51,20 +48,17 @@ function assert(condition, message) {
 function makeFixture(prefix) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), prefix));
   fs.writeFileSync(path.join(dir, 'alpha.txt'), 'alpha');
-  fs.mkdirSync(path.join(dir, 'sub'));
-  fs.writeFileSync(path.join(dir, 'sub', 'inner.txt'), 'inner');
   return dir;
 }
 
 app.whenReady().then(async () => {
-  const fixtureDir = makeFixture('wb-v03p1-fixture-');
-  const fixtureDir2 = makeFixture('wb-v03p1-fixture2-');
+  const fixtureDir = makeFixture('wb-v03p2-fixture-');
+  const fixtureDir2 = makeFixture('wb-v03p2-fixture2-');
+  const fixtureDir3 = makeFixture('wb-v03p2-fixture3-');
 
   const win = new BrowserWindow({
     width: 1280,
     height: 800,
-    // Must actually paint: dockview/monaco commit input via
-    // requestAnimationFrame, which never fires in a hidden/throttled renderer.
     show: true,
     webPreferences: {
       preload: path.join(rootDir, 'src/hosts/electron/preload.cjs'),
@@ -75,8 +69,6 @@ app.whenReady().then(async () => {
     },
   });
 
-  // Only the native picker's return value is stubbed; the menu -> handler ->
-  // IPC -> host chain stays real (same pattern as phase6/7 runners).
   ipcMain.handle('dialog:open-folder', async () => {
     return win.webContents.executeJavaScript('window.__nextDialogPath ?? null');
   });
@@ -98,11 +90,12 @@ app.whenReady().then(async () => {
     const testResult = await win.webContents.executeJavaScript(`
       window.__testTmpDir = ${JSON.stringify(fixtureDir)};
       window.__testTmpDir2 = ${JSON.stringify(fixtureDir2)};
+      window.__testTmpDir3 = ${JSON.stringify(fixtureDir3)};
       ${suiteCode}
-      window.__runV03Phase1Suite();
+      window.__runV03Phase2Suite();
     `);
-    console.log('[electron] v0.3 Phase 1 Results: ' + JSON.stringify(testResult));
-    assert(testResult && testResult.success === true, 'All v0.3 Phase 1 Electron assertions passed');
+    console.log('[electron] v0.3 Phase 2 Results: ' + JSON.stringify(testResult));
+    assert(testResult && testResult.success === true, 'All v0.3 Phase 2 Electron assertions passed');
   } catch (err) {
     console.error(`[FAIL] Error executing in-browser tests: ${err.message}`);
     failureCount++;
@@ -110,6 +103,7 @@ app.whenReady().then(async () => {
     win.destroy();
     fs.rmSync(fixtureDir, { recursive: true, force: true });
     fs.rmSync(fixtureDir2, { recursive: true, force: true });
+    fs.rmSync(fixtureDir3, { recursive: true, force: true });
     if (failureCount > 0) {
       app.exit(1);
     } else {
@@ -117,11 +111,9 @@ app.whenReady().then(async () => {
     }
   }
 }).catch((err) => {
-  // Without this, a failure BEFORE the inner try (fixture creation,
-  // BrowserWindow setup, loadFile) left Electron running with nothing to
-  // exit it — the orchestrator then hung until its own 240s timeout instead
-  // of failing fast (A2 R2 Major finding, found via a runner that hit this
-  // exact path during review).
+  // Same fix as the Phase 1 runner (A2 R2 Major finding) — a failure before
+  // the inner try (fixture creation, BrowserWindow setup, loadFile) left
+  // Electron running with nothing to exit it.
   console.error(`[FAIL] Electron runner setup failed: ${err && err.stack ? err.stack : err}`);
   app.exit(1);
 });
