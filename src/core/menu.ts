@@ -60,6 +60,12 @@ export const DEFAULT_VIEW_ITEMS: readonly MenuItem[] = Object.freeze([
   Object.freeze({ id: 'view:toggle-titlebar', label: 'Show Title Bar' }),
   Object.freeze({ id: 'view:toggle-statusbar', label: 'Show Status Bar' }),
   separator('view:separator-layout'),
+  // Mutually exclusive radio pair (v0.3 D-7) — each row's checked provider
+  // reflects the SAME underlying mode, so picking one always unchecks the
+  // other. No shortcut, matching D-2's "새 전역 단축키는 필요하지 않다" precedent.
+  Object.freeze({ id: 'view:editor-mode-shared', label: 'Shared Editor' }),
+  Object.freeze({ id: 'view:editor-mode-workspace', label: 'Folder Workspace' }),
+  separator('view:separator-editor-mode'),
   Object.freeze({ id: 'view:preset-info', label: 'Preset Info' }),
 ]);
 

@@ -384,7 +384,7 @@
     },
     {
       "id": "WK-105",
-      "status": "todo",
+      "status": "done",
       "priority": "P6",
       "category": "껍데기",
       "title": "View 메뉴 Shared Editor·Folder Workspace 라디오",
@@ -396,11 +396,11 @@
       "deps": [
         "WK-083"
       ],
-      "done_at": null
+      "done_at": "2026-09-16"
     },
     {
       "id": "WK-106",
-      "status": "todo",
+      "status": "done",
       "priority": "P6",
       "category": "편집",
       "title": "Shared Editor 모드 동작",
@@ -412,11 +412,11 @@
       "deps": [
         "WK-105"
       ],
-      "done_at": null
+      "done_at": "2026-09-16"
     },
     {
       "id": "WK-107",
-      "status": "todo",
+      "status": "done",
       "priority": "P6",
       "category": "편집",
       "title": "Folder Workspace 모드 동작",
@@ -428,11 +428,11 @@
       "deps": [
         "WK-105"
       ],
-      "done_at": null
+      "done_at": "2026-09-16"
     },
     {
       "id": "WK-108",
-      "status": "todo",
+      "status": "done",
       "priority": "P6",
       "category": "편집",
       "title": "모드 전환 중 에디터 상태 보존",
@@ -445,11 +445,11 @@
         "WK-106",
         "WK-107"
       ],
-      "done_at": null
+      "done_at": "2026-09-16"
     },
     {
       "id": "WK-109",
-      "status": "todo",
+      "status": "done",
       "priority": "P6",
       "category": "편집",
       "title": "Folder Workspace 상태는 실행 중에만 유지",
@@ -462,11 +462,11 @@
         "WK-108",
         "WK-101"
       ],
-      "done_at": null
+      "done_at": "2026-09-16"
     },
     {
       "id": "WK-110",
-      "status": "todo",
+      "status": "done",
       "priority": "P6",
       "category": "검증",
       "title": "두 갈래 전건 대조와 회귀 0건 확인",
@@ -479,7 +479,7 @@
         "WK-109",
         "WK-104"
       ],
-      "done_at": null
+      "done_at": "2026-09-16"
     }
   ]
 }

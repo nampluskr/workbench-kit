@@ -1,3 +1,5 @@
+import fs from 'fs';
+import os from 'os';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { execSync } from 'child_process';
@@ -46,10 +48,31 @@ const REQUIRED_V03_PHASE3_ASSERTIONS = Object.freeze([
   'V3P3-EXISTING-TOGGLES-STILL-WORK',
 ]);
 
-function runHost(label, command, resultMarker) {
+/**
+ * A just-exited WebView2/Chromium process can hold its profile files open
+ * for a moment after the process itself has quit — plain rmSync throws
+ * EBUSY in that window. maxRetries/retryDelay (Node's built-in Windows
+ * EBUSY/ENOTEMPTY retry) rides that out instead of crashing the verifier.
+ */
+function rmSyncRetrying(target) {
+  try {
+    fs.rmSync(target, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 });
+  } catch (err) {
+    console.error(`[FAIL] Could not clean up ${target}: ${err.message}`);
+    failures++;
+  }
+}
+
+function runHost(label, command, resultMarker, extraEnv) {
   let output = '';
   try {
-    output = execSync(command, { cwd: rootDir, encoding: 'utf8', stdio: 'pipe', timeout: 240000 });
+    output = execSync(command, {
+      cwd: rootDir,
+      encoding: 'utf8',
+      stdio: 'pipe',
+      timeout: 240000,
+      env: { ...process.env, ...(extraEnv || {}) },
+    });
   } catch (err) {
     output = `${err.stdout || ''}${err.stderr || ''}`;
     console.error(`[FAIL] ${label} runner exited non-zero`);
@@ -81,11 +104,18 @@ const electron = runHost(
   'npx.cmd electron scripts/v03-phase3-electron-runner.cjs',
   '[electron] v0.3 Phase 3 Results:'
 );
+// An ISOLATED, fresh storage_path — not the default shared profile — so a
+// previous run's cached HTTP response (now that pywebview genuinely
+// persists across launches: private_mode=False, v0.3 Phase 4 fix) cannot
+// serve a stale build's JS to this run and produce a false pass/fail.
+const pyStorage = fs.mkdtempSync(path.join(os.tmpdir(), 'wb-v03p3-py-'));
 const pywebview = runHost(
   'pywebview',
   '"C:\\winpython\\WPy64-31180_cpu\\python-3.11.8.amd64\\python.exe" -m src.hosts.pywebview.main --v03-phase3-test',
-  '[pywebview] v0.3 Phase 3 Results:'
+  '[pywebview] v0.3 Phase 3 Results:',
+  { WB_STORAGE_PATH_OVERRIDE: pyStorage }
 );
+rmSyncRetrying(pyStorage);
 
 for (const [label, result] of [['Electron', electron], ['pywebview', pywebview]]) {
   if (!result) continue;

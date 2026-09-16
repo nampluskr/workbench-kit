@@ -11,21 +11,44 @@ import { TextEditorView } from '../core/texteditor';
 export const FILE_KIND = 'file';
 
 export function registerFilePreset(registry: ResourceKindRegistry): void {
-  registry.register(FILE_KIND, (targetId) => {
-    const view = new TextEditorView({
-      value: `// File preset view: ${targetId}\n`,
-      language: 'javascript',
-    });
+  registry.register(FILE_KIND, (targetId, { params, updateParams }) => {
+    // `params.value`/`params.savedValue`, when present, are this panel's own
+    // current buffer and its last-saved baseline as of the last edit/save
+    // (written below via updateParams) — carried here through dockview's own
+    // params, which is the only thing `toJSON()`/`fromJSON()` serialize
+    // (v0.3 D-7/D-8, WK-108). Without this a Folder Workspace mode/folder
+    // switch would rebuild this panel from scratch and always show the
+    // placeholder again, discarding whatever had been typed. Both fields are
+    // needed, not just `value`: a restored view that treats its own (still
+    // unsaved) restored content as ALSO its saved baseline would silently
+    // stop being dirty the moment an edit happened to return to that exact
+    // text (round-2 adversarial review, Critical #2).
+    const placeholder = `// File preset view: ${targetId}\n`;
+    const initialValue = typeof params.value === 'string' ? params.value : placeholder;
+    const initialSavedValue = typeof params.savedValue === 'string' ? params.savedValue : initialValue;
+    const view = new TextEditorView({ value: initialValue, savedValue: initialSavedValue, language: 'javascript' });
+    const pushContentParams = () => updateParams({ value: view.getValue(), savedValue: view.getSavedValue() });
+    const unsubscribeContent = view.onDidChangeContent(pushContentParams);
     return {
       element: view.element,
-      dispose: () => view.dispose(),
+      dispose: () => {
+        unsubscribeContent();
+        view.dispose();
+      },
       onDirtyChange: (cb) => view.onDidChangeDirty(cb),
       // Placeholder "save" (INTENT 7): no real file I/O, just marks the
-      // current content as the saved baseline (FR-P7, FR-L3).
+      // current content as the saved baseline (FR-P7, FR-L3) — and pushes
+      // that new baseline into params too, or a later restore would still
+      // treat the pre-save text as the saved baseline.
       save: () => {
         view.markSaved();
+        pushContentParams();
         return true;
       },
+      getContentForTest: () => view.getValue(),
+      appendContentForTest: (text) => view.appendTextForTest(text),
+      undoForTest: () => view.triggerCommand('undo'),
+      isDirtyForTest: () => view.isDirty(),
     };
   });
 }

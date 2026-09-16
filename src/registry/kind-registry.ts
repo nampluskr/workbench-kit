@@ -5,13 +5,53 @@ import type { EditorComponentFactory, EditorController } from '../core/editor';
 // about resource kinds; the shell it plugs into never imports it (FR-I1,
 // NFR-1, INTENT 3, D-4).
 
-export type KindRendererFactory = (targetId: string) => {
+export interface KindRendererContext {
+  /**
+   * This panel's own dockview params, as of creation/re-dispatch. A preset
+   * that round-trips through `EditorController.getApi().toJSON()`/
+   * `fromJSON()` (v0.3 D-7/D-8, Folder Workspace mode) reads its own
+   * previously-written fields back out of here — dockview's serialization
+   * only ever carries `params`, nothing else, so any state a preset wants to
+   * survive that round-trip has to live here, written via `updateParams`.
+   */
+  params: Record<string, unknown>;
+  /**
+   * Merges `patch` into this panel's own dockview params (survives
+   * `toJSON()`/`fromJSON()`). Kind-agnostic — it is just dockview panel
+   * params — so this does not violate the common-core resource-kind rule;
+   * only presets (this file's callers) decide what goes in `patch`.
+   */
+  updateParams: (patch: Record<string, unknown>) => void;
+}
+
+/**
+ * `targetId` stays the first, positional argument — not folded into `ctx` —
+ * because `KindRendererFactory` is a public extension contract (FR-I1: any
+ * kind registers with zero core changes) that pre-dates `ctx`. A kind
+ * registered the old way, as `(targetId) => {...}`, must keep working
+ * unmodified; JS callers that only take one parameter simply never see the
+ * second one. Folding `targetId` into `ctx` broke exactly that (round-1
+ * adversarial review follow-up: v0.1 Phase 5/6/7's own FR-I1 test kinds,
+ * which register `(targetId) => {...}` and use `targetId` as a plain string
+ * key, silently received the whole `ctx` object instead once this shipped
+ * as a single-argument change — `dirtySetters.get(targetId)` no longer found
+ * anything, since the map had been keyed by object identity, not the id).
+ */
+export type KindRendererFactory = (targetId: string, ctx: KindRendererContext) => {
   element: HTMLElement;
   dispose?: () => void;
   /** Optional: report changed/saved state for the ● indicator (FR-L1, FR-P7). */
   onDirtyChange?: (cb: (dirty: boolean) => void) => () => void;
   /** Optional: what "Save" does for this view. Returns whether it succeeded (FR-L3, FR-P7). */
   save?: () => Promise<boolean> | boolean;
+  /** Test-support only: reads this view's current live content, when it has any. */
+  getContentForTest?: () => string;
+  /** Test-support only: drives a real content edit, when this view has any. */
+  appendContentForTest?: (text: string) => void;
+  /** Test-support only: drives a real undo through this view's own undo stack, when it has one. */
+  undoForTest?: () => void;
+  /** Test-support only: this view's own live dirty computation, independent of the panel's serialized `params.isDirty`. */
+  isDirtyForTest?: () => boolean;
 };
 
 /**
@@ -23,6 +63,23 @@ export type KindRendererFactory = (targetId: string) => {
 export class ResourceKindRegistry {
   private factories = new Map<string, KindRendererFactory>();
   private saveables = new Map<string, () => Promise<boolean> | boolean>();
+  /** Test-support only: the live inner view per panel, so a test script can drive/read real content without reaching into dockview internals. */
+  private innerForTest = new Map<string, ReturnType<KindRendererFactory>>();
+
+  /** Test-support only. */
+  public getInnerForTest(panelId: string): ReturnType<KindRendererFactory> | undefined {
+    return this.innerForTest.get(panelId);
+  }
+
+  /** Test-support only. */
+  public setInnerForTest(panelId: string, inner: ReturnType<KindRendererFactory>): void {
+    this.innerForTest.set(panelId, inner);
+  }
+
+  /** Test-support only. */
+  public deleteInnerForTest(panelId: string): void {
+    this.innerForTest.delete(panelId);
+  }
 
   public register(kind: string, factory: KindRendererFactory): void {
     this.factories.set(kind, factory);
@@ -108,6 +165,7 @@ class KindDispatchRenderer implements IContentRenderer {
     this.unsubscribeDirty = null;
     if (this.panelId) {
       this.registry.unregisterSaveable(this.panelId);
+      this.registry.deleteInnerForTest(this.panelId);
     }
     this.inner?.dispose?.();
     this.inner = null;
@@ -123,8 +181,18 @@ class KindDispatchRenderer implements IContentRenderer {
       return;
     }
 
-    this.inner = factory(targetId);
+    const panelId = this.panelId;
+    this.inner = factory(targetId, {
+      params: this.params,
+      updateParams: (patch) => {
+        if (!panelId) return;
+        this.controller.getApi().getPanel(panelId)?.update({ params: patch });
+      },
+    });
     this.element.appendChild(this.inner.element);
+    if (panelId) {
+      this.registry.setInnerForTest(panelId, this.inner);
+    }
 
     if (this.inner.onDirtyChange && this.panelId) {
       const panelId = this.panelId;
@@ -142,6 +210,7 @@ class KindDispatchRenderer implements IContentRenderer {
     this.unsubscribeDirty = null;
     if (this.panelId) {
       this.registry.unregisterSaveable(this.panelId);
+      this.registry.deleteInnerForTest(this.panelId);
     }
     this.inner?.dispose?.();
     this.inner = null;

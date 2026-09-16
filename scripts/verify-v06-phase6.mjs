@@ -8,7 +8,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const rootDir = path.resolve(__dirname, '..');
 
-console.log('=== workbench-kit: v0.3 Phase 5 (사라진 경로의 오류 상태) Verification ===');
+console.log('=== workbench-kit: v0.3 Phase 6 (에디터 전환 모드) Verification ===');
 let failures = 0;
 
 function assert(condition, msg) {
@@ -20,28 +20,34 @@ function assert(condition, msg) {
   }
 }
 
-const REQUIRED_V05_PHASE5_ASSERTIONS = Object.freeze([
-  'V5P5-FIXTURE',
-  'V5P5-DEAD-TAB-NOT-REMOVED',
-  'V5P5-DEAD-TAB-HAS-ERROR',
-  'V5P5-DEAD-ROW-ERROR-CLASS',
-  'V5P5-DEAD-ROW-WARNING-ICON',
-  'V5P5-DEAD-ROW-TITLE-IS-ERROR',
-  'V5P5-EXPLORER-EMPTY-ON-ERROR',
-  'V5P5-OTHER-TABS-STILL-WORK',
-  'V5P5-RELOCATE-BTN-EXISTS',
-  'V5P5-RELOCATE-SAME-TAB-ID',
-  'V5P5-RELOCATE-CLEARS-ERROR',
-  'V5P5-RELOCATE-LOADS-NEW-PATH',
-  'V5P5-RELOCATE-ROW-CLEARS-ERROR-CLASS',
-  'V5P5-INACTIVE-B-HAS-ERROR-BEFORE-RELOCATE',
-  'V5P5-RELOCATE-INACTIVE-SYNCS-RAIL',
-  'V5P5-RELOCATE-INACTIVE-SYNCS-EXPLORER',
-  'V5P5-RELOCATE-INACTIVE-ONE-ACTIVE-ROW',
-  'V5P5-RELOCATE-TO-ANOTHER-DEAD-PATH-STILL-ERRORS',
-  'V5P5-CLOSE-ERROR-TAB',
-  'V5P5-NO-FILESYSTEM-MUTATION',
-  'V5P5-RESTORE-CLEARS-STALE-ERROR',
+const REQUIRED_V06_PHASE6_ASSERTIONS = Object.freeze([
+  'V6P6-FIXTURE',
+  'V6P6-MODE-STARTS-SHARED',
+  'V6P6-MENU-ROWS-EXIST',
+  'V6P6-SHARED-CHECKED-INITIALLY',
+  'V6P6-NO-SHORTCUT',
+  'V6P6-SHARED-EDITOR-UNCHANGED-ON-SWITCH',
+  'V6P6-SHARED-EDITOR-SAME-ACROSS-BOTH-TABS',
+  'V6P6-MODE-SWITCH-TO-WORKSPACE',
+  'V6P6-FIRST-WORKSPACE-SEEDED-FROM-SHARED',
+  'V6P6-NEW-WORKSPACE-TAB-STARTS-EMPTY',
+  'V6P6-WORKSPACE-B-HAS-SPLIT',
+  'V6P6-SWITCH-RESTORES-A-WORKSPACE',
+  'V6P6-SWITCH-RESTORES-B-SPLIT-LAYOUT',
+  'V6P6-SWITCH-BACK-TO-SHARED-RESTORES-SHARED-STATE',
+  'V6P6-WORKSPACE-NOT-PERSISTED',
+  'V6P6-FILE-CONTENT-DIRTY-BEFORE-SWITCH',
+  'V6P6-FILE-CONTENT-SURVIVES-MODE-SWITCH',
+  'V6P6-FILE-DIRTY-BASELINE-SURVIVES-MODE-SWITCH',
+  'V6P6-FILE-DIRTY-BASELINE-SURVIVES-EDIT-UNDO-CYCLE',
+  'V6P6-QUIT-SETUP-DIRTY-IN-A',
+  'V6P6-QUIT-B-WORKSPACE-CLEAN',
+  'V6P6-QUIT-DETECTS-HIDDEN-DIRTY-WORKSPACE',
+  'V6P6-QUIT-SAVE-CHOICE-ACTUALLY-SAVES',
+  'V6P6-QUIT-DISCARD-CHOICE-PROCEEDS-WITHOUT-SAVING',
+  'V6P6-RACE-SETUP-STILL-MID-LOAD',
+  'V6P6-MODE-SWITCH-DURING-LOAD-DOES-NOT-CORRUPT-TARGET',
+  'V6P6-MODE-SWITCH-DURING-LOAD-ATTRIBUTES-TO-SOURCE',
 ]);
 
 /**
@@ -95,31 +101,31 @@ function runHost(label, command, resultMarker, extraEnv) {
 
 const electron = runHost(
   'Electron',
-  'npx.cmd electron scripts/v05-phase5-electron-runner.cjs',
-  '[electron] v0.3 Phase 5 Results:'
+  'npx.cmd electron scripts/v06-phase6-electron-runner.cjs',
+  '[electron] v0.3 Phase 6 Results:'
 );
 // An ISOLATED, fresh storage_path — not the default shared profile — so a
 // previous run's cached HTTP response (now that pywebview genuinely
 // persists across launches: private_mode=False, v0.3 Phase 4 fix) cannot
 // serve a stale build's JS to this run and produce a false pass/fail.
-const pyStorage = fs.mkdtempSync(path.join(os.tmpdir(), 'wb-v05p5-py-'));
+const pyStorage = fs.mkdtempSync(path.join(os.tmpdir(), 'wb-v06p6-py-'));
 const pywebview = runHost(
   'pywebview',
-  '"C:\\winpython\\WPy64-31180_cpu\\python-3.11.8.amd64\\python.exe" -m src.hosts.pywebview.main --v05-phase5-test',
-  '[pywebview] v0.3 Phase 5 Results:',
+  '"C:\\winpython\\WPy64-31180_cpu\\python-3.11.8.amd64\\python.exe" -m src.hosts.pywebview.main --v06-phase6-test',
+  '[pywebview] v0.3 Phase 6 Results:',
   { WB_STORAGE_PATH_OVERRIDE: pyStorage }
 );
 rmSyncRetrying(pyStorage);
 
 for (const [label, result] of [['Electron', electron], ['pywebview', pywebview]]) {
   if (!result) continue;
-  assert(result.success === true, `${label}: all v0.3 Phase 5 assertions passed`);
+  assert(result.success === true, `${label}: all v0.3 Phase 6 assertions passed`);
   const ids = result.results.map((r) => r.id);
   assert(
-    ids.length === REQUIRED_V05_PHASE5_ASSERTIONS.length,
-    `${label}: executed exactly ${REQUIRED_V05_PHASE5_ASSERTIONS.length} assertions (got ${ids.length})`
+    ids.length === REQUIRED_V06_PHASE6_ASSERTIONS.length,
+    `${label}: executed exactly ${REQUIRED_V06_PHASE6_ASSERTIONS.length} assertions (got ${ids.length})`
   );
-  for (const required of REQUIRED_V05_PHASE5_ASSERTIONS) {
+  for (const required of REQUIRED_V06_PHASE6_ASSERTIONS) {
     const row = result.results.find((r) => r.id === required);
     assert(Boolean(row), `${label}: assertion ${required} was executed`);
     if (row) assert(row.pass === true, `${label}: ${required} — ${row.msg}`);
@@ -142,7 +148,7 @@ if (electron && pywebview) {
 }
 
 if (failures > 0) {
-  console.error(`\nFAILED: ${failures} v0.3 Phase 5 check(s) failed.`);
+  console.error(`\nFAILED: ${failures} v0.3 Phase 6 check(s) failed.`);
   process.exit(1);
 }
-console.log('\nSUCCESS: All v0.3 Phase 5 quality checks passed (0 failures).');
+console.log('\nSUCCESS: All v0.3 Phase 6 quality checks passed (0 failures).');

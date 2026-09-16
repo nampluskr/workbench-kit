@@ -37,6 +37,7 @@ is_v04_phase4_single_test = "--v04-phase4-single-test" in sys.argv
 is_v04_phase4_launch1_test = "--v04-phase4-launch1-test" in sys.argv
 is_v04_phase4_launch2_test = "--v04-phase4-launch2-test" in sys.argv
 is_v05_phase5_test = "--v05-phase5-test" in sys.argv
+is_v06_phase6_test = "--v06-phase6-test" in sys.argv
 loaded_called = False
 
 INSPECTION_EXPRESSION = """
@@ -101,7 +102,7 @@ def request_confirmed_close(window):
                 (async () => {
                     try {
                         const ok = window.__workbenchApp
-                            ? await window.__workbenchApp.editor.confirmQuit()
+                            ? await window.__workbenchApp.confirmQuit()
                             : true;
                         window.__closeConfirmResult = ok ? 'yes' : 'no';
                     } catch (e) {
@@ -1128,6 +1129,62 @@ def main():
                     os._exit(1)
 
             t = threading.Thread(target=run_v05_phase5, daemon=True)
+            t.start()
+            return
+
+        if is_v06_phase6_test:
+            def run_v06_phase6():
+                dir1 = tempfile.mkdtemp(prefix="wb-v06p6-fixture-")
+                dir2 = tempfile.mkdtemp(prefix="wb-v06p6-fixture2-")
+                try:
+                    with open(os.path.join(dir1, "alpha.txt"), "w", encoding="utf-8") as f:
+                        f.write("alpha")
+                    with open(os.path.join(dir2, "alpha.txt"), "w", encoding="utf-8") as f:
+                        f.write("alpha")
+
+                    time.sleep(0.3)
+                    suite_path = os.path.join(root_dir, "scripts", "v06-phase6-suite.js")
+                    with open(suite_path, "r", encoding="utf-8") as f:
+                        suite_code = f.read()
+                    window.evaluate_js("window.__testTmpDir = " + json.dumps(dir1) + ";")
+                    window.evaluate_js("window.__testTmpDir2 = " + json.dumps(dir2) + ";")
+                    window.evaluate_js(suite_code)
+                    window.evaluate_js("""
+                        (async () => {
+                            try {
+                                const res = await window.__runV06Phase6Suite();
+                                window.__v06Phase6Results = JSON.stringify(res);
+                            } catch (e) {
+                                window.__v06Phase6Results = JSON.stringify({ success: false, results: [{ id: 'RUNNER_ERR', pass: false, msg: String(e) }] });
+                            }
+                        })();
+                    """)
+                    for _ in range(300):
+                        time.sleep(0.1)
+                        res = window.evaluate_js("window.__v06Phase6Results")
+                        if res:
+                            sys.stdout.write(f"[pywebview] v0.3 Phase 6 Results: {res}\n")
+                            sys.stdout.flush()
+                            window.destroy()
+                            shutil.rmtree(dir1, ignore_errors=True)
+                            shutil.rmtree(dir2, ignore_errors=True)
+                            os._exit(0)
+                            return
+                    sys.stderr.write("[pywebview] Error: v0.3 Phase 6 test timed out waiting for results\n")
+                    sys.stderr.flush()
+                    window.destroy()
+                    shutil.rmtree(dir1, ignore_errors=True)
+                    shutil.rmtree(dir2, ignore_errors=True)
+                    os._exit(1)
+                except Exception as e:
+                    sys.stderr.write(f"[pywebview] Error executing v0.3 Phase 6 test: {e}\n")
+                    sys.stderr.flush()
+                    window.destroy()
+                    shutil.rmtree(dir1, ignore_errors=True)
+                    shutil.rmtree(dir2, ignore_errors=True)
+                    os._exit(1)
+
+            t = threading.Thread(target=run_v06_phase6, daemon=True)
             t.start()
             return
 

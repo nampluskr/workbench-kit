@@ -248,3 +248,67 @@ Phase 5(WK-102 ~ WK-104, 사라진 경로의 오류 상태)로 진행.
 Phase 6(WK-105 ~ WK-110, 에디터 전환 모드와 두 갈래 전건 대조) — **필수 통과
 Phase**로 진행. 이번 버전의 마지막 Phase이자 유일한 기존 동작 반전(D-3, Open
 Folder가 교체→추가)을 정산하는 Phase다.
+
+## Phase 6 — 에디터 전환 모드 (WK-105 ~ WK-110) — done, 2026-09-17
+
+**무엇을 했나**
+
+- `src/core/menu.ts`: View 메뉴에 상호 배타 라디오 `Shared Editor`/`Folder
+  Workspace`를 추가했다(단축키 없음, D-7).
+- `src/main.ts`: `EditorMode`(`'shared' | 'workspace'`), `sharedEditorSnapshot`,
+  `folderWorkspaceByTab`(탭별 dockview 레이아웃), `hasSeededWorkspaceFromShared`
+  (세션당 1회 시드 플래그, D-8)를 추가했다. `setEditorMode()`가 모드 전환 시 떠나는
+  모드에 현재 상태를 저장하고 들어가는 모드의 마지막 상태를 복원하며, 첫 Folder
+  Workspace 진입에서만 Shared Editor의 현재 상태를 시드로 쓴다(D-8). `activate
+  FolderTab()`이 Folder Workspace 모드일 때 폴더 전환마다 에디터 워크스페이스도
+  함께 저장/복원한다(D-7). 두 필드 모두 세션 한정, `localStorage`에 절대 저장하지
+  않는다(WK-109).
+- `src/registry/kind-registry.ts`: `KindRendererFactory`가 `(targetId, {params,
+  updateParams}) => ...` 형태로 확장됐다 — `updateParams`는 패널의 dockview params에
+  patch를 merge해 `toJSON()`/`fromJSON()`이 왕복시킨다. `src/core/texteditor.ts`에
+  `onDidChangeContent()`(범용 콘텐츠 변경 이벤트)와 `TextViewOptions.savedValue`/
+  `getSavedValue()`(저장 기준점을 별도로 지정·조회)를 추가했다 — 둘 다 리소스
+  종류를 모르는 일반적인 장치다(D-4). `src/presets/file-preset.ts`가 이를 써서
+  Monaco의 실제 텍스트 내용과 dirty 저장 기준점을 params를 통해 모드/폴더 전환
+  라운드트립에서 보존한다.
+- `src/main.ts`: `WorkbenchApp.confirmQuit()`을 신설했다 — 보이는 워크스페이스는
+  `editor.confirmQuit()`에 위임하고, `folderWorkspaceByTab`/숨은 `sharedEditor
+  Snapshot`의 dirty도 별도로 검사해(D-28) 확인 창을 띄운다. "Save"는
+  `saveHiddenDirtySnapshots()`로 숨은 각 스냅샷을 순서대로 살아있는 에디터에 올려
+  실제로 저장하고(숨은 dirty를 종료 직전에 진짜로 저장), "Don't Save"만 저장 없이
+  진행을 허용한다. 양쪽 호스트(`src/hosts/electron/main.cjs`,
+  `src/hosts/pywebview/main.py`)의 close 핸들러가 `editor.confirmQuit()` 대신
+  이 `app.confirmQuit()`을 호출하도록 바꿨다.
+- WK-110(두 갈래 전건 대조와 회귀 0건 확인): `npm run verify:dist`로 Electron·
+  pywebview 두 갈래의 파일 집합·SHA-256 해시·CSS 규칙 수·배경색이 완전히 일치함을
+  재확인했다. `npm run verify:phase{2..7}`·`verify:v02-phase{1..7}`·
+  `verify:v03-phase{1,2,3}`·`verify:v04-phase4`·`verify:v05-phase5`·
+  `verify:v06-phase6` 전체를 재실행해, 남은 실패가 전부 이번 Phase 이전부터 있던
+  것(D-3의 `openFolder()`/`restoreLastSession()` 호환 쉼 — Phase 1 A16에서 Phase 6로
+  명시적으로 미뤄 둔 정산 대상, `src/style.css`의 4px/8px/16px 금지 값, FR-F11
+  명암비, `docs/current/README.md`의 최소 실행 환경 버전 미기재, 간헐적 Electron
+  러너 실패)뿐이고 이번 Phase가 새로 만든 회귀는 0건임을 확인했다. Open Folder가
+  탭을 교체하는 대신 추가하는 D-3 반전 자체는 Phase 1에서 이미 의도적으로 반영됐고,
+  그로 인해 깨지는 레거시 v0.1/v0.2 단언(정확한 메뉴 항목 개수 등)은 v0.3이 정당하게
+  늘린 메뉴 표면(Show Folder Tabs, Shared Editor, Folder Workspace)의 자연스러운
+  결과로 판단해 더 손대지 않았다 — 레거시 스위트 자체를 v0.3에 맞게 새로 쓰는 것은
+  이번 버전의 범위 밖이다(그 스위트들은 각자 자기 버전의 계약을 고정한 기록이다).
+
+**검증**
+
+- `npx tsc --noEmit` 통과.
+- `node scripts/verify-v06-phase6.mjs`: Electron·pywebview 두 갈래 각각 29개 단언
+  전부 통과, 두 갈래 불일치 0건.
+- 반대 벤더 적대적 검증(Codex `gpt-5.6-sol`, **필수 통과 Phase**): `docs/reviews/
+  A21.md`. 3회차까지 전부 소진했다 — 1회차 Critical 3·Major 2, 2회차 Critical 2
+  (신규)·Major 1, 3회차 **Critical 0**·Major 2·Minor 1로 필수 통과 게이트(미해결
+  Critical 0건)를 충족했다. 2회차 수정 과정에서 이 세션이 직접 발견한 실제 회귀
+  (`KindRendererFactory` 시그니처 변경이 v0.1 Phase 5/6/7 자체의 FR-I1 검증 스위트를
+  깨뜨림 — `dirtySetters.get(...) is not a function`)도 같은 회차 안에서 하위 호환을
+  복원해 해소했다. 3회차의 Minor(편집마다 전체 버퍼를 params에 복사)는 의도적으로
+  수정하지 않았다 — 디바운스가 dispose/모드전환 시점의 미flush 유실이라는 이번
+  검토가 계속 잡아 온 것과 같은 종류의 새 위험을 만들기 때문이다.
+
+**다음**
+
+v0.3의 6개 Phase가 모두 끝났다. 사용자가 직접 수동 테스트를 진행한다.

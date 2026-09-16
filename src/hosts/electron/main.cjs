@@ -158,7 +158,7 @@ function createWindow() {
     if (allowClose) return;
     event.preventDefault();
     win.webContents
-      .executeJavaScript('window.__workbenchApp ? window.__workbenchApp.editor.confirmQuit() : true')
+      .executeJavaScript('window.__workbenchApp ? window.__workbenchApp.confirmQuit() : true')
       .then((ok) => {
         if (ok) {
           allowClose = true;

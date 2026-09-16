@@ -15,7 +15,8 @@ import { TreeController, TreeNode } from './core/tree';
 import { FolderTabsController, FolderTab } from './core/foldertabs';
 import { ExplorerTitlebarController } from './core/sidebar';
 import { FileSystemTreeProvider, promptOpenFolderDialog } from './providers/filesystem';
-import { EditorController, EditorOpenMode } from './core/editor';
+import { EditorController, EditorOpenMode, snapshotHasDirtyPanels } from './core/editor';
+import type { SerializedDockview } from 'dockview-core';
 import { ContextMenuController, ContextMenuItem } from './core/contextmenu';
 import { ResourceKindRegistry } from './registry/kind-registry';
 import { registerFilePreset, FILE_KIND } from './presets/file-preset';
@@ -55,6 +56,13 @@ interface ExplorerState {
   focusedId: string | null;
   scrollTop: number;
 }
+
+/**
+ * How a folder-tab switch affects the editor (v0.3 D-7).
+ * - `shared`: one editor layout, independent of the active folder tab.
+ * - `workspace`: each folder tab keeps its own editor tabs/split/active tab.
+ */
+type EditorMode = 'shared' | 'workspace';
 
 /**
  * Everything a real app-extension author is meant to use (FR-I1 ~ FR-I11,
@@ -224,6 +232,11 @@ export class WorkbenchApp {
       // without this, closing a tab whose folder was still loading left
       // "Opening folder: …" showing forever (A2 R1 Major finding).
       this.statusMessages.stopProgress();
+      // No folder tab left to have a workspace — Folder Workspace mode has
+      // nothing to show either (v0.3 D-7).
+      if (this.editorMode === 'workspace') {
+        this.editor.clear();
+      }
     });
     // Drop a closed tab's saved Explorer state immediately — otherwise it
     // stays in the map forever and can leak onto a later, unrelated tab
@@ -231,6 +244,13 @@ export class WorkbenchApp {
     // finding).
     this.folderTabs.onRemove((id) => {
       this.explorerStateByTab.delete(id);
+      // Same reasoning, same bug class, for Folder Workspace's per-tab
+      // editor layouts (v0.3 D-7) — never persisted so there is no
+      // localStorage-shaped version of the A4 R1 finding to repeat, but a
+      // closed tab's id being reused within THIS session (nextSeq only
+      // increases, so unlikely but not the point — the map entry is simply
+      // stale data with no owner) would still be wrong to hand to a new tab.
+      this.folderWorkspaceByTab.delete(id);
       // Closing the ACTIVE tab leaves `activeFolderTabId` pointing at the
       // just-deleted id until activateFolderTab() for its replacement
       // finishes (that happens later, asynchronously, via the
@@ -346,6 +366,12 @@ export class WorkbenchApp {
     this.menu.setCheckedProvider('view:toggle-statusbar', () => this.viewState.getState().statusbarVisible);
     // The Activity Bar icon and this row watch the same state (v0.3 D-2).
     this.menu.setCheckedProvider('view:toggle-foldertabs', () => this.viewState.getState().folderTabsVisible);
+
+    // Shared Editor / Folder Workspace mutually exclusive radio (v0.3 D-7).
+    this.menu.setAction('view:editor-mode-shared', () => this.setEditorMode('shared'));
+    this.menu.setAction('view:editor-mode-workspace', () => this.setEditorMode('workspace'));
+    this.menu.setCheckedProvider('view:editor-mode-shared', () => this.editorMode === 'shared');
+    this.menu.setCheckedProvider('view:editor-mode-workspace', () => this.editorMode === 'workspace');
 
     this.activityBar.setAction('activity:toggle-sidebar', () => this.viewState.toggleSidebar());
     this.activityBar.setAction('activity:toggle-titlebar', toggleTitlebar);
@@ -767,6 +793,180 @@ export class WorkbenchApp {
    */
   private restoringReqId: number | null = null;
 
+  /**
+   * `Shared Editor` (default) vs `Folder Workspace` (v0.3 D-7). Session-only
+   * — never persisted, never restored across a restart (D-8, WK-109); every
+   * launch starts in Shared Editor with an empty editor, same as before this
+   * feature existed.
+   */
+  private editorMode: EditorMode = 'shared';
+  /** The editor layout Shared Editor mode uses — one shared layout, independent of which folder tab is active (D-7). */
+  private sharedEditorSnapshot: SerializedDockview | null = null;
+  /** Folder Workspace mode's per-tab editor layouts, keyed by folder-tab id (D-7). Session-only, like `explorerStateByTab`'s sibling but never even considered for persistence (D-8, WK-109). */
+  private folderWorkspaceByTab = new Map<string, SerializedDockview>();
+  /**
+   * Whether the Shared Editor → Folder Workspace seed (D-8: "처음 Folder
+   * Workspace로 바꿀 때") has already happened once this session. D-8 says
+   * "처음" (the first time), meaning once per session, not once per folder
+   * tab — without this flag, every previously-unvisited tab entered while
+   * already in Folder Workspace mode would keep re-seeding from whatever
+   * Shared Editor currently held instead of starting empty like D-8 requires
+   * for every switch after the first (round-1 adversarial review, Major #4).
+   */
+  private hasSeededWorkspaceFromShared = false;
+
+  private captureEditorSnapshot(): SerializedDockview {
+    return this.editor.getApi().toJSON();
+  }
+
+  /** Restores a saved editor layout, or clears to the empty default if there is none (a folder tab visited for the first time in Folder Workspace mode). */
+  private restoreOrClearEditor(snapshot: SerializedDockview | null): void {
+    if (snapshot) {
+      this.editor.getApi().fromJSON(snapshot);
+    } else {
+      this.editor.clear();
+    }
+  }
+
+  /**
+   * Switches between Shared Editor and Folder Workspace (v0.3 D-7, D-8,
+   * WK-105~108). Never discards the editor state being left — it is saved
+   * into whichever slot that mode uses, and the ENTERING mode's own
+   * last-known state is restored. The very first switch into Folder
+   * Workspace has no saved workspace yet for the active tab, so it seeds
+   * one from what Shared Editor was just showing (D-8's explicit rule) —
+   * every later switch back into Folder Workspace restores whatever that
+   * tab's workspace actually is by then.
+   */
+  public setEditorMode(mode: EditorMode): void {
+    if (mode === this.editorMode) return;
+    // `activeFolderTabId`, not `folderTabs.getActiveTab()?.id` — the rail's
+    // active id flips the instant the user clicks a tab, but the editor/
+    // Explorer keep showing the PREVIOUS tab's content until that tab's
+    // async `activateFolderTab()` load resolves. Switching editor mode
+    // while a folder load is in flight used to capture the still-visible
+    // OLD tab's content and file it under the NEW (not-yet-loaded) tab's
+    // id, silently overwriting that tab's real saved workspace (round-1
+    // adversarial review, Critical #3). `activeFolderTabId` always names
+    // whichever tab's content is actually on screen right now.
+    const activeTabId = this.activeFolderTabId;
+
+    if (mode === 'workspace') {
+      this.sharedEditorSnapshot = this.captureEditorSnapshot();
+      this.editorMode = 'workspace';
+      if (!activeTabId) {
+        this.editor.clear();
+      } else if (this.folderWorkspaceByTab.has(activeTabId)) {
+        this.restoreOrClearEditor(this.folderWorkspaceByTab.get(activeTabId) ?? null);
+      } else if (!this.hasSeededWorkspaceFromShared) {
+        // The very first switch into Folder Workspace this session (D-8's
+        // "the first time"): the just-captured Shared Editor state becomes
+        // this tab's initial workspace — already on screen, so no restore
+        // call needed, just record it as saved.
+        this.folderWorkspaceByTab.set(activeTabId, this.sharedEditorSnapshot);
+        this.hasSeededWorkspaceFromShared = true;
+      } else {
+        // A later previously-unvisited tab: D-8's seed exception is a
+        // one-time, session-wide rule, not "once per folder" — this tab
+        // starts its own workspace empty instead of inheriting whatever
+        // Shared Editor happens to hold right now.
+        this.restoreOrClearEditor(null);
+      }
+    } else {
+      if (activeTabId) {
+        this.folderWorkspaceByTab.set(activeTabId, this.captureEditorSnapshot());
+      }
+      this.editorMode = 'shared';
+      this.restoreOrClearEditor(this.sharedEditorSnapshot);
+    }
+  }
+
+  /**
+   * Whether any editor content NOT currently on screen — a Folder Workspace
+   * tab other than the active one, or the Shared Editor snapshot while in
+   * Folder Workspace mode — has unsaved changes. `EditorController.
+   * hasDirtyPanels()`/`confirmQuit()` only ever see the one layout that is
+   * currently live, so they cannot detect this on their own (round-1
+   * adversarial review, Critical #2).
+   */
+  private hasHiddenDirtyEditorState(): boolean {
+    for (const [tabId, snapshot] of this.folderWorkspaceByTab) {
+      if (tabId === this.activeFolderTabId && this.editorMode === 'workspace') continue;
+      if (snapshotHasDirtyPanels(snapshot)) return true;
+    }
+    if (this.editorMode === 'workspace' && snapshotHasDirtyPanels(this.sharedEditorSnapshot)) return true;
+    return false;
+  }
+
+  /**
+   * Actually saves every dirty panel in every HIDDEN saved workspace (round-3
+   * adversarial review, Major #1: an earlier version treated "Save" as
+   * impossible from here and downgraded it to behave like "Cancel" instead —
+   * safe, but not what "Save" is supposed to do per D-28/FR-L3). None of
+   * these panels are live, so each hidden snapshot is loaded into the editor
+   * ONE AT A TIME via `fromJSON()`, its dirty panels are saved through the
+   * exact same `kindRegistry.save()` path a live save already uses (dockview
+   * preserves each panel's own id across the round-trip, so
+   * `KindDispatchRenderer.init()` re-registers the same panelId's saveable),
+   * then the next snapshot is loaded the same way. The whole app is about to
+   * tear down the moment this resolves true, so the transient on-screen
+   * flicker this causes, and not restoring whatever was visible before this
+   * ran, are both moot — nothing after this point ever renders again.
+   */
+  private async saveHiddenDirtySnapshots(): Promise<boolean> {
+    const dirtyEntries: SerializedDockview[] = [];
+    for (const [tabId, snapshot] of this.folderWorkspaceByTab) {
+      if (tabId === this.activeFolderTabId && this.editorMode === 'workspace') continue;
+      if (snapshotHasDirtyPanels(snapshot)) dirtyEntries.push(snapshot);
+    }
+    if (this.editorMode === 'workspace' && snapshotHasDirtyPanels(this.sharedEditorSnapshot)) {
+      dirtyEntries.push(this.sharedEditorSnapshot as SerializedDockview);
+    }
+    for (const snapshot of dirtyEntries) {
+      this.editor.getApi().fromJSON(snapshot);
+      for (const panel of this.editor.getPanels()) {
+        if (panel.params?.isDirty) {
+          const ok = await this.kindRegistry.save(panel.id);
+          if (!ok) return false;
+        }
+      }
+    }
+    return true;
+  }
+
+  /**
+   * The one gate both hosts' window-close handlers actually call (v0.3
+   * round-1 adversarial review, Critical #2 fix) — previously they called
+   * `editor.confirmQuit()` directly, which only inspects the currently
+   * visible workspace. This wraps that same check and adds a second one for
+   * dirty content hidden in another folder tab's saved workspace, or in the
+   * Shared Editor snapshot while Folder Workspace is active.
+   *
+   * Round-2 review (Critical #1): an earlier version of this method treated
+   * "Save" the same as "Don't Save" (`choice !== 'cancel'`), so picking Save
+   * silently discarded the hidden content without ever writing it — worse
+   * than doing nothing. Round-3 review (Major #1): the fix for that
+   * downgraded "Save" to behave like "Cancel" instead (safe, but Save is
+   * supposed to actually save). This version makes "Save" real via
+   * `saveHiddenDirtySnapshots()` above.
+   */
+  public async confirmQuit(): Promise<boolean> {
+    const visibleOk = await this.editor.confirmQuit();
+    if (!visibleOk) return false;
+    if (!this.hasHiddenDirtyEditorState()) return true;
+    if (!this.confirmDialog) return true;
+    const choice = await this.confirmDialog.show(
+      'Folder Workspace has unsaved changes in a folder tab you are not currently viewing. Save it now?'
+    );
+    if (choice === 'cancel') return false;
+    if (choice === 'save') return this.saveHiddenDirtySnapshots();
+    return true; // 'discard'
+  }
+
+  public getEditorMode(): EditorMode {
+    return this.editorMode;
+  }
+
   private captureExplorerState(): ExplorerState | null {
     if (!this.tree.getRoot()) return null;
     return {
@@ -797,6 +997,12 @@ export class WorkbenchApp {
     ) {
       const outgoing = this.captureExplorerState();
       if (outgoing) this.explorerStateByTab.set(this.activeFolderTabId, outgoing);
+      // Folder Workspace mode saves the outgoing tab's editor layout too
+      // (v0.3 D-7, WK-107) — Shared Editor mode leaves the editor alone
+      // entirely on a folder switch (D-7's whole point).
+      if (this.editorMode === 'workspace') {
+        this.folderWorkspaceByTab.set(this.activeFolderTabId, this.captureEditorSnapshot());
+      }
     }
     const folderPath = tab.path;
     this.statusMessages.startProgress(`Opening folder: ${folderPath}`);
@@ -842,6 +1048,12 @@ export class WorkbenchApp {
           }
         }
       }
+      // Restore (or start fresh) this tab's own editor workspace, if in
+      // Folder Workspace mode (v0.3 D-7, WK-107). Shared Editor mode never
+      // touches the editor on a folder switch.
+      if (this.editorMode === 'workspace') {
+        this.restoreOrClearEditor(this.folderWorkspaceByTab.get(tab.id) ?? null);
+      }
       this.persistFolderTabs();
     } catch (err) {
       if (this.currentFolderRequestId !== reqId) {
@@ -859,6 +1071,11 @@ export class WorkbenchApp {
       }
       this.statusMessages.showError(message);
       this.folderTabs.setTabError(tab.id, message);
+      // Same as the success path: an error tab has nothing valid to show,
+      // in Folder Workspace mode that includes its editor workspace.
+      if (this.editorMode === 'workspace') {
+        this.restoreOrClearEditor(this.folderWorkspaceByTab.get(tab.id) ?? null);
+      }
       this.persistFolderTabs();
     }
   }

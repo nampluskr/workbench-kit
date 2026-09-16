@@ -15,6 +15,18 @@ export interface TextViewOptions {
   value: string;
   language?: string;
   readOnly?: boolean;
+  /**
+   * The baseline `isDirty()` compares against — defaults to `value` (a
+   * freshly opened view starts clean). A caller reconstructing a view whose
+   * content was already dirty (e.g. a preset restoring `value` from a saved
+   * snapshot, v0.3 D-7/D-8) passes the ORIGINAL last-saved text here, not
+   * `value` itself — otherwise the new view treats its own restored (still
+   * unsaved) content as the saved baseline, which silently clears dirty the
+   * next time an edit happens to land back on that same text (round-2
+   * adversarial review, Critical #2: undo-to-the-restored-text incorrectly
+   * read as "back to saved").
+   */
+  savedValue?: string;
 }
 
 /**
@@ -48,12 +60,13 @@ export class TextEditorView {
   private model: monaco.editor.ITextModel;
   private savedValue: string;
   private dirtyChangeCallbacks: ((dirty: boolean) => void)[] = [];
+  private contentChangeCallbacks: (() => void)[] = [];
   private isCollapsingSelection = false;
 
   constructor(options: TextViewOptions) {
     this.element = document.createElement('div');
     this.element.className = 'text-editor-view';
-    this.savedValue = options.value;
+    this.savedValue = options.savedValue ?? options.value;
 
     this.model = monaco.editor.createModel(options.value, options.language || 'plaintext');
 
@@ -90,6 +103,7 @@ export class TextEditorView {
     this.model.onDidChangeContent(() => {
       const isDirty = this.model.getValue() !== this.savedValue;
       this.dirtyChangeCallbacks.forEach((cb) => cb(isDirty));
+      this.contentChangeCallbacks.forEach((cb) => cb());
     });
   }
 
@@ -99,6 +113,11 @@ export class TextEditorView {
 
   public isDirty(): boolean {
     return this.model.getValue() !== this.savedValue;
+  }
+
+  /** The current saved-baseline text `isDirty()`/edits compare against — see `TextViewOptions.savedValue`. */
+  public getSavedValue(): string {
+    return this.savedValue;
   }
 
   /**
@@ -167,6 +186,14 @@ export class TextEditorView {
     this.dirtyChangeCallbacks.push(cb);
     return () => {
       this.dirtyChangeCallbacks = this.dirtyChangeCallbacks.filter((c) => c !== cb);
+    };
+  }
+
+  /** Fires on every content edit (not just dirty transitions) — lets a caller keep an external copy of the text in sync. */
+  public onDidChangeContent(cb: () => void): () => void {
+    this.contentChangeCallbacks.push(cb);
+    return () => {
+      this.contentChangeCallbacks = this.contentChangeCallbacks.filter((c) => c !== cb);
     };
   }
 

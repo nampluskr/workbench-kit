@@ -9,6 +9,7 @@ import {
   GroupPanelPartInitParameters,
   Direction,
   DockviewPanelRenderer,
+  SerializedDockview,
 } from 'dockview-core';
 import { ConfirmDialogController } from './dialog';
 
@@ -425,6 +426,18 @@ export class EditorController {
     this.api.onDidMovePanel((event) => {
       if (event.from === event.to) return;
       this.pinPanel(event.panel);
+    });
+
+    // Every panel gets the dirty-confirmation close wiring, regardless of
+    // how it was created (v0.3 D-8, WK-107/108: Folder Workspace mode
+    // restores a saved layout via `getApi().fromJSON()`, which builds panels
+    // through dockview's own internal pipeline — bypassing `openItem()`/
+    // `addNewTab()`, and with them the `wirePanelClose()` call each of those
+    // makes directly). Calling `wirePanelClose` a second time for a panel
+    // openItem/addNewTab already wired is harmless — it just reassigns the
+    // same closure.
+    this.api.onDidAddPanel((panel) => {
+      this.wirePanelClose(panel);
     });
 
     this.api.onDidLayoutChange(() => {
@@ -1247,4 +1260,22 @@ export class EditorController {
       this.layoutChangeListeners = this.layoutChangeListeners.filter((cb) => cb !== callback);
     };
   }
+}
+
+/**
+ * Whether a *saved* (not currently live) dockview layout has any dirty
+ * panel — purely structural, reading only `params.isDirty` out of the
+ * serialized JSON (same field `hasDirtyPanels()` reads off a live panel),
+ * so this stays kind-agnostic like the rest of this file (D-4, D-9). A
+ * caller that keeps multiple saved layouts around for tabs that are not
+ * currently displayed (v0.3 D-7/D-8's Folder Workspace mode, in
+ * `src/main.ts`) uses this to know whether quitting would silently discard
+ * unsaved content nothing else is watching (`EditorController.hasDirtyPanels()`/
+ * `confirmQuit()` only see the one layout that is currently live).
+ */
+export function snapshotHasDirtyPanels(snapshot: SerializedDockview | null | undefined): boolean {
+  if (!snapshot) return false;
+  const panels = (snapshot as { panels?: Record<string, { params?: { isDirty?: boolean } }> }).panels;
+  if (!panels) return false;
+  return Object.values(panels).some((p) => Boolean(p?.params?.isDirty));
 }
