@@ -176,6 +176,18 @@ export class WorkbenchApp {
       this.iconTheme
     );
     this.folderTabs.onAddRequested = () => this.handleOpenFolderDialog();
+    // onSelect fires on EVERY successful pick, even clicking the tab that
+    // was already active — unlike onActivate below, which only fires on an
+    // actual change. Explorer visibility has to follow the former: clicking
+    // the already-active tab while the Explorer is hidden must still show it
+    // again, or the selection has no visible effect (v0.3 D-2, WK-095; A3 R1
+    // Major finding — this used to live in onActivate and so was silently
+    // skipped for that exact case).
+    this.folderTabs.onSelect(() => {
+      if (!this.viewState.getState().sidebarVisible) {
+        this.viewState.setSidebarVisible(true);
+      }
+    });
     this.folderTabs.onActivate((tab) => {
       // Tracked so the `openFolder()` compat shim below can await the
       // activation this triggers, instead of returning before the Explorer
@@ -279,6 +291,7 @@ export class WorkbenchApp {
     this.menu.setAction('view:toggle-sidebar', () => this.viewState.toggleSidebar());
     this.menu.setAction('view:toggle-titlebar', toggleTitlebar);
     this.menu.setAction('view:toggle-statusbar', toggleStatusbar);
+    this.menu.setAction('view:toggle-foldertabs', () => this.viewState.toggleFolderTabs());
     this.menu.setAction('view:zen-mode', () => this.viewState.toggleZenMode());
     // Each row's check mark is read from the live state whenever the menu is
     // drawn, so a change made by key, title bar or Activity Bar shows the next
@@ -287,10 +300,13 @@ export class WorkbenchApp {
     this.menu.setCheckedProvider('view:toggle-sidebar', () => this.viewState.getState().sidebarVisible);
     this.menu.setCheckedProvider('view:toggle-titlebar', () => this.viewState.getState().titlebarVisible);
     this.menu.setCheckedProvider('view:toggle-statusbar', () => this.viewState.getState().statusbarVisible);
+    // The Activity Bar icon and this row watch the same state (v0.3 D-2).
+    this.menu.setCheckedProvider('view:toggle-foldertabs', () => this.viewState.getState().folderTabsVisible);
 
     this.activityBar.setAction('activity:toggle-sidebar', () => this.viewState.toggleSidebar());
     this.activityBar.setAction('activity:toggle-titlebar', toggleTitlebar);
     this.activityBar.setAction('activity:toggle-statusbar', toggleStatusbar);
+    this.activityBar.setAction('activity:toggle-foldertabs', () => this.viewState.toggleFolderTabs());
 
     // Ensure menu controller state is closed when entering Zen mode (FR-F5, D-12)
     this.viewState.onZenEnter(() => this.menu.closeMenu());

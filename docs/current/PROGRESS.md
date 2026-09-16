@@ -118,3 +118,41 @@ Phase 2(WK-088 ~ WK-092, 탭 닫기·정렬·표시 별칭)로 진행.
 **다음**
 
 Phase 3(WK-093 ~ WK-097, 레일 토글과 Explorer 연동)로 진행.
+
+---
+
+## Phase 3 — 레일 토글과 Explorer 연동 (WK-093 ~ WK-097) — done, 2026-09-16
+
+**무엇을 했나**
+
+- `src/core/viewstate.ts`: `folderTabsVisible` 상태와 `toggleFolderTabs()`/
+  `setFolderTabsVisible()`를 추가했다. Explorer(`sidebarVisible`)와 완전히 독립이며,
+  재시작 간 저장하지 않는다(다른 Activity Bar 영역 토글과 같은 수명).
+- `src/core/activitybar.ts`: `Toggle Explorer` 바로 다음에 `codicon-folder-library`
+  아이콘(`activity:toggle-foldertabs`)을 추가했다.
+- `src/core/menu.ts`: `View` 메뉴에 `Show Folder Tabs`(단축키 없음)를 추가했다.
+- `src/main.ts`: 아이콘·메뉴 둘 다 `viewState.toggleFolderTabs()`를 부르고 같은
+  `folderTabsVisible` 상태를 본다. Zen Mode CSS에 `#foldertabs-rail`을 추가했다.
+- `src/core/foldertabs.ts`: `onActivate`(실제 변경 시에만 발화, Explorer 루트 로딩용)와
+  별개로 `onSelect`(매 클릭마다 발화)를 신설해, Explorer가 숨겨진 채 **이미 활성인**
+  탭을 다시 클릭해도 Explorer가 다시 보이게 했다(A18 1회차 Major 발견 → 수정).
+
+**검증**
+
+- `npx tsc --noEmit` 통과.
+- `node scripts/verify-v03-phase3.mjs`: Electron·pywebview 두 갈래 각각 24개 단언
+  전부 통과, 두 갈래 불일치 0건.
+- `node scripts/verify-v03-phase1.mjs`·`verify-v03-phase2.mjs` 재실행으로 회귀 0건
+  확인.
+- 반대 벤더 적대적 검증(Codex `gpt-5.6-sol`): `docs/reviews/A18.md`. 1회차 Major 1건
+  (이미 활성인 탭 재클릭 시 Explorer 미표시 — `onSelect`/`onActivate` 분리로 수정) ·
+  Minor 2건(검증 스위트가 그 버그를 못 잡는 구조였음 → 재현 케이스 추가) 모두 처리.
+  2회차 Minor 2건 중 하나(검증 스크립트 실패 시 진단 출력 부족)는 수정, 다른 하나
+  (Explorer 펼침·선택·스크롤 상태 미검증)는 그 상태 자체가 아직 존재하지 않는
+  Phase 4 개념이라 근거를 남기고 보류했다.
+
+**다음**
+
+Phase 4(WK-098 ~ WK-101, 폴더별 Explorer 상태 보존과 복원) — **필수 통과 Phase**로
+진행. 영속 저장이 처음 들어가는 Phase이므로 반대 벤더 검증에서 미해결 Critical이
+있으면 다음 Phase로 넘어가지 않는다.

@@ -1289,9 +1289,12 @@ body.is-resizing-sidebar {
   display: none !important;
 }
 
-/* Zen mode: hide titlebar, activity bar, sidebar, statusbar, and open menu; keep main-area only */
+/* Zen mode: hide titlebar, activity bar, folder tabs rail, sidebar,
+   statusbar, and open menu; keep main-area only (v0.3 WK-097: the rail
+   joins the other chrome areas here). */
 .workbench-root.zen-mode #titlebar,
 .workbench-root.zen-mode #activity-bar,
+.workbench-root.zen-mode #foldertabs-rail,
 .workbench-root.zen-mode #sidebar,
 .workbench-root.zen-mode #statusbar,
 .workbench-root.zen-mode .workbench-menu-dropdown {

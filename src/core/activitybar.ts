@@ -14,6 +14,9 @@ export interface ActivityBarItem {
 export const DEFAULT_ACTIVITY_BAR_TOP_ITEMS: ActivityBarItem[] = [
   { id: 'activity:toggle-titlebar', label: 'Toggle Title Bar', iconClass: 'codicon-chevron-down' },
   { id: 'activity:toggle-sidebar', label: 'Toggle Explorer', iconClass: 'codicon-files' },
+  // Right after Toggle Explorer (v0.3 D-2). Independent from it — toggling
+  // one never touches the other's visibility.
+  { id: 'activity:toggle-foldertabs', label: 'Toggle Folder Tabs', iconClass: 'codicon-folder-library' },
 ];
 
 export const DEFAULT_ACTIVITY_BAR_BOTTOM_ITEMS: ActivityBarItem[] = [

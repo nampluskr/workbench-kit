@@ -4,6 +4,8 @@ export interface ViewState {
   sidebarVisible: boolean;
   titlebarVisible: boolean;
   statusbarVisible: boolean;
+  /** Folder Tabs rail (v0.3 D-2). Independent of `sidebarVisible` — each area hides on its own. */
+  folderTabsVisible: boolean;
   isZenMode: boolean;
 }
 
@@ -11,6 +13,11 @@ export class ViewStateManager {
   private sidebarVisible = true;
   private titlebarVisible = true;
   private statusbarVisible = true;
+  /**
+   * Starts visible every run and is never persisted (v0.3 D-2 — "표시 상태만은
+   * 저장되지 않는다", same lifetime as the other Activity Bar area toggles).
+   */
+  private folderTabsVisible = true;
   private _isZenMode = false;
 
   constructor(private layout: WorkbenchLayoutElements) {
@@ -45,6 +52,7 @@ export class ViewStateManager {
       sidebarVisible: this.sidebarVisible,
       titlebarVisible: this.titlebarVisible,
       statusbarVisible: this.statusbarVisible,
+      folderTabsVisible: this.folderTabsVisible,
       isZenMode: this._isZenMode,
     };
   }
@@ -64,6 +72,24 @@ export class ViewStateManager {
     this.sidebarVisible = visible;
     if (!this._isZenMode) {
       this.layout.sidebar.classList.toggle('hidden', !visible);
+    }
+  }
+
+  /**
+   * Independent of `toggleSidebar()` (v0.3 D-2) — hiding one leaves the
+   * other exactly as it was.
+   */
+  public toggleFolderTabs(): boolean {
+    if (this._isZenMode) return this.folderTabsVisible;
+    this.folderTabsVisible = !this.folderTabsVisible;
+    this.layout.folderTabsRail.classList.toggle('hidden', !this.folderTabsVisible);
+    return this.folderTabsVisible;
+  }
+
+  public setFolderTabsVisible(visible: boolean): void {
+    this.folderTabsVisible = visible;
+    if (!this._isZenMode) {
+      this.layout.folderTabsRail.classList.toggle('hidden', !visible);
     }
   }
 

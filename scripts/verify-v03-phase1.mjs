@@ -66,6 +66,11 @@ function runHost(label, command, resultMarker) {
   const line = output.split('\n').find((l) => l.includes(resultMarker));
   if (!line) {
     console.error(`[FAIL] ${label} produced no structured result line`);
+    // Without this, a runner that never got far enough to run the suite
+    // printed nothing but "no structured result line", indistinguishable
+    // from an actual assertion failure (A3 R2 Minor finding).
+    const tail = output.split('\n').slice(-40).join('\n').trim();
+    if (tail) console.error(`[FAIL] ${label} runner output (last 40 lines):\n${tail}`);
     failures++;
     return null;
   }

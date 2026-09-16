@@ -82,6 +82,7 @@ export class FolderTabsController {
   private iconTheme: IconThemeManager;
 
   private activateCallbacks: Array<(tab: FolderTab) => void> = [];
+  private selectCallbacks: Array<(tab: FolderTab) => void> = [];
   /** Fired when the rail has no active tab left (e.g. all tabs removed). */
   private emptyCallbacks: Array<() => void> = [];
 
@@ -105,10 +106,25 @@ export class FolderTabsController {
     this.render();
   }
 
+  /** Fires only when the active tab actually CHANGES — the Explorer root only needs loading then. */
   public onActivate(cb: (tab: FolderTab) => void): () => void {
     this.activateCallbacks.push(cb);
     return () => {
       this.activateCallbacks = this.activateCallbacks.filter((c) => c !== cb);
+    };
+  }
+
+  /**
+   * Fires on every successful `activateTab()` call, INCLUDING clicking a tab
+   * that was already active — unlike `onActivate` above (v0.3 D-2, WK-095).
+   * Clicking the currently-active tab while the Explorer is hidden must still
+   * show it again; `onActivate` alone would miss that because nothing about
+   * the active tab actually changed (A3 R1 Major finding).
+   */
+  public onSelect(cb: (tab: FolderTab) => void): () => void {
+    this.selectCallbacks.push(cb);
+    return () => {
+      this.selectCallbacks = this.selectCallbacks.filter((c) => c !== cb);
     };
   }
 
@@ -175,14 +191,18 @@ export class FolderTabsController {
   }
 
   public activateTab(id: string): void {
-    if (!this.tabs.some((t) => t.id === id) || this.activeId === id) {
-      if (this.activeId === id) this.render();
-      return;
-    }
+    const tab = this.tabs.find((t) => t.id === id);
+    if (!tab) return;
+    const changed = this.activeId !== id;
     this.activeId = id;
     this.render();
-    const tab = this.getActiveTab();
-    if (tab) {
+    // onSelect fires every time, changed or not (e.g. clicking the already-
+    // active tab still needs to re-show a hidden Explorer — A3 R1 Major
+    // finding). onActivate only fires on an actual change, since it drives
+    // (re)loading the Explorer root, which an unchanged active tab needs
+    // done exactly zero times.
+    for (const cb of this.selectCallbacks) cb(tab);
+    if (changed) {
       for (const cb of this.activateCallbacks) cb(tab);
     }
   }

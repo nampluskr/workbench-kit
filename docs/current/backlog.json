@@ -191,7 +191,7 @@
     },
     {
       "id": "WK-093",
-      "status": "todo",
+      "status": "done",
       "priority": "P3",
       "category": "껍데기",
       "title": "Toggle Folder Tabs 아이콘과 View 메뉴 연동",
@@ -203,11 +203,11 @@
       "deps": [
         "WK-083"
       ],
-      "done_at": null
+      "done_at": "2026-09-16"
     },
     {
       "id": "WK-094",
-      "status": "todo",
+      "status": "done",
       "priority": "P3",
       "category": "껍데기",
       "title": "Explorer·레일 독립 표시 상태",
@@ -219,11 +219,11 @@
       "deps": [
         "WK-093"
       ],
-      "done_at": null
+      "done_at": "2026-09-16"
     },
     {
       "id": "WK-095",
-      "status": "todo",
+      "status": "done",
       "priority": "P3",
       "category": "껍데기",
       "title": "폴더 탭 선택 시 Explorer 자동 표시",
@@ -235,11 +235,11 @@
       "deps": [
         "WK-094"
       ],
-      "done_at": null
+      "done_at": "2026-09-16"
     },
     {
       "id": "WK-096",
-      "status": "todo",
+      "status": "done",
       "priority": "P3",
       "category": "껍데기",
       "title": "레일 표시 상태는 실행 중에만 유지",
@@ -251,11 +251,11 @@
       "deps": [
         "WK-094"
       ],
-      "done_at": null
+      "done_at": "2026-09-16"
     },
     {
       "id": "WK-097",
-      "status": "todo",
+      "status": "done",
       "priority": "P3",
       "category": "껍데기",
       "title": "Zen Mode에 레일 포함",
@@ -267,7 +267,7 @@
       "deps": [
         "WK-094"
       ],
-      "done_at": null
+      "done_at": "2026-09-16"
     },
     {
       "id": "WK-098",

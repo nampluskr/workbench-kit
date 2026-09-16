@@ -55,6 +55,8 @@ export const DEFAULT_VIEW_ITEMS: readonly MenuItem[] = Object.freeze([
   separator('view:separator-icon'),
   Object.freeze({ id: 'view:zen-mode', label: 'Zen Mode', shortcut: 'F11' }),
   Object.freeze({ id: 'view:toggle-sidebar', label: 'Show Sidebar', shortcut: 'Ctrl+B' }),
+  // No shortcut, by design (v0.3 D-2 — this version needs no new global key).
+  Object.freeze({ id: 'view:toggle-foldertabs', label: 'Show Folder Tabs' }),
   Object.freeze({ id: 'view:toggle-titlebar', label: 'Show Title Bar' }),
   Object.freeze({ id: 'view:toggle-statusbar', label: 'Show Status Bar' }),
   separator('view:separator-layout'),
