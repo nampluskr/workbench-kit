@@ -188,6 +188,10 @@ export class WorkbenchApp {
       this.iconTheme
     );
     this.folderTabs.onAddRequested = () => this.handleOpenFolderDialog();
+    // "Locate Folder…" on an error tab (v0.3 D-6, WK-103).
+    this.folderTabs.onRelocateRequested = (id) => {
+      void this.handleRelocateFolderTab(id);
+    };
     // onSelect fires on EVERY successful pick, even clicking the tab that
     // was already active — unlike onActivate below, which only fires on an
     // actual change. Explorer visibility has to follow the former: clicking
@@ -803,6 +807,9 @@ export class WorkbenchApp {
       }
       this.tree.setRoot(rootNode);
       this.activeFolderTabId = tab.id;
+      // A retry that just succeeded (via "Locate Folder…") clears whatever
+      // error this tab was showing (v0.3 D-6).
+      this.folderTabs.setTabError(tab.id, null);
       if (this.layout.statusbarPath) {
         this.layout.statusbarPath.textContent = folderPath;
       }
@@ -840,7 +847,19 @@ export class WorkbenchApp {
       if (this.currentFolderRequestId !== reqId) {
         return;
       }
-      this.statusMessages.showError(`Error opening folder: ${String(err)}`);
+      // The path is gone (deleted/moved) or otherwise unreadable — mark the
+      // TAB itself, not just a transient status-bar line, and never remove
+      // it (v0.3 D-6). The Explorer goes back to its pre-open empty state;
+      // there is nothing valid to show for this tab right now.
+      const message = `Error opening folder: ${String(err)}`;
+      this.tree.clearRoot();
+      this.activeFolderTabId = tab.id;
+      if (this.layout.statusbarPath) {
+        this.layout.statusbarPath.textContent = folderPath;
+      }
+      this.statusMessages.showError(message);
+      this.folderTabs.setTabError(tab.id, message);
+      this.persistFolderTabs();
     }
   }
 
@@ -983,6 +1002,31 @@ export class WorkbenchApp {
     const selected = await promptOpenFolderDialog();
     if (selected) {
       this.folderTabs.addTab(selected);
+    }
+  }
+
+  /**
+   * "Locate Folder…" on an error tab (v0.3 D-6, WK-103) — re-points that
+   * EXACT tab at a new path (same id, alias, and rail position) and retries
+   * loading it immediately, rather than opening a brand new tab. The tab
+   * being relocated is not always the currently ACTIVE one (A5 R1 Major
+   * finding: relocating an inactive error tab used to move the Explorer
+   * root to it without moving the rail's own highlight, leaving the two
+   * visibly out of sync) — this always syncs `folderTabs`'s active id first,
+   * then forces the actual reload itself only when that sync alone would
+   * not have triggered one (i.e. the tab was already active, so
+   * `activateTab`'s `onActivate` — which normally drives the reload — does
+   * not fire for an unchanged id).
+   */
+  private async handleRelocateFolderTab(id: string): Promise<void> {
+    const selected = await promptOpenFolderDialog();
+    if (!selected) return;
+    const tab = this.folderTabs.setTabPath(id, selected);
+    if (!tab) return;
+    const wasAlreadyActive = this.folderTabs.getActiveTab()?.id === tab.id;
+    this.folderTabs.activateTab(tab.id);
+    if (wasAlreadyActive) {
+      this.lastActivationPromise = this.activateFolderTab(tab);
     }
   }
 

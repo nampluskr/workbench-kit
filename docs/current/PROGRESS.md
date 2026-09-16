@@ -205,3 +205,46 @@ Phase 4(WK-098 ~ WK-101, 폴더별 Explorer 상태 보존과 복원) — **필�
 **다음**
 
 Phase 5(WK-102 ~ WK-104, 사라진 경로의 오류 상태)로 진행.
+
+---
+
+## Phase 5 — 사라진 경로의 오류 상태 (WK-102 ~ WK-104) — done, 2026-09-17
+
+**무엇을 했나**
+
+- `src/core/foldertabs.ts`: `FolderTab`에 `error: string | null` 필드를 추가했다.
+  `setTabError(id, message)`(오류 표시/해제), `setTabPath(id, newPath)`(같은 탭 id를
+  유지한 채 경로만 재지정 — 번호 슬롯 재계산 포함)를 추가했다. 오류 탭은 경고 아이콘
+  (`codicon-warning`)과 `.error` 클래스로 표시되고, hover 시 tooltip이 경로 대신
+  오류 메시지를 보여준다. 오류 탭 행에는 `×`(닫기)와 별개로 "Locate Folder…" 버튼이
+  상시 노출된다.
+- `src/main.ts`: `activateFolderTab()`의 실패 경로에서 `tree.clearRoot()` +
+  `folderTabs.setTabError(tab.id, message)`를 호출한다(탭은 절대 자동 제거 안 함,
+  D-6). 성공 시 `setTabError(tab.id, null)`로 해제한다. `handleRelocateFolderTab()`이
+  "Locate Folder…" 클릭을 받아 네이티브 다이얼로그 → `setTabPath()` → 재시도를
+  연결한다.
+- `src/style.css`: 오류 상태 색은 기존 상태바 오류 색 토큰(`--statusbar-error-fg`)을
+  그대로 재사용해 새 색을 추가하지 않았다.
+
+**검증**
+
+- `npx tsc --noEmit` 통과.
+- `node scripts/verify-v05-phase5.mjs`: Electron·pywebview 두 갈래 각각 21개 단언
+  전부 통과, 두 갈래 불일치 0건. 실제 존재하지 않는 경로(임시 폴더를 만들고 바로
+  지워 확정적으로 없앤 경로)로 재현했다.
+- `node scripts/verify-v03-phase{1,2,3}.mjs`·`verify-v04-phase4.mjs` 재실행으로
+  회귀 0건 확인.
+- 반대 벤더 적대적 검증(Codex `gpt-5.6-sol`, 새 기능 Phase라 필수 통과는 아니지만
+  검증은 필수): `docs/reviews/A20.md`. 1회차에서 Critical 0 · Major 3건 — 비활성
+  오류 탭을 재배치하면 레일 활성 표시와 Explorer가 어긋나는 문제(수정: 재배치가
+  먼저 그 탭을 활성화하도록 통일), 그 파생으로 생기던 유령 루트 문제(같은 수정으로
+  함께 해소, Phase 4 A19의 보호 로직 재사용), `restoreTabs()`가 재시작 전 오류를
+  안 지우던 주석-동작 불일치(수정: 무조건 초기화)를 모두 처리했다. 비활성 복원
+  탭의 경로를 재시작 시 미리 검사하지 않는다는 지적은 Phase 4의 지연 로딩 설계와
+  일관적이라 판단해 근거를 남기고 반박했다.
+
+**다음**
+
+Phase 6(WK-105 ~ WK-110, 에디터 전환 모드와 두 갈래 전건 대조) — **필수 통과
+Phase**로 진행. 이번 버전의 마지막 Phase이자 유일한 기존 동작 반전(D-3, Open
+Folder가 교체→추가)을 정산하는 Phase다.

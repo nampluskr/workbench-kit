@@ -699,6 +699,44 @@ html, body, #app {
   background-color: var(--button-hover-bg);
 }
 
+/* Error state (v0.3 D-6): a tab whose path no longer opens. Never removed
+   automatically — this only marks it, using the same error colour token the
+   statusbar's own error state already uses (D-6, WK-102). */
+.foldertabs-tab.error {
+  color: var(--statusbar-error-fg, #f48771);
+}
+
+.foldertabs-tab.error .tree-icon {
+  color: var(--statusbar-error-fg, #f48771);
+}
+
+/* Visible whenever the tab has an error, not just on hover like × — it is
+   the tab's whole reason for needing the user's attention right now. */
+.foldertabs-tab-relocate {
+  flex: 0 0 auto;
+  width: 18px;
+  height: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  color: inherit;
+  cursor: pointer;
+  border-radius: 3px;
+  font-size: 13px;
+  padding: 0;
+  margin-left: 4px;
+  opacity: 0.8;
+  outline: none;
+}
+
+.foldertabs-tab-relocate:hover,
+.foldertabs-tab-relocate:focus {
+  opacity: 1;
+  background-color: var(--button-hover-bg);
+}
+
 /* Inline rename row (v0.3 D-4): Enter saves, Escape cancels. */
 .foldertabs-tab.renaming {
   cursor: default;

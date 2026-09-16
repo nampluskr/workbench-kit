@@ -336,7 +336,7 @@
     },
     {
       "id": "WK-102",
-      "status": "todo",
+      "status": "done",
       "priority": "P5",
       "category": "탐색기",
       "title": "사라진 경로 오류 상태 표시",
@@ -348,11 +348,11 @@
       "deps": [
         "WK-100"
       ],
-      "done_at": null
+      "done_at": "2026-09-16"
     },
     {
       "id": "WK-103",
-      "status": "todo",
+      "status": "done",
       "priority": "P5",
       "category": "탐색기",
       "title": "오류 탭에서 새 경로 재지정",
@@ -364,11 +364,11 @@
       "deps": [
         "WK-102"
       ],
-      "done_at": null
+      "done_at": "2026-09-16"
     },
     {
       "id": "WK-104",
-      "status": "todo",
+      "status": "done",
       "priority": "P5",
       "category": "탐색기",
       "title": "오류 탭이 나머지 흐름을 막지 않음",
@@ -380,7 +380,7 @@
       "deps": [
         "WK-102"
       ],
-      "done_at": null
+      "done_at": "2026-09-16"
     },
     {
       "id": "WK-105",

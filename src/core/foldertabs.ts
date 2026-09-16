@@ -19,6 +19,13 @@ export interface FolderTab {
   numberSlot: number;
   /** User-set display alias. Overrides the default name; does not touch the path (D-4). */
   alias: string | null;
+  /**
+   * Set when the host could not open this tab's path (deleted/moved) —
+   * v0.3 D-6. The tab stays registered; it is never auto-removed. Purely a
+   * flag + message the host sets/clears — this controller never checks the
+   * filesystem itself (D-9's "껍데기는 리소스 종류를 모른다").
+   */
+  error: string | null;
 }
 
 function normalizePath(p: string): string {
@@ -89,6 +96,8 @@ export class FolderTabsController {
   private removeCallbacks: Array<(id: string) => void> = [];
 
   public onAddRequested: (() => void) | null = null;
+  /** Fired when the user clicks an error tab's "Locate Folder…" control (v0.3 D-6, WK-103). */
+  public onRelocateRequested: ((id: string) => void) | null = null;
 
   constructor(
     listEl: HTMLElement,
@@ -169,6 +178,7 @@ export class FolderTabsController {
       path: norm,
       numberSlot: slot,
       alias: null,
+      error: null,
     };
     this.tabs.push(tab);
     this.activateTab(tab.id);
@@ -261,7 +271,15 @@ export class FolderTabsController {
    * concern, not this method's).
    */
   public restoreTabs(tabs: readonly FolderTab[], activeTabId: string | null): void {
-    this.tabs = tabs.map((t) => ({ ...t }));
+    // `error` always starts cleared on restore, UNCONDITIONALLY (v0.3 D-6) —
+    // whether each tab's path still resolves is re-checked when it is
+    // actually activated, not assumed from whatever it was last session.
+    // `t.error ?? null` used to run here instead, which only replaced
+    // undefined/null — a genuinely broken path from a PRIOR session stayed
+    // marked broken even after the path came back, and conversely a tab
+    // that broke while the app was closed showed no error until clicked
+    // (A5 R1 Major finding: comment claimed "starts cleared", code did not).
+    this.tabs = tabs.map((t) => ({ ...t, error: null }));
     const usedSeqs = this.tabs
       .map((t) => /^ft-(\d+)$/.exec(t.id))
       .filter((m): m is RegExpExecArray => Boolean(m))
@@ -326,6 +344,45 @@ export class FolderTabsController {
       tab.numberSlot = slot;
     }
     this.render();
+  }
+
+  /**
+   * Marks or clears a tab's error state (v0.3 D-6). The host (main.ts) calls
+   * this after trying to open the tab's path — a null message clears it.
+   * Never removes the tab; an error tab stays registered until the user
+   * closes it or re-points it (`setTabPath`).
+   */
+  public setTabError(id: string, message: string | null): void {
+    const tab = this.tabs.find((t) => t.id === id);
+    if (!tab || tab.error === message) return;
+    tab.error = message;
+    this.render();
+  }
+
+  /**
+   * Re-points an existing (typically error-state) tab at a different path
+   * without closing and re-adding it (v0.3 D-6, WK-103) — the tab id,
+   * alias, and position in the rail are all preserved; only the path and
+   * its number-slot pool membership change. Clears any error state, since
+   * the host is expected to immediately retry activation after this.
+   */
+  public setTabPath(id: string, newPath: string): FolderTab | null {
+    const tab = this.tabs.find((t) => t.id === id);
+    if (!tab) return null;
+    const norm = normalizePath(newPath);
+    const key = comparableKey(norm);
+    const usedSlots = new Set(
+      this.tabs
+        .filter((t) => t.id !== tab.id && !t.alias && comparableKey(t.path) === key)
+        .map((t) => t.numberSlot)
+    );
+    let slot = 1;
+    while (usedSlots.has(slot)) slot++;
+    tab.path = norm;
+    tab.numberSlot = slot;
+    tab.error = null;
+    this.render();
+    return tab;
   }
 
   /** Opens the inline rename row for a tab (default: the active one). Disabled with 0 active tab (D-4). */
@@ -500,15 +557,23 @@ export class FolderTabsController {
 
     for (const tab of this.tabs) {
       const row = document.createElement('div');
-      row.className = 'foldertabs-tab' + (tab.id === this.activeId ? ' active' : '');
+      row.className =
+        'foldertabs-tab' + (tab.id === this.activeId ? ' active' : '') + (tab.error ? ' error' : '');
       row.setAttribute('role', 'tab');
       row.setAttribute('data-id', tab.id);
-      row.title = tab.path;
+      // The error message replaces the path in the tooltip — it already
+      // names the path and says what's wrong with it (v0.3 D-6).
+      row.title = tab.error ? tab.error : tab.path;
+      if (tab.error) row.setAttribute('aria-invalid', 'true');
       row.setAttribute('aria-selected', tab.id === this.activeId ? 'true' : 'false');
       row.tabIndex = 0;
 
-      const icon = this.iconTheme.resolveIcon(folderNameOf(tab.path), true);
-      const iconMarkup = renderIconMarkup(icon);
+      // An error tab shows a warning glyph instead of the (possibly
+      // misleading) resolved folder icon — the path may no longer exist,
+      // so nothing about "what kind of folder is this" is knowable (v0.3 D-6).
+      const iconMarkup = tab.error
+        ? '<span class="tree-icon"><i class="codicon codicon-warning"></i></span>'
+        : renderIconMarkup(this.iconTheme.resolveIcon(folderNameOf(tab.path), true));
 
       if (tab.id === this.renamingId) {
         row.classList.add('renaming');
@@ -575,9 +640,16 @@ export class FolderTabsController {
         continue;
       }
 
+      // An error tab gets a "locate…" control to re-point it at a new path
+      // (v0.3 D-6, WK-103) — always visible on that row, not just on hover
+      // like ×, since it is the tab's whole reason for needing attention.
+      const relocateButtonHtml = tab.error
+        ? `<button type="button" class="foldertabs-tab-relocate" title="Locate Folder…" aria-label="Locate Folder for ${escapeHtml(this.displayName(tab))}"><i class="codicon codicon-search"></i></button>`
+        : '';
       row.innerHTML =
         iconMarkup +
         `<span class="foldertabs-tab-label">${escapeHtml(this.displayName(tab))}</span>` +
+        relocateButtonHtml +
         `<button type="button" class="foldertabs-tab-close" title="Close" aria-label="Close ${escapeHtml(this.displayName(tab))}"><i class="codicon codicon-close"></i></button>`;
 
       row.addEventListener('click', () => {
@@ -593,6 +665,14 @@ export class FolderTabsController {
           this.activateTab(tab.id);
         }
       });
+
+      const relocateBtn = row.querySelector<HTMLButtonElement>('.foldertabs-tab-relocate');
+      relocateBtn?.addEventListener('click', (e) => {
+        e.stopPropagation();
+        this.onRelocateRequested?.(tab.id);
+      });
+      relocateBtn?.addEventListener('pointerdown', (e) => e.stopPropagation());
+      relocateBtn?.addEventListener('keydown', (e) => e.stopPropagation());
 
       const closeBtn = row.querySelector<HTMLButtonElement>('.foldertabs-tab-close');
       closeBtn?.addEventListener('click', (e) => {
