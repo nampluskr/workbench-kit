@@ -170,56 +170,121 @@ window.__runPhase4TestSuite = async function runPhase4TestSuite() {
         { id: '/workspace/folderX', label: 'folderX', name: 'folderX', isContainer: true, children: [] },
       ],
     });
+    // v0.2 supersedes three assertions that used to live here — v0.1 FR-A6
+    // (Enter opens in the current tab), FR-B1 (a pick replaces the active tab)
+    // and FR-B3 (a pick is absorbed by the [+] empty tab). All three are in
+    // v0.2 SPEC 0.1's replacement table, and their v0.2 successors (FR-P1 ~
+    // FR-P8, FR-P10, FR-T1 ~ FR-T3) are asserted in v02-phase1-suite.js.
+    // What stays here is the setup the rest of this suite depends on, written
+    // against the rule that actually applies now.
+    editor.clear();
     tree.focusItemById('/workspace/docA.txt');
-
-    // Dispatch real keydown Enter from tree container (FR-A6)
     sendTreeKey('Enter');
-
-    record('P4-FR-A6', editor.getActivePanel()?.params?.targetId === '/workspace/docA.txt' && editor.getActivePanel()?.title === 'docA.txt', 'Tree Enter keydown opens item in active tab (FR-A6)');
-    record('P4-FR-B3', editor.getPanelCount() === 1, 'Opening in user-created empty tab keeps panel count at 1 (FR-B3, D-5)');
+    record(
+      'P4-FR-A6',
+      editor.getActivePanel()?.params?.targetId === '/workspace/docA.txt' &&
+        editor.getActivePanel()?.title === 'docA.txt',
+      'Tree Enter keydown opens the focused item (v0.1 FR-A6 → v0.2 FR-P7)'
+    );
 
     // ------------------------------------------------------------------------
-    // 5. Tree Row Click: Replaces Active Tab in place without increase (FR-B1)
+    // 5. A pick goes to the preview spot (v0.1 FR-B1 → v0.2 FR-P2)
     // ------------------------------------------------------------------------
+    editor.clear();
+    tree.focusItemById('/workspace/docA.txt');
+    clickEl(document.querySelector('.tree-row.focused'));
+    tree.focusItemById('/workspace/docB.txt');
+    clickEl(document.querySelector('.tree-row.focused'));
+    record(
+      'P4-FR-B1',
+      editor.getPanelCount() === 1 && editor.getActivePanel()?.params?.targetId === '/workspace/docB.txt',
+      'A second pick replaces the same spot; tab count remains 1 (v0.1 FR-B1 → v0.2 FR-P2)'
+    );
+
+    // ------------------------------------------------------------------------
+    // 5b. [+] takes over the group's preview spot, same as a tree pick
+    // (v0.2 FR-P14 / D-14). Re-queried rather than reusing the element
+    // captured at the top: an editor.clear() in between makes dockview
+    // rebuild the group header, which detaches the old button.
+    // ------------------------------------------------------------------------
+    // State coming in: docB.txt sits alone in the group's preview spot
+    // (step 5). [+] must replace it, not add beside it.
+    const newTabBtnNow = document.querySelector('.editor-group-header-actions .tab-action-new');
+    clickEl(newTabBtnNow);
+    record(
+      'V2P4-FR-P14-REUSE',
+      editor.getPanelCount() === 1 && editor.getActivePanel()?.title === 'Untitled' && editor.getActivePanel()?.params?.targetId == null,
+      '[+] with a preview spot already present (docB.txt) replaces it instead of adding a 2nd tab, and the count stays 1 (FR-P14)'
+    );
+
+    // Confirm docB.txt back into the group before touching count-based
+    // FR-B2/FR-B4 assertions below — otherwise [+]'s replace above would
+    // have silently made docB.txt no longer open, which those assertions
+    // do not intend to exercise. Enter is now two-step (D-16): the first
+    // press reclaims the blank Untitled spot as a PREVIEW of docB.txt, and a
+    // second press on the same still-focused row is what confirms it.
     tree.focusItemById('/workspace/docB.txt');
     sendTreeKey('Enter');
-    record('P4-FR-B1', editor.getPanelCount() === 1 && editor.getActivePanel()?.params?.targetId === '/workspace/docB.txt', 'Opening another item replaces active tab; tab count remains 1 (FR-B1, D-5)');
-
-    // ------------------------------------------------------------------------
-    // 6. User-created Empty Tab duplicate exception (FR-B3) & jumping duplicate (FR-B2)
-    // ------------------------------------------------------------------------
-    clickEl(newTabBtn);
-    record('P4-FR-C1-2', editor.getPanelCount() === 2, 'Adding 2nd tab via + button increases tab count to 2');
-    // Open docB.txt in user-created empty tab -> allowed to have duplicate docB.txt
-    tree.focusItemById('/workspace/docB.txt');
     sendTreeKey('Enter');
-    const panelsDocB = editor.getPanels().filter((p) => p.params?.targetId === '/workspace/docB.txt');
-    record('P4-FR-B3-DUP', panelsDocB.length === 2, 'User-created empty tab permits opening already-open target resulting in 2 tabs with docB.txt (FR-B3)');
+    record(
+      'V2P4-FR-P14-CONFIRM-REOPEN',
+      editor.getPanelCount() === 1 && editor.getActivePanel()?.params?.targetId === '/workspace/docB.txt',
+      'Two Enters on docB.txt reclaim the spot [+] took (replacing the blank Untitled) and then confirm it (FR-P7, D-16)'
+    );
 
-    // Open docC.txt into tab 2 to differentiate
+    // ------------------------------------------------------------------------
+    // 6. New Tab button, and jumping to an already-open target (FR-B2)
+    // ------------------------------------------------------------------------
+    const newTabBtnNow2 = document.querySelector('.editor-group-header-actions .tab-action-new');
+    clickEl(newTabBtnNow2);
+    record('P4-FR-C1-2', editor.getPanelCount() === 2, 'With docB.txt now confirmed (not a preview spot), [+] adds a distinct 2nd tab');
+
+    // Open docC.txt so there is a second distinct target on screen. It lands
+    // in the blank Untitled [+] just made (FR-P14's blank-spot reuse), so the
+    // count does not move — mirroring how a confirmed pick reuses a never-
+    // shown preview spot (FR-P11's comment in editor.ts).
     tree.focusItemById('/workspace/docC.txt');
     sendTreeKey('Enter');
+    const countBeforeJump = editor.getPanelCount();
 
-    // Now jump to existing docB.txt tab 1 (FR-B2)
+    // Now jump back to the already-open docB.txt (FR-B2). Unchanged in v0.2:
+    // opening something that is already open goes to it instead of duplicating.
     tree.focusItemById('/workspace/docB.txt');
     sendTreeKey('Enter');
-    record('P4-FR-B2', editor.getPanelCount() === 2 && editor.getActivePanel()?.params?.targetId === '/workspace/docB.txt', 'Opening item already open elsewhere jumps to existing tab without increasing tab count (FR-B2, D-5)');
+    record(
+      'P4-FR-B2',
+      editor.getPanelCount() === countBeforeJump &&
+        editor.getActivePanel()?.params?.targetId === '/workspace/docB.txt',
+      'Opening item already open elsewhere jumps to existing tab without increasing tab count (FR-B2, D-5)'
+    );
 
     // ------------------------------------------------------------------------
     // 7. Folder opens using identical rules as files (FR-B4)
     // ------------------------------------------------------------------------
+    // docC.txt is still sitting in the group's preview spot (D-16's two-step
+    // Enter never touched it — the FR-B2 jump above just activated docB.txt
+    // without disturbing docC.txt's preview flag). Confirm it first so there
+    // is no preview spot left for folderX to land in — otherwise folderX
+    // would replace it instead of adding a genuinely new tab, which is not
+    // what this step means to exercise.
+    tree.focusItemById('/workspace/docC.txt');
+    sendTreeKey('Enter');
+    const countBeforeFolder = editor.getPanelCount();
     tree.focusItemById('/workspace/folderX');
     sendTreeKey('Enter');
-    record('P4-FR-B4', editor.getPanelCount() === 2 && editor.getActivePanel()?.params?.targetId === '/workspace/folderX', 'Folder opens using identical rules as files (FR-B4)');
+    record(
+      'P4-FR-B4',
+      editor.getPanelCount() === countBeforeFolder + 1 &&
+        editor.getActivePanel()?.params?.targetId === '/workspace/folderX',
+      'Folder opens using identical rules as files — a not-yet-open target adds one tab either way (FR-B4)'
+    );
 
     // ------------------------------------------------------------------------
     // 8. Renderer Modes: 'always' vs 'onlyWhenVisible' DOM Attachment (FR-E4, FR-E5, D-24)
     // ------------------------------------------------------------------------
     editor.clear();
-    const tabAlways = editor.addNewTab();
-    editor.openItem('/workspace/always.txt', 'always.txt', { renderer: 'always' });
-    const tabOther = editor.addNewTab();
-    editor.openItem('/workspace/other.txt', 'other.txt');
+    const tabAlways = editor.openItem('/workspace/always.txt', 'always.txt', { renderer: 'always' }, undefined);
+    const tabOther = editor.openItem('/workspace/other.txt', 'other.txt', { mode: 'pinned' }, undefined);
 
     // tabAlways is now inactive. Because renderer is 'always', its content element MUST remain in DOM
     const alwaysRenderer = editor.getContentRenderer(tabAlways.id);
@@ -262,8 +327,7 @@ window.__runPhase4TestSuite = async function runPhase4TestSuite() {
       };
     });
 
-    const appTab1 = editor.addNewTab();
-    editor.openItem('/workspace/app1.txt', 'app1.txt');
+    const appTab1 = editor.openItem('/workspace/app1.txt', 'app1.txt', { mode: 'pinned' }, undefined);
     const appView1 = editor.getContentRenderer(appTab1.id);
     record('P4-APP-VIEW', appView1 && appView1.instanceStamp?.startsWith('stamp-app-'), 'Custom application view injected via component factory (D-4)');
 
@@ -274,8 +338,7 @@ window.__runPhase4TestSuite = async function runPhase4TestSuite() {
     record('P4-APP-TIMER-RUNNING', ticks1 > 0, 'Application view timer is actively ticking');
 
     // Switch away to another tab
-    const bgTab = editor.addNewTab();
-    editor.openItem('/workspace/bg.txt', 'bg.txt');
+    const bgTab = editor.openItem('/workspace/bg.txt', 'bg.txt', { mode: 'pinned' }, undefined);
     const bgView = editor.getContentRenderer(bgTab.id);
     await wait(40);
     const ticks2 = appView1.getTimerTicks();
@@ -341,8 +404,7 @@ window.__runPhase4TestSuite = async function runPhase4TestSuite() {
     // ------------------------------------------------------------------------
     editor.clear();
     const gMain = editor.getActiveGroup();
-    editor.addNewTab(gMain);
-    editor.openItem('/workspace/docA.txt', 'docA.txt');
+    const panelMainA = editor.openItem('/workspace/docA.txt', 'docA.txt', { mode: 'pinned' }, gMain);
 
     // In 1-group state, Ctrl+Enter from tree opens beside (FR-A14)
     tree.focusItemById('/workspace/docB.txt');
@@ -366,18 +428,39 @@ window.__runPhase4TestSuite = async function runPhase4TestSuite() {
     record('P4-FR-A14-2D-COUNT', editor.getGroupCount() === 3, 'openBeside in 2D layout reuses spatial beside group without creating 4th group (FR-A14)');
     record('P4-FR-A14-2D-TARGET', panelBeside2D && panelBeside2D.group === gTopRight, 'openBeside target is strictly the spatial right-hand group (FR-A14, D-19)');
 
-    // Test FR-B2 duplicate protection under openBeside:
-    // docA.txt is open in gMain. Calling openBeside with docA.txt MUST jump to gMain!
+    // v0.2 FR-P15/D-15 narrows the FR-B2/D-5 duplicate check to the target
+    // group only. Active group is gMain, which already holds docA.txt
+    // (pinned). openBeside resolves the target to gTopRight (spatial right
+    // neighbor of gMain) — a DIFFERENT group, currently showing docC.txt as
+    // its preview. Opening docA.txt beside must fill gTopRight's preview
+    // spot with docA.txt, NOT jump back to gMain: the panel count should not
+    // move (a preview reuse, same as any other pick), but docA.txt now
+    // exists as two independent panels in two different groups at once.
+    // openBeside(docC.txt) above left gTopRight active (it sets the active
+    // group to wherever it resolved as "beside"); reactivate gMain so the
+    // next openBeside call resolves its beside target from gMain again.
+    await uiActivateGroup(gMain);
+    record('P4-FR-A14-DUP-PRECONDITION', editor.getActiveGroup() === gMain, 'Active group is gMain before the duplicate-check assertion (sanity check on test setup)');
+    const panelCountBeforeDup = editor.getPanelCount();
     const jumpedBeside = editor.openBeside('/workspace/docA.txt', 'docA.txt');
-    record('P4-FR-A14-DUP', editor.getActivePanel()?.params?.targetId === '/workspace/docA.txt' && jumpedBeside && jumpedBeside.group === gMain, 'openBeside jumps to existing panel across workbench without duplicating (FR-B2, FR-A14)');
+    const docACopies = editor.getPanels().filter((p) => p.params?.targetId === '/workspace/docA.txt');
+    record(
+      'P4-FR-A14-DUP',
+      editor.getPanelCount() === panelCountBeforeDup &&
+        jumpedBeside &&
+        jumpedBeside.params?.targetId === '/workspace/docA.txt' &&
+        jumpedBeside.group === gTopRight &&
+        jumpedBeside.id !== panelMainA.id &&
+        docACopies.length === 2,
+      'openBeside no longer dedups across the workbench: docA.txt fills gTopRight\'s preview spot as a distinct 2nd panel even though it is already open, confirmed, in gMain (FR-P15, D-15 — supersedes v0.1 FR-B2/FR-A14 dup check)'
+    );
 
     // ------------------------------------------------------------------------
     // 11. Header Split Buttons Click (FR-D1, FR-D2)
     // ------------------------------------------------------------------------
     editor.clear();
     const sGroup = editor.getActiveGroup();
-    editor.addNewTab(sGroup);
-    editor.openItem('/workspace/splitTest.txt', 'splitTest.txt');
+    editor.openItem('/workspace/splitTest.txt', 'splitTest.txt', { mode: 'pinned' }, sGroup);
 
     const splitRightBtn = document.querySelector('.tab-action-split-right');
     clickEl(splitRightBtn);
@@ -405,13 +488,16 @@ window.__runPhase4TestSuite = async function runPhase4TestSuite() {
     // 12. UI Split Action Triggers: Activity Bar & View Menu (FR-D3)
     // ------------------------------------------------------------------------
     const initialGroups = editor.getGroupCount();
-    const actSplitH = document.querySelector('.activity-bar-item[data-item-id="activity:split-horizontal"]');
-    if (!actSplitH) throw new Error('Activity bar split-horizontal button not found in DOM');
-    clickEl(actSplitH);
-    record('P4-FR-D3-ACTBAR', editor.getGroupCount() === initialGroups + 1, 'Activity Bar split-horizontal button clicked in DOM splits pane (FR-D3)');
+    // v0.2 replaces the Activity Bar path of v0.1 FR-D3 (SPEC 0.1, FR-C5, D-3):
+    // splitting is no longer offered there. The ID is kept so the v0.1 matrix
+    // row still resolves, and it now asserts that the path is gone; the tab
+    // strip and menu paths below keep their v0.1 judgement.
+    const actSplitH = document.querySelector('.activity-bar-item[data-item-id^="activity:split"]');
+    record('P4-FR-D3-ACTBAR', actSplitH === null, 'The Activity Bar offers 0 split actions (v0.1 FR-D3 Activity Bar path → v0.2 FR-C5)');
 
-    clickMenuRow('view', 'view:split-vertical');
-    record('P4-FR-D3-MENU', editor.getGroupCount() === initialGroups + 2, 'View menu split-vertical item clicked in DOM splits pane (FR-D3)');
+    // The menu path moved from View to File in v0.2 (SPEC 0.1, FR-M1).
+    clickMenuRow('file', 'file:split-down');
+    record('P4-FR-D3-MENU', editor.getGroupCount() === initialGroups + 1, 'File > Split Down clicked in DOM splits pane (v0.1 FR-D3 menu path, now in File per v0.2 FR-M1)');
 
     // ------------------------------------------------------------------------
     // 13. Split Stress Test: 8 Consecutive Splits to 9 Panes (FR-D7)
@@ -440,11 +526,9 @@ window.__runPhase4TestSuite = async function runPhase4TestSuite() {
     // ------------------------------------------------------------------------
     editor.clear();
     const gLeft = editor.getActiveGroup();
-    editor.addNewTab(gLeft);
-    editor.openItem('/workspace/left.txt', 'left.txt');
+    editor.openItem('/workspace/left.txt', 'left.txt', { mode: 'pinned' }, gLeft);
     const gRight = editor.splitActiveGroup('right');
-    editor.addNewTab(gRight);
-    editor.openItem('/workspace/right.txt', 'right.txt');
+    editor.openItem('/workspace/right.txt', 'right.txt', { mode: 'pinned' }, gRight);
 
     const sash = document.querySelector('.dv-sash');
     record('P4-FR-D4-SASH', sash !== null, 'Sashes exist between adjacent split panes (FR-D4)');
@@ -517,11 +601,9 @@ window.__runPhase4TestSuite = async function runPhase4TestSuite() {
     // ------------------------------------------------------------------------
     editor.clear();
     const gSepA = editor.getActiveGroup();
-    editor.addNewTab(gSepA);
-    editor.openItem('/workspace/sepA.txt', 'sepA.txt');
+    editor.openItem('/workspace/sepA.txt', 'sepA.txt', { mode: 'pinned' }, gSepA);
     const gSepB = await uiSplit(gSepA, 'right');
-    editor.addNewTab(gSepB);
-    editor.openItem('/workspace/sepB.txt', 'sepB.txt');
+    editor.openItem('/workspace/sepB.txt', 'sepB.txt', { mode: 'pinned' }, gSepB);
     // The boundary between two groups has to be *visible*, not merely present.
     // dockview injects its own stylesheet at runtime as an inline <style>, which
     // this app's CSP (style-src 'self') blocks outright, so every dv-* rule has
@@ -629,10 +711,8 @@ window.__runPhase4TestSuite = async function runPhase4TestSuite() {
     // ------------------------------------------------------------------------
     editor.clear();
     const roGroup = editor.getActiveGroup();
-    const tA = editor.addNewTab(roGroup);
-    editor.openItem('/workspace/tA.txt', 'tA.txt');
-    const tB = editor.addNewTab(roGroup);
-    editor.openItem('/workspace/tB.txt', 'tB.txt');
+    const tA = editor.openItem('/workspace/tA.txt', 'tA.txt', { mode: 'pinned' }, roGroup);
+    const tB = editor.openItem('/workspace/tB.txt', 'tB.txt', { mode: 'pinned' }, roGroup);
     record('P4-REORDER-INIT', roGroup.panels[0].id === tA.id && roGroup.panels[1].id === tB.id, 'Tabs initially ordered [tA, tB]');
 
     const tabEls = Array.from(roGroup.element.querySelectorAll('.dv-tab'));
@@ -715,12 +795,9 @@ window.__runPhase4TestSuite = async function runPhase4TestSuite() {
     // ------------------------------------------------------------------------
     editor.clear();
     const cGroup = editor.getActiveGroup();
-    const cTab1 = editor.addNewTab(cGroup);
-    editor.openItem('/workspace/cTab1.txt', 'cTab1.txt');
-    const cTab2 = editor.addNewTab(cGroup);
-    editor.openItem('/workspace/cTab2.txt', 'cTab2.txt');
-    const cTab3 = editor.addNewTab(cGroup);
-    editor.openItem('/workspace/cTab3.txt', 'cTab3.txt');
+    const cTab1 = editor.openItem('/workspace/cTab1.txt', 'cTab1.txt', { mode: 'pinned' }, cGroup);
+    const cTab2 = editor.openItem('/workspace/cTab2.txt', 'cTab2.txt', { mode: 'pinned' }, cGroup);
+    const cTab3 = editor.openItem('/workspace/cTab3.txt', 'cTab3.txt', { mode: 'pinned' }, cGroup);
 
     // Activate middle tab (cTab2)
     cTab2.api.setActive();
@@ -748,24 +825,21 @@ window.__runPhase4TestSuite = async function runPhase4TestSuite() {
     }));
     record('P4-FR-N6b-KEY', editor.getPanelCount() === countBeforeCtrlW - 1, 'Pressing Ctrl+W dispatches keydown and closes active tab (FR-N6b)');
 
-    // File menu "탭 닫기" (FR-N6b) via DOM click
-    const cTabNew = editor.addNewTab(cGroup);
-    editor.openItem('/workspace/cTabNew.txt', 'cTabNew.txt');
+    // File > Close Active Tab (FR-N6b; labelled "탭 닫기" in v0.1) via DOM click
+    const cTabNew = editor.openItem('/workspace/cTabNew.txt', 'cTabNew.txt', { mode: 'pinned' }, cGroup);
     const countBeforeFileMenu = editor.getPanelCount();
     clickMenuRow('file', 'file:close-tab');
-    record('P4-FR-N6b-MENU', editor.getPanelCount() === countBeforeFileMenu - 1, 'File menu "탭 닫기" clicked via DOM closes active tab (FR-N6b)');
+    record('P4-FR-N6b-MENU', editor.getPanelCount() === countBeforeFileMenu - 1, 'File > Close Active Tab clicked via DOM closes active tab (FR-N6b)');
 
     // ------------------------------------------------------------------------
     // 19. Pane Disappearance & Last Empty Pane Invariants (FR-C4, FR-J1, FR-J7)
     // ------------------------------------------------------------------------
     editor.clear();
     const g1 = editor.getActiveGroup();
-    const tabG1 = editor.addNewTab(g1);
-    editor.openItem('/workspace/p1.txt', 'p1.txt');
+    const tabG1 = editor.openItem('/workspace/p1.txt', 'p1.txt', { mode: 'pinned' }, g1);
 
     const g2 = await uiSplit(g1, 'right');
-    const tabG2 = editor.addNewTab(g2);
-    editor.openItem('/workspace/p2.txt', 'p2.txt');
+    const tabG2 = editor.openItem('/workspace/p2.txt', 'p2.txt', { mode: 'pinned' }, g2);
 
     record('P4-MULTI-GROUP-INIT', editor.getGroupCount() === 2, '2 groups exist before closing tab in g2');
     await uiCloseTab(tabG2.id);
@@ -776,8 +850,7 @@ window.__runPhase4TestSuite = async function runPhase4TestSuite() {
     // path (closeActiveTab -> confirmAndClose), and breaking just that one
     // left the suite green. Drive the same transition from the keyboard.
     const g2b = await uiSplit(g1, 'right');
-    const tabG2b = editor.addNewTab(g2b);
-    editor.openItem('/workspace/p2b.txt', 'p2b.txt');
+    const tabG2b = editor.openItem('/workspace/p2b.txt', 'p2b.txt', { mode: 'pinned' }, g2b);
     await wait(60);
     const groupsBeforeCtrlWLast = editor.getGroupCount();
     document.dispatchEvent(new KeyboardEvent('keydown', {
@@ -798,33 +871,31 @@ window.__runPhase4TestSuite = async function runPhase4TestSuite() {
     // ------------------------------------------------------------------------
     // 20. "활성 칸 탭 모두 닫기" (FR-J2, FR-J3, FR-J4, FR-J5)
     // ------------------------------------------------------------------------
-    // In empty pane, closeAllTabsInGroup changes nothing (FR-J4)
-    clickMenuRow('view', 'view:close-active-tabs');
+    // v0.1's View "활성 칸 탭 모두 닫기" is v0.2's File > Close Editor Group,
+    // which must give the same results (SPEC 0.1, FR-M10).
+    // In empty pane, it changes nothing (FR-J4)
+    clickMenuRow('file', 'file:close-editor-group');
     await wait(20); // closeAllTabsInGroup is async (Phase 6: dirty-confirmation gate on every panel close)
-    record('P4-FR-J4', editor.getGroupCount() === 1 && editor.getPanelCount() === 0, '"활성 칸 탭 모두 닫기" on empty pane changes nothing (FR-J4)');
+    record('P4-FR-J4', editor.getGroupCount() === 1 && editor.getPanelCount() === 0, 'File > Close Editor Group on empty pane changes nothing (v0.1 FR-J4 → v0.2 FR-M10)');
 
     // Multi-tab group close & disposal count test (FR-J2, FR-J5)
     editor.clear();
     const mg1 = editor.getActiveGroup();
-    const mt1 = editor.addNewTab(mg1);
-    editor.openItem('/workspace/m1.txt', 'm1.txt');
-    const mt2 = editor.addNewTab(mg1);
-    editor.openItem('/workspace/m2.txt', 'm2.txt');
-    const mt3 = editor.addNewTab(mg1);
-    editor.openItem('/workspace/m3.txt', 'm3.txt');
+    const mt1 = editor.openItem('/workspace/m1.txt', 'm1.txt', { mode: 'pinned' }, mg1);
+    const mt2 = editor.openItem('/workspace/m2.txt', 'm2.txt', { mode: 'pinned' }, mg1);
+    const mt3 = editor.openItem('/workspace/m3.txt', 'm3.txt', { mode: 'pinned' }, mg1);
 
     // Create 2nd pane so mg1 disappears when closed
     const mg2 = editor.splitActiveGroup('right');
-    editor.addNewTab(mg2);
-    editor.openItem('/workspace/mOther.txt', 'mOther.txt');
+    editor.openItem('/workspace/mOther.txt', 'mOther.txt', { mode: 'pinned' }, mg2);
 
     // Make mg1 active
     editor.setActiveGroup(mg1);
 
-    // Trigger View menu "활성 칸 탭 모두 닫기" via DOM click
-    clickMenuRow('view', 'view:close-active-tabs');
+    // Trigger File > Close Editor Group via DOM click
+    clickMenuRow('file', 'file:close-editor-group');
     await wait(20); // closeAllTabsInGroup is async (Phase 6: dirty-confirmation gate on every panel close)
-    record('P4-FR-J2', editor.getGroupCount() === 1, '"활성 칸 탭 모두 닫기" closes multi-tab group and disappears when other group exists (FR-J2)');
+    record('P4-FR-J2', editor.getGroupCount() === 1, 'File > Close Editor Group closes multi-tab group and it disappears when other group exists (v0.1 FR-J2 → v0.2 FR-M10)');
     const d1 = editor.getLifecycleStats(mt1.id).disposalCount;
     const d2 = editor.getLifecycleStats(mt2.id).disposalCount;
     const d3 = editor.getLifecycleStats(mt3.id).disposalCount;
@@ -844,22 +915,20 @@ window.__runPhase4TestSuite = async function runPhase4TestSuite() {
     // Return to empty pane
     editor.closeActiveTab();
 
-    // Path 2: Activity Bar split icon clicked in DOM
-    const actBtnRestart = document.querySelector('.activity-bar-item[data-item-id="activity:split-horizontal"]');
-    if (!actBtnRestart) throw new Error('Activity bar split icon not found in DOM');
-    clickEl(actBtnRestart);
-    record('P4-FR-J8-PATH2', editor.getGroupCount() === 2, 'Restart path 2: Activity Bar split icon creates 2nd pane from empty pane (FR-J8)');
+    // Path 2 (v0.1): the Activity Bar split icon — gone in v0.2 (SPEC 0.1,
+    // FR-C5, D-3). The ID is kept for the v0.1 matrix and now asserts absence.
+    const actBtnRestart = document.querySelector('.activity-bar-item[data-item-id^="activity:split"]');
+    record('P4-FR-J8-PATH2', actBtnRestart === null, 'Restart path 2 (Activity Bar split icon) no longer exists (v0.1 FR-J8 → v0.2 FR-C5)');
 
-    // Path 3: View menu split item clicked in DOM
-    clickMenuRow('view', 'view:split-vertical');
-    record('P4-FR-J8-PATH3', editor.getGroupCount() === 3, 'Restart path 3: View menu split creates 3rd pane from empty pane (FR-J8)');
+    // Path 3: the menu split item clicked in DOM (File since v0.2, FR-M1)
+    clickMenuRow('file', 'file:split-down');
+    record('P4-FR-J8-PATH3', editor.getGroupCount() === 2, 'Restart path 3: File > Split Down creates a 2nd pane from the empty pane (FR-J8)');
 
     // ------------------------------------------------------------------------
     // 22. Tab Dirty Indicator (FR-L1)
     // ------------------------------------------------------------------------
     editor.clear();
-    const dTab = editor.addNewTab();
-    editor.openItem('/workspace/dirty.txt', 'dirty.txt');
+    const dTab = editor.openItem('/workspace/dirty.txt', 'dirty.txt', { mode: 'pinned' }, undefined);
     editor.setTabDirty(dTab.id, true);
     record('P4-FR-L1-SET', dTab.title.startsWith('●'), 'setTabDirty(true) prefixes title with ● (FR-L1)');
     editor.setTabDirty(dTab.id, false);
@@ -868,18 +937,32 @@ window.__runPhase4TestSuite = async function runPhase4TestSuite() {
     // ------------------------------------------------------------------------
     // 23. Zero Commands Invariant (FR-D8, FR-J3, FR-J6)
     // ------------------------------------------------------------------------
+    // v0.1 FR-D8 / FR-J6 ("0 group-close commands anywhere") are replaced by
+    // v0.2 FR-M10 (D-5): exactly 1 in the menu, still 0 everywhere else.
     const allMenuItems = menu.getGroups().flatMap((g) => g.items);
-    const menuHasClosePane = allMenuItems.some((it) => it.label.includes('칸 닫기') || it.label.includes('칸 삭제') || it.id.includes('close-group'));
-    record('P4-FR-D8-MENU', !menuHasClosePane, 'Menu contains zero 칸 닫기/칸 삭제 items (FR-D8, FR-J6)');
+    const isGroupClose = (it) =>
+      it.label.includes('칸 닫기') || it.label.includes('칸 삭제') || it.label.includes('Close Editor Group') ||
+      it.id.includes('close-group') || it.id.includes('close-editor-group');
+    const menuGroupCloseItems = allMenuItems.filter(isGroupClose);
+    record(
+      'P4-FR-D8-MENU',
+      menuGroupCloseItems.length === 1 && menuGroupCloseItems[0].id === 'file:close-editor-group',
+      'Menu contains exactly 1 group-close item, File > Close Editor Group (v0.1 FR-D8/FR-J6 → v0.2 FR-M10)'
+    );
 
-    const actBarHasClosePane = activityBar.getItems().some((it) => it.label.includes('칸 닫기') || it.label.includes('칸 삭제') || it.id.includes('close-group'));
-    record('P4-FR-D8-ACTBAR', !actBarHasClosePane, 'Activity Bar contains zero 칸 닫기/칸 삭제 items (FR-D8, FR-J6)');
+    const actBarHasClosePane = activityBar.getItems().some(isGroupClose);
+    record('P4-FR-D8-ACTBAR', !actBarHasClosePane, 'Activity Bar contains zero group-close items (FR-D8, FR-J6, v0.2 FR-M10)');
 
-    const actBarHasCloseAll = activityBar.getItems().some((it) => it.label.includes('활성 칸 탭 모두 닫기') || it.id.includes('close-active-tabs'));
-    record('P4-FR-J3-ACTBAR', !actBarHasCloseAll, 'Activity bar contains zero "활성 칸 탭 모두 닫기" items (FR-J3)');
+    const actBarHasCloseAll = activityBar.getItems().some((it) => isGroupClose(it) || it.label.includes('활성 칸 탭 모두 닫기') || it.id.includes('close-active-tabs'));
+    record('P4-FR-J3-ACTBAR', !actBarHasCloseAll, 'Activity bar contains zero "close the group\'s tabs" items (FR-J3)');
 
-    const viewHasCloseAll = allMenuItems.some((it) => it.id === 'view:close-active-tabs');
-    record('P4-FR-J3-VIEWMENU', viewHasCloseAll, 'View menu contains "활성 칸 탭 모두 닫기" (FR-J2, FR-J3)');
+    const fileGroupItems = menu.getGroups().find((g) => g.id === 'file').items;
+    const viewGroupItems = menu.getGroups().find((g) => g.id === 'view').items;
+    record(
+      'P4-FR-J3-VIEWMENU',
+      fileGroupItems.filter(isGroupClose).length === 1 && viewGroupItems.filter(isGroupClose).length === 0,
+      'The command is only in the menu: 1 in File (Close Editor Group), 0 in View (v0.1 FR-J3 → v0.2 FR-M10, moved from View to File)'
+    );
 
     const allPassed = results.every((r) => r.pass);
     return { success: allPassed, results };

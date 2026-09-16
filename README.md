@@ -16,7 +16,10 @@
 같은 공통 UI를 두 갈래가 공유한다 — 파이썬이 필요한 앱은 **pywebview**로, 필요 없는
 앱은 **Electron**으로 낸다.
 
-> **기획을 마치고 착수했다.** 구현은 Phase 1부터 시작한다.
+> **v0.2 마감.** Phase 1~7 전부 완료 — 임시/확정 탭, 선택·포커스 표시, 창 껍데기 배치,
+> 메뉴·칸 수명, 탐색기 구조, 테마·아이콘·치수, 표시 언어까지. 아이콘 테마는
+> `VS Code Built-in` · `VS Code Icons` · `Simple` 셋, monaco 에디터 색은 VS Code의
+> `--vscode-*` 토큰을 따른다.
 
 ---
 
@@ -70,16 +73,123 @@ npm run dev
 
 ---
 
+## 단축키
+
+껍데기가 먼저 가져가는 키와, 같은 기능을 VS Code에서 부르는 키를 나란히 둔 표다.
+**정본은 [`docs/reserved-keys.md`](docs/reserved-keys.md)**이고 이 표는 읽기 쉬운
+요약이다 — 둘이 어긋나면 그쪽이 맞다.
+
+여기 없는 키는 전부 탭 안의 보기(앱) 몫이다. 껍데기는 손대지 않는다(`FR-I6`).
+
+### 1. 파일과 창
+
+| 기능 | workbench-kit | VS Code | 비고 |
+| --- | --- | --- | --- |
+| 폴더 열기 | `Ctrl+O` | `Ctrl+K Ctrl+O` (`Ctrl+O`는 *파일* 열기) | **다름** — 껍데기는 파일 열기가 없어 `Ctrl+O`를 폴더 열기에 쓴다 |
+| 활성 탭 닫기 | `Ctrl+W` | `Ctrl+W` | 같음 |
+| 끝내기 | `Alt+F4` | `Alt+F4` | 같음 (OS 수준) |
+
+### 2. 화면과 레이아웃
+
+| 기능 | workbench-kit | VS Code | 비고 |
+| --- | --- | --- | --- |
+| 좌우 분할 | `Ctrl+\` | `Ctrl+\` | 같음 |
+| 탐색기 보이기/감추기 | `Ctrl+B` | `Ctrl+B` | 같음 |
+| Zen 모드 | `F11` | `Ctrl+K Z` (`F11`은 전체화면) | **의도적 다름** — 창 크기는 그대로 두고 크롬만 감춘다 (D-12) |
+| Zen 모드 나가기 | `F11` 또는 `Escape` | `Escape Escape` | 다름 — 한 번으로 나온다 |
+
+### 3. 포커스와 탭 이동
+
+| 기능 | workbench-kit | VS Code | 비고 |
+| --- | --- | --- | --- |
+| 다음 / 이전 영역으로 포커스 | `F6` / `Shift+F6` | `F6` / `Shift+F6` | 같음. 단 탭 안 보기에 포커스가 있으면 껍데기가 가로채지 않는다 |
+| 활성 칸의 다음 / 이전 탭 | `Ctrl+Tab` / `Ctrl+Shift+Tab` | `Ctrl+PageDown` / `Ctrl+PageUp` (`Ctrl+Tab`은 최근 사용 순 목록) | **다름** — 목록을 띄우지 않고 곧바로 옆 탭으로 간다 |
+| 버튼 사이 이동 | `Tab` / `Shift+Tab` | `Tab` / `Shift+Tab` | 같음 — 예약하지 않고 브라우저 기본에 맡긴다 |
+
+### 4. 메뉴
+
+| 기능 | workbench-kit | VS Code | 비고 |
+| --- | --- | --- | --- |
+| 메뉴 열기/닫기 | `F10` | `F10` (또는 `Alt`) | 같음 — 메뉴가 햄버거 하나뿐이라 `F10`이 여닫기를 겸한다 |
+| 항목 이동 | `ArrowUp` / `ArrowDown` | 같음 | 같음 |
+| 하위 메뉴 열기 / 닫기 | `ArrowRight` / `ArrowLeft` | 같음 | 같음 |
+| 실행 | `Enter` | `Enter` | 같음 |
+| 최근 폴더 목록에서 지우기 | `Delete` (`Recent Folders` 안에서) | `Delete` (Open Recent 목록에서) | 같음 |
+| 메뉴 닫기 | `Escape` | `Escape` | 같음 |
+
+우클릭 메뉴는 `ArrowUp`/`ArrowDown` · `Enter` · `Escape`만 받는다.
+
+### 5. 탐색기 트리
+
+| 기능 | workbench-kit | VS Code | 비고 |
+| --- | --- | --- | --- |
+| 위 / 아래 이동 | `ArrowUp` / `ArrowDown` | 같음 | 같음 |
+| 펼치기 / 접기 | `ArrowRight` / `ArrowLeft` | 같음 | 같음 |
+| 모두 접기 | `Ctrl+ArrowLeft` | `Ctrl+ArrowLeft` (목록 공통) | 같음 |
+| 펼침 토글 | `Space` | `Space` | 같음 |
+| 열기(확정) | `Enter` | `Enter` | 다름 — 이미 임시 탭으로 열려 있으면 그 탭을 **확정**한다 (FR-P7) |
+| 옆 칸에 열기 | `Ctrl+Enter` | `Ctrl+Enter` | 같음 |
+| 선택 토글 | `Ctrl+Shift+Enter` | (마우스 `Ctrl+클릭`) | 다름 — 키보드만으로 하는 경로를 따로 둔다 |
+| 처음 / 끝으로 | `Home` / `End` | 같음 | 같음 |
+| 화면 단위 이동 | `PageUp` / `PageDown` | 같음 | 같음 |
+| 범위 선택 | `Shift+ArrowUp` / `Shift+ArrowDown` | 같음 | 같음 |
+| 전체 선택 | `Ctrl+A` | `Ctrl+A` | 같음 |
+| 포커스 고정 스크롤 | `Ctrl+ArrowUp` / `Ctrl+ArrowDown` | 같음 | 같음 |
+| 트리에서 찾기 | `F3` 또는 `Ctrl+Alt+F` | (글자를 바로 입력하면 검색) | 다름 — 찾기 위젯을 명시적으로 연다 |
+| 선택 해제 / 찾기 닫기 | `Escape` | `Escape` | 같음 |
+
+### 6. 탐색기 폭 조절 손잡이
+
+`Tab`으로 경계 손잡이에 포커스를 준 뒤 쓴다. VS Code에는 대응하는 키가 없다(마우스 전용).
+
+| 기능 | workbench-kit | VS Code |
+| --- | --- | --- |
+| 한 단계 줄이기 / 늘리기 | `ArrowLeft` / `ArrowRight` | 없음 |
+| 최소 폭으로 | `Home` | 없음 |
+| 창 폭의 40%로 | `End` | 없음 |
+
+### 7. 에디터 안 (monaco가 제공)
+
+껍데기가 예약하지 않고 monaco 기본값을 그대로 쓴다. 그래서 VS Code와 같다.
+
+| 기능 | workbench-kit | VS Code | 비고 |
+| --- | --- | --- | --- |
+| 찾기 | `Ctrl+F` | `Ctrl+F` | 같음 |
+| 바꾸기 | `Ctrl+H` | `Ctrl+H` | 같음 |
+| 되돌리기 / 다시하기 | `Ctrl+Z` / `Ctrl+Y` | 같음 | 같음 |
+
+자동완성·hover·미니맵·멀티커서는 꺼져 있다(`X-12`, `FR-P5`).
+
+이 키들은 껍데기가 **예약한 것이 아니다.** 껍데기가 손대지 않으니 탭 안의 보기(여기서는
+monaco)가 받는 것뿐이다 — 다른 보기를 넣은 앱에서는 그 보기가 하는 대로 동작한다.
+
+### 8. 껍데기가 **가져가지 않는** 키
+
+리소스 종류를 아는 일은 앱 몫이라, 아래는 껍데기가 손대지 않고 탭 안 보기로 그대로
+넘어간다(`FR-R1a`). VS Code에서 같은 키가 하는 일을 참고로 적는다.
+
+| 키 | 껍데기 | VS Code |
+| --- | --- | --- |
+| `Ctrl+S` | 앱에 넘김 | 저장 |
+| `F2` | 앱에 넘김 | 이름 바꾸기 |
+| `Delete` | 앱에 넘김 (메뉴가 열려 있을 때만 예외) | 삭제 |
+| `Ctrl+C` / `Ctrl+V` | 앱에 넘김 | 복사 / 붙이기 |
+
+---
+
 ## 문서
 
 | 문서 | 무엇이 있나 |
 | --- | --- |
 | [`INTENT.md`](docs/current/INTENT.md) | 이 프로젝트가 무엇을 왜 하는가. 버전이 바뀌어도 변하지 않는 것 |
-| [`BRIEF.md`](docs/current/BRIEF.md) | 이번 버전(v0.1)에서 무엇을 왜 하는가. 하지 않을 것. 완료 조건 |
-| [`DECISIONS.md`](docs/current/DECISIONS.md) | 설계 결정 32개(D-1 ~ D-32)와 각각의 근거·배제한 대안 |
-| [`SPEC.md`](docs/current/SPEC.md) | 이번 버전이 만족해야 할 것 — 기능 요구 133건, 비기능 7, 제약 11, 미구현 22 |
+| [`BRIEF.md`](docs/current/BRIEF.md) | 이번 버전(v0.2)에서 무엇을 왜 하는가. 하지 않을 것. 완료 조건 |
+| [`DECISIONS.md`](docs/current/DECISIONS.md) | 설계 결정 20개(D-1 ~ D-20)와 각각의 근거·배제한 대안 |
+| [`SPEC.md`](docs/current/SPEC.md) | 이번 버전이 만족해야 할 것 |
 | [`PLAN.md`](docs/current/PLAN.md) | Phase 1 ~ 7의 목적·대응 요구 ID·완료 조건, 그리고 적대적 검증 게이트 |
-| [`backlog.json`](docs/current/backlog.json) | task 48개. `id` · `phase`(= `priority` P1 ~ P7) · 완료 조건 |
+| [`backlog.json`](docs/current/backlog.json) | task 34개, 전건 완료. `id` · `phase`(= `priority` P1 ~ P7) · 완료 조건 |
+| [`PROGRESS.md`](docs/current/PROGRESS.md) | task별 진행 기록과 계획 외 개선 26건, 마감 요약 |
+
+이전 버전(v0.1) 문서는 [`docs/history/v0.1/`](docs/history/v0.1/)에 있다.
 
 ### 참고 자료 (`refs/`)
 
@@ -97,10 +207,10 @@ npm run dev
 
 ## 다음
 
-기획을 마치고 **착수했다**(2026-09-08, `INIT.md` 모드 C). 문서는 `docs/current/`,
-참고 자료는 `docs/refs/`, Phase별 적대적 검증 기록은 `docs/reviews/`에 쌓인다.
-구현은 `docs/current/PLAN.md`의 Phase 1부터, task는 `docs/current/backlog.json`의
-`WK-001`부터다. 구현 세션에 줄 지시문은 [`docs/refs/handoff.md`](docs/refs/handoff.md).
+v0.2를 마감했다(2026-09-16). 남긴 것과 다음 버전 후보는
+[`PROGRESS.md`의 마감 요약](docs/current/PROGRESS.md)에 있다 — 트리 세로선 간격
+등 금지 값 예외 2건, 대비 미달 5건, pywebview 재확인 항목, monaco 문법 강조
+(범위 밖으로 제외)가 그 후보다. 다음 버전의 범위·번호는 사람이 정한다.
 
 ## 가져다 쓰는 것
 

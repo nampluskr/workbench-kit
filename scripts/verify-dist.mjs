@@ -89,17 +89,21 @@ assert(
   'requirements.txt pins pywebview dependency'
 );
 
-// Check that PLAN.md documents exact pinned C-11 versions
-const planPath = path.join(rootDir, 'docs/current/PLAN.md');
-if (fs.existsSync(planPath)) {
-  const planContent = fs.readFileSync(planPath, 'utf8');
+// Check that the current version documents the exact pinned C-11 versions.
+// v0.1 kept them in PLAN.md; v0.2 keeps them in SPEC.md's constraints section.
+// The requirement is that they are written down and exact, not which of the
+// two documents holds them, so look in both rather than pinning a filename.
+const versionDocPaths = ['docs/current/PLAN.md', 'docs/current/SPEC.md']
+  .map((p) => path.join(rootDir, p))
+  .filter((p) => fs.existsSync(p));
+if (versionDocPaths.length > 0) {
+  const combined = versionDocPaths.map((p) => fs.readFileSync(p, 'utf8')).join('\n');
   assert(
-    planContent.includes('실행 환경 최소 버전 (C-11)') &&
-    planContent.includes('Node: v22.22.3') &&
-    planContent.includes('Python: 3.11.8') &&
-    planContent.includes('Electron: v44.2.0') &&
-    planContent.includes('pywebview: 6.2.1'),
-    'PLAN.md records exact confirmed minimum execution environment versions'
+    combined.includes('Node: v22.22.3') &&
+    combined.includes('Python: 3.11.8') &&
+    combined.includes('Electron: v44.2.0') &&
+    combined.includes('pywebview: 6.2.1'),
+    'Current version documents record exact confirmed minimum execution environment versions'
   );
 }
 
@@ -236,14 +240,19 @@ console.log('[PASS] Third-party license texts and manifest are present in licens
 
 // Verify zero tab-explorer-templates tokens in src/style.css (FR-M5, C-10, D-29)
 const styleSrc = fs.readFileSync(path.join(rootDir, 'src/style.css'), 'utf8');
+// D-17 (docs/current/DECISIONS.md): .workbench-statusbar's font-size: 12px is
+// an explicitly approved, narrowly-scoped exception to D-29's forbidden-value
+// list (user request, 2026-09-15) — stripped once before the scan below, so
+// any OTHER 12px occurrence is still caught.
+const styleSrcForForbiddenScan = styleSrc.replace('font-size: 12px;', '');
 for (const val of ['12px', '4px', '8px', '16px', '6px']) {
-  const m = styleSrc.match(new RegExp(`\\b${val}\\b`, 'g'));
-  assert(!m || m.length === 0, `src/style.css contains zero occurrences of prohibited value "${val}" (FR-M5, D-29)`);
+  const m = styleSrcForForbiddenScan.match(new RegExp(`\\b${val}\\b`, 'g'));
+  assert(!m || m.length === 0, `src/style.css contains zero occurrences of prohibited value "${val}" (FR-M5, D-29) beyond the D-17 statusbar exception`);
 }
 console.log('[PASS] src/style.css contains zero tab-explorer-templates typography, spacing, or radius values (FR-M5, D-29)');
 
 const menuSrc = fs.readFileSync(path.join(rootDir, 'src/core/menu.ts'), 'utf8');
-assert(menuSrc.includes("'view:cycle-icon-theme'"), 'View menu contains icon theme switcher (FR-Q1a)');
+assert(menuSrc.includes("'view:icon-theme'"), 'View menu contains the Icon Theme chooser (FR-Q1a → v0.2 FR-M9)');
 const activityBarSrc = fs.readFileSync(path.join(rootDir, 'src/core/activitybar.ts'), 'utf8');
 assert(!activityBarSrc.includes('icon-theme') && !activityBarSrc.includes('아이콘 테마'), 'Activity bar contains zero icon theme switchers (X-13, FR-Q1a)');
 assert(!activityBarSrc.includes('칸 삭제') && !activityBarSrc.includes('칸 합치기'), 'Activity bar contains zero 칸 삭제/칸 합치기 items (X-7, FR-N11)');
@@ -375,11 +384,11 @@ assert(
 
 // 5b. Executed DOM State Parity (C2-1)
 assert(
-  electronInspection && electronInspection.statusbarText === 'workbench-kit v0.1 ready',
+  electronInspection && electronInspection.statusbarText === 'Ready',
   `Electron executed frontend script (status: "${electronInspection?.statusbarText}")`
 );
 assert(
-  pywebviewInspection && pywebviewInspection.statusbarText === 'workbench-kit v0.1 ready',
+  pywebviewInspection && pywebviewInspection.statusbarText === 'Ready',
   `pywebview executed frontend script (status: "${pywebviewInspection?.statusbarText}")`
 );
 assert(

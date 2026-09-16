@@ -134,7 +134,7 @@ codex.cmd exec --model gpt-5.6-sol --sandbox read-only --cd "<REPO>" "<PROMPT>"
 claude -p "<PROMPT>" --model opus --safe-mode --allowedTools "Read,Glob,Grep" --disallowedTools "Edit,Write,Bash" --permission-mode dontAsk --max-turns 5 --output-format json --no-session-persistence
 ```
 
-- 검토 CLI 실행 시간 제한은 기본 30분. 필요하면 `--max-budget-usd`로 호출별 비용 상한.
+- 검토 CLI 실행 시간 제한은 기본 10분. 필요하면 `--max-budget-usd`로 호출별 비용 상한.
 - 문서 검증일 때만 검토자가 상위 문서·`AGENTS.md`를 읽도록 읽기 전용 셸(`cat`,
   `sed -n`)을 허용한다. 코드 검증에서는 셸을 주지 않는다.
 - **모델 이름은 이 문서 작성 시점의 것이다.** 벤더의 최상위 모델이 바뀌면 여기를

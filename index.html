@@ -3,7 +3,13 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; font-src 'self' data:; object-src 'none'; base-uri 'self';" />
+    <!-- style-src-attr is the one relaxation (D-20): monaco positions every
+         rendered line by writing style="" attributes into HTML strings, which
+         'self' alone drops - line numbers and line heights collapse without
+         it. style-src-elem still falls back to style-src 'self', so injected
+         <style> elements (monaco's and dockview's theme CSS) stay blocked and
+         the hand-copied rules in src/style.css remain the source of truth. -->
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; style-src-attr 'unsafe-inline'; font-src 'self' data:; object-src 'none'; base-uri 'self';" />
     <title>workbench-kit</title>
     <link rel="stylesheet" href="./src/style.css" />
   </head>

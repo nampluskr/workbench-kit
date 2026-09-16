@@ -22,6 +22,13 @@ is_phase4_test = "--phase4-test" in sys.argv
 is_phase5_test = "--phase5-test" in sys.argv
 is_phase6_test = "--phase6-test" in sys.argv
 is_phase7_test = "--phase7-test" in sys.argv
+is_v02_phase1_test = "--v02-phase1-test" in sys.argv
+is_v02_phase2_test = "--v02-phase2-test" in sys.argv
+is_v02_phase3_test = "--v02-phase3-test" in sys.argv
+is_v02_phase4_test = "--v02-phase4-test" in sys.argv
+is_v02_phase5_test = "--v02-phase5-test" in sys.argv
+is_v02_phase6_test = "--v02-phase6-test" in sys.argv
+is_v02_phase7_test = "--v02-phase7-test" in sys.argv
 loaded_called = False
 
 INSPECTION_EXPRESSION = """
@@ -124,6 +131,10 @@ class WindowApi:
             self._window.minimize()
 
     def maximize(self):
+        # Returned to the renderer, which flips the button's icon to match
+        # (codicon-chrome-maximize <-> codicon-chrome-restore) — pywebview's
+        # JS bridge is a request/response round-trip per call, unlike
+        # Electron's fire-and-forget IPC send (user request, 2026-09-15).
         if self._window:
             if getattr(self._window, "is_maximized", False):
                 self._window.restore()
@@ -131,10 +142,30 @@ class WindowApi:
             else:
                 self._window.maximize()
                 self._window.is_maximized = True
+            return self._window.is_maximized
+        return None
 
     def close(self):
         if self._window:
             request_confirmed_close(self._window)
+
+    def get_window_bounds(self):
+        if not self._window:
+            return None
+        return {
+            "x": self._window.x,
+            "y": self._window.y,
+            "width": self._window.width,
+            "height": self._window.height,
+        }
+
+    def set_window_bounds(self, x, y, width, height):
+        if not self._window:
+            return
+        width = max(200, int(width))
+        height = max(150, int(height))
+        self._window.resize(width, height)
+        self._window.move(int(x), int(y))
 
     def open_folder_dialog(self):
         if self._window:
@@ -252,6 +283,441 @@ def main():
                 sys.stderr.write(f"[pywebview] Error inspecting loaded DOM: {e}\n")
                 sys.stderr.flush()
                 os._exit(1)
+
+        if is_v02_phase7_test:
+            def run_v02_phase7():
+                test_tmp_dir = tempfile.mkdtemp(prefix="wb-v02p7-fixture-")
+                try:
+                    with open(os.path.join(test_tmp_dir, "alpha.txt"), "w", encoding="utf-8") as f:
+                        f.write("a")
+                    with open(os.path.join(test_tmp_dir, "beta.ts"), "w", encoding="utf-8") as f:
+                        f.write("export {};")
+                    sub_dir = os.path.join(test_tmp_dir, "sub")
+                    os.makedirs(sub_dir)
+                    with open(os.path.join(sub_dir, "inner.md"), "w", encoding="utf-8") as f:
+                        f.write("# inner")
+                    # FR-L3 (A15 round-1 Critical finding — was untested): a real
+                    # Korean file/folder name is USER DATA, not product text, and
+                    # must still show exactly as-is in both hosts.
+                    with open(os.path.join(test_tmp_dir, "한글파일.txt"), "w", encoding="utf-8") as f:
+                        f.write("k")
+                    kr_dir = os.path.join(test_tmp_dir, "한글폴더")
+                    os.makedirs(kr_dir)
+                    with open(os.path.join(kr_dir, "내용.txt"), "w", encoding="utf-8") as f:
+                        f.write("k2")
+                    with open(os.path.join(root_dir, "docs", "reserved-keys.md"), "r", encoding="utf-8") as f:
+                        reserved_doc = f.read()
+
+                    def stubbed_open_folder_dialog():
+                        return window.evaluate_js("window.__nextDialogPath ?? null")
+                    api.open_folder_dialog = stubbed_open_folder_dialog
+
+                    time.sleep(0.6)
+                    suite_path = os.path.join(root_dir, "scripts", "v02-phase7-suite.js")
+                    with open(suite_path, "r", encoding="utf-8") as f:
+                        suite_code = f.read()
+                    window.evaluate_js("window.__testTmpDir = " + json.dumps(test_tmp_dir) + ";")
+                    window.evaluate_js("window.__reservedKeysDoc = " + json.dumps(reserved_doc) + ";")
+                    window.evaluate_js(suite_code)
+                    window.evaluate_js("""
+                        (async () => {
+                            try {
+                                const res = await window.__runV02Phase7Suite();
+                                window.__v02Phase7Results = JSON.stringify(res);
+                            } catch (e) {
+                                window.__v02Phase7Results = JSON.stringify({ success: false, results: [{ id: 'RUNNER_ERR', pass: false, msg: String(e) }] });
+                            }
+                        })();
+                    """)
+                    for _ in range(600):
+                        time.sleep(0.1)
+                        res = window.evaluate_js("window.__v02Phase7Results")
+                        if res:
+                            sys.stdout.write(f"[pywebview] v0.2 Phase 7 Results: {res}\n")
+                            sys.stdout.flush()
+                            window.destroy()
+                            shutil.rmtree(test_tmp_dir, ignore_errors=True)
+                            os._exit(0)
+                            return
+                    sys.stderr.write("[pywebview] Error: v0.2 Phase 7 test timed out waiting for results\n")
+                    sys.stderr.flush()
+                    window.destroy()
+                    shutil.rmtree(test_tmp_dir, ignore_errors=True)
+                    os._exit(1)
+                except Exception as e:
+                    sys.stderr.write(f"[pywebview] Error executing v0.2 Phase 7 test: {e}\n")
+                    sys.stderr.flush()
+                    window.destroy()
+                    shutil.rmtree(test_tmp_dir, ignore_errors=True)
+                    os._exit(1)
+
+            t = threading.Thread(target=run_v02_phase7, daemon=True)
+            t.start()
+            return
+
+        if is_v02_phase6_test:
+            def run_v02_phase6():
+                test_tmp_dir = tempfile.mkdtemp(prefix="wb-v02p6-fixture-")
+                try:
+                    with open(os.path.join(test_tmp_dir, "README.md"), "w", encoding="utf-8") as f:
+                        f.write("# readme")
+                    with open(os.path.join(test_tmp_dir, "index.ts"), "w", encoding="utf-8") as f:
+                        f.write("export {};")
+                    with open(os.path.join(test_tmp_dir, "app.spec.ts"), "w", encoding="utf-8") as f:
+                        f.write("test")
+                    with open(os.path.join(test_tmp_dir, "agents.md"), "w", encoding="utf-8") as f:
+                        f.write("agents")
+                    src_dir = os.path.join(test_tmp_dir, "src")
+                    os.makedirs(src_dir)
+                    with open(os.path.join(src_dir, "main.ts"), "w", encoding="utf-8") as f:
+                        f.write("main")
+                    for i in range(40):
+                        with open(os.path.join(test_tmp_dir, "file-" + str(i) + ".txt"), "w", encoding="utf-8") as f:
+                            f.write(str(i))
+                    with open(os.path.join(test_tmp_dir, "a-deliberately-very-long-file-name-to-force-the-explorer-horizontal-scrollbar.txt"), "w", encoding="utf-8") as f:
+                        f.write("x")
+                    comparison_doc = ""
+                    with open(os.path.join(root_dir, "docs", "vscode-comparison.md"), "r", encoding="utf-8") as f:
+                        comparison_doc = f.read()
+                    with open(os.path.join(root_dir, "src", "icons", "data", "seti.json"), "r", encoding="utf-8") as f:
+                        seti_data = f.read()
+                    time.sleep(0.6)
+                    suite_path = os.path.join(root_dir, "scripts", "v02-phase6-suite.js")
+                    with open(suite_path, "r", encoding="utf-8") as f:
+                        suite_code = f.read()
+                    window.evaluate_js("window.__testTmpDir = " + json.dumps(test_tmp_dir) + ";")
+                    window.evaluate_js("window.__vscodeComparison = " + json.dumps(comparison_doc) + ";")
+                    window.evaluate_js("window.__setiData = " + seti_data + ";")
+                    window.evaluate_js(suite_code)
+                    window.evaluate_js("""
+                        (async () => {
+                            try {
+                                const res = await window.__runV02Phase6Suite();
+                                window.__v02Phase6Results = JSON.stringify(res);
+                            } catch (e) {
+                                window.__v02Phase6Results = JSON.stringify({ success: false, results: [{ id: 'RUNNER_ERR', pass: false, msg: String(e) }] });
+                            }
+                        })();
+                    """)
+                    for _ in range(600):
+                        time.sleep(0.1)
+                        res = window.evaluate_js("window.__v02Phase6Results")
+                        if res:
+                            sys.stdout.write(f"[pywebview] v0.2 Phase 6 Results: {res}\n")
+                            sys.stdout.flush()
+                            window.destroy()
+                            shutil.rmtree(test_tmp_dir, ignore_errors=True)
+                            os._exit(0)
+                            return
+                    sys.stderr.write("[pywebview] Error: v0.2 Phase 6 test timed out waiting for results\n")
+                    sys.stderr.flush()
+                    window.destroy()
+                    shutil.rmtree(test_tmp_dir, ignore_errors=True)
+                    os._exit(1)
+                except Exception as e:
+                    sys.stderr.write(f"[pywebview] Error executing v0.2 Phase 6 test: {e}\n")
+                    sys.stderr.flush()
+                    window.destroy()
+                    shutil.rmtree(test_tmp_dir, ignore_errors=True)
+                    os._exit(1)
+
+            t = threading.Thread(target=run_v02_phase6, daemon=True)
+            t.start()
+            return
+
+        if is_v02_phase5_test:
+            def run_v02_phase5():
+                # A real folder three levels deep, so FR-X8/FR-X9 have depths
+                # 0, 1, 2 to measure.
+                test_tmp_dir = tempfile.mkdtemp(prefix="wb-v02p5-fixture-")
+                try:
+                    with open(os.path.join(test_tmp_dir, "root-file.txt"), "w", encoding="utf-8") as f:
+                        f.write("root")
+                    l1 = os.path.join(test_tmp_dir, "level-one")
+                    os.makedirs(l1)
+                    with open(os.path.join(l1, "one.txt"), "w", encoding="utf-8") as f:
+                        f.write("one")
+                    l2 = os.path.join(l1, "level-two")
+                    os.makedirs(l2)
+                    with open(os.path.join(l2, "two.txt"), "w", encoding="utf-8") as f:
+                        f.write("two")
+                    l3 = os.path.join(l2, "level-three")
+                    os.makedirs(l3)
+                    with open(os.path.join(l3, "three.txt"), "w", encoding="utf-8") as f:
+                        f.write("three")
+                    time.sleep(0.6)
+                    suite_path = os.path.join(root_dir, "scripts", "v02-phase5-suite.js")
+                    with open(suite_path, "r", encoding="utf-8") as f:
+                        suite_code = f.read()
+                    window.evaluate_js("window.__testTmpDir = " + json.dumps(test_tmp_dir) + ";")
+                    window.evaluate_js(suite_code)
+                    window.evaluate_js("""
+                        (async () => {
+                            try {
+                                const res = await window.__runV02Phase5Suite();
+                                window.__v02Phase5Results = JSON.stringify(res);
+                            } catch (e) {
+                                window.__v02Phase5Results = JSON.stringify({ success: false, results: [{ id: 'RUNNER_ERR', pass: false, msg: String(e) }] });
+                            }
+                        })();
+                    """)
+                    for _ in range(600):
+                        time.sleep(0.1)
+                        res = window.evaluate_js("window.__v02Phase5Results")
+                        if res:
+                            sys.stdout.write(f"[pywebview] v0.2 Phase 5 Results: {res}\n")
+                            sys.stdout.flush()
+                            window.destroy()
+                            shutil.rmtree(test_tmp_dir, ignore_errors=True)
+                            os._exit(0)
+                            return
+                    sys.stderr.write("[pywebview] Error: v0.2 Phase 5 test timed out waiting for results\n")
+                    sys.stderr.flush()
+                    window.destroy()
+                    shutil.rmtree(test_tmp_dir, ignore_errors=True)
+                    os._exit(1)
+                except Exception as e:
+                    sys.stderr.write(f"[pywebview] Error executing v0.2 Phase 5 test: {e}\n")
+                    sys.stderr.flush()
+                    window.destroy()
+                    shutil.rmtree(test_tmp_dir, ignore_errors=True)
+                    os._exit(1)
+
+            t = threading.Thread(target=run_v02_phase5, daemon=True)
+            t.start()
+            return
+
+        if is_v02_phase4_test:
+            def run_v02_phase4():
+                # Three real folders for Recent Folders (FR-M7), each holding a
+                # file whose icon the icon theme draws (FR-M9).
+                test_dirs = [tempfile.mkdtemp(prefix="wb-v02p4-recent-") for _ in range(3)]
+                try:
+                    for d in test_dirs:
+                        with open(os.path.join(d, "note.txt"), "w", encoding="utf-8") as f:
+                            f.write("note")
+                    time.sleep(0.6)
+                    suite_path = os.path.join(root_dir, "scripts", "v02-phase4-suite.js")
+                    with open(suite_path, "r", encoding="utf-8") as f:
+                        suite_code = f.read()
+                    window.evaluate_js("window.__testTmpDirs = " + json.dumps(test_dirs) + ";")
+
+                    # Only the native folder picker's answer is stubbed (Ctrl+O
+                    # vs File > Open Folder..., FR-M5); the menu -> bridge ->
+                    # WindowApi chain stays real.
+                    def stubbed_open_folder_dialog():
+                        return window.evaluate_js("window.__nextDialogPath ?? null")
+                    api.open_folder_dialog = stubbed_open_folder_dialog
+
+                    window.evaluate_js(suite_code)
+                    window.evaluate_js("""
+                        (async () => {
+                            try {
+                                const res = await window.__runV02Phase4Suite();
+                                window.__v02Phase4Results = JSON.stringify(res);
+                            } catch (e) {
+                                window.__v02Phase4Results = JSON.stringify({ success: false, results: [{ id: 'RUNNER_ERR', pass: false, msg: String(e) }] });
+                            }
+                        })();
+                    """)
+                    for _ in range(900):
+                        time.sleep(0.1)
+                        res = window.evaluate_js("window.__v02Phase4Results")
+                        if res:
+                            sys.stdout.write(f"[pywebview] v0.2 Phase 4 Results: {res}\n")
+                            sys.stdout.flush()
+                            window._wb_close_confirmed = True
+                            window.destroy()
+                            for d in test_dirs:
+                                shutil.rmtree(d, ignore_errors=True)
+                            os._exit(0)
+                            return
+                    sys.stderr.write("[pywebview] Error: v0.2 Phase 4 test timed out waiting for results\n")
+                    sys.stderr.flush()
+                    window._wb_close_confirmed = True
+                    window.destroy()
+                    for d in test_dirs:
+                        shutil.rmtree(d, ignore_errors=True)
+                    os._exit(1)
+                except Exception as e:
+                    sys.stderr.write(f"[pywebview] Error executing v0.2 Phase 4 test: {e}\n")
+                    sys.stderr.flush()
+                    window._wb_close_confirmed = True
+                    window.destroy()
+                    for d in test_dirs:
+                        shutil.rmtree(d, ignore_errors=True)
+                    os._exit(1)
+
+            t = threading.Thread(target=run_v02_phase4, daemon=True)
+            t.start()
+            return
+
+        if is_v02_phase3_test:
+            def run_v02_phase3():
+                test_tmp_dir = tempfile.mkdtemp(prefix="wb-v02p3-fixture-")
+                try:
+                    import subprocess
+                    # What the title bar must show (FR-C8, FR-C9), read independently of the build.
+                    expected_date = subprocess.run(["git", "log", "-1", "--format=%cs"], cwd=root_dir, capture_output=True, text=True).stdout.strip()
+                    with open(os.path.join(root_dir, "package.json"), "r", encoding="utf-8") as f:
+                        expected_version = ".".join(json.load(f)["version"].split(".")[:2])
+                    time.sleep(0.6)
+                    suite_path = os.path.join(root_dir, "scripts", "v02-phase3-suite.js")
+                    with open(suite_path, "r", encoding="utf-8") as f:
+                        suite_code = f.read()
+                    window.evaluate_js("window.__testTmpDir = " + json.dumps(test_tmp_dir) + ";")
+                    window.evaluate_js("window.__expectedCommitDate = " + json.dumps(expected_date) + ";")
+                    window.evaluate_js("window.__expectedVersion = " + json.dumps(expected_version) + ";")
+                    window.evaluate_js("window.__expectedHost = 'PyWebView';")
+                    window.evaluate_js(suite_code)
+                    window.evaluate_js("""
+                        (async () => {
+                            try {
+                                const res = await window.__runV02Phase3Suite();
+                                window.__v02Phase3Results = JSON.stringify(res);
+                            } catch (e) {
+                                window.__v02Phase3Results = JSON.stringify({ success: false, results: [{ id: 'RUNNER_ERR', pass: false, msg: String(e) }] });
+                            }
+                        })();
+                    """)
+                    for _ in range(300):
+                        time.sleep(0.1)
+                        res = window.evaluate_js("window.__v02Phase3Results")
+                        if res:
+                            sys.stdout.write(f"[pywebview] v0.2 Phase 3 Results: {res}\n")
+                            sys.stdout.flush()
+                            window.destroy()
+                            shutil.rmtree(test_tmp_dir, ignore_errors=True)
+                            os._exit(0)
+                            return
+                    sys.stderr.write("[pywebview] Error: v0.2 Phase 3 test timed out waiting for results\n")
+                    sys.stderr.flush()
+                    window.destroy()
+                    shutil.rmtree(test_tmp_dir, ignore_errors=True)
+                    os._exit(1)
+                except Exception as e:
+                    sys.stderr.write(f"[pywebview] Error executing v0.2 Phase 3 test: {e}\n")
+                    sys.stderr.flush()
+                    window.destroy()
+                    shutil.rmtree(test_tmp_dir, ignore_errors=True)
+                    os._exit(1)
+
+            t = threading.Thread(target=run_v02_phase3, daemon=True)
+            t.start()
+            return
+
+        if is_v02_phase2_test:
+            def run_v02_phase2():
+                # Same real fixture as Phase 1, plus enough files that the tree
+                # overflows its viewport for FR-F9.
+                test_tmp_dir = tempfile.mkdtemp(prefix="wb-v02p2-fixture-")
+                try:
+                    for name in ("alpha.txt", "beta.txt", "gamma.txt"):
+                        with open(os.path.join(test_tmp_dir, name), "w", encoding="utf-8") as f:
+                            f.write(name)
+                    os.makedirs(os.path.join(test_tmp_dir, "sub"), exist_ok=True)
+                    with open(os.path.join(test_tmp_dir, "sub", "inner.txt"), "w", encoding="utf-8") as f:
+                        f.write("inner")
+                    for i in range(1, 41):
+                        with open(os.path.join(test_tmp_dir, f"file-{i:02d}.txt"), "w", encoding="utf-8") as f:
+                            f.write(f"n{i}")
+
+                    time.sleep(0.3)
+                    suite_path = os.path.join(root_dir, "scripts", "v02-phase2-suite.js")
+                    with open(suite_path, "r", encoding="utf-8") as f:
+                        suite_code = f.read()
+                    window.evaluate_js("window.__testTmpDir = " + json.dumps(test_tmp_dir) + ";")
+                    window.evaluate_js(suite_code)
+                    window.evaluate_js("""
+                        (async () => {
+                            try {
+                                const res = await window.__runV02Phase2Suite();
+                                window.__v02Phase2Results = JSON.stringify(res);
+                            } catch (e) {
+                                window.__v02Phase2Results = JSON.stringify({ success: false, results: [{ id: 'RUNNER_ERR', pass: false, msg: String(e) }] });
+                            }
+                        })();
+                    """)
+                    for _ in range(400):
+                        time.sleep(0.1)
+                        res = window.evaluate_js("window.__v02Phase2Results")
+                        if res:
+                            sys.stdout.write(f"[pywebview] v0.2 Phase 2 Results: {res}\n")
+                            sys.stdout.flush()
+                            window.destroy()
+                            shutil.rmtree(test_tmp_dir, ignore_errors=True)
+                            os._exit(0)
+                            return
+                    sys.stderr.write("[pywebview] Error: v0.2 Phase 2 test timed out waiting for results\n")
+                    sys.stderr.flush()
+                    window.destroy()
+                    shutil.rmtree(test_tmp_dir, ignore_errors=True)
+                    os._exit(1)
+                except Exception as e:
+                    sys.stderr.write(f"[pywebview] Error executing v0.2 Phase 2 test: {e}\n")
+                    sys.stderr.flush()
+                    window.destroy()
+                    shutil.rmtree(test_tmp_dir, ignore_errors=True)
+                    os._exit(1)
+
+            t = threading.Thread(target=run_v02_phase2, daemon=True)
+            t.start()
+            return
+
+        if is_v02_phase1_test:
+            def run_v02_phase1():
+                # A real folder on disk, so the tree reads something that
+                # genuinely exists (v0.2 NFR-3: judge what the user sees).
+                test_tmp_dir = tempfile.mkdtemp(prefix="wb-v02p1-fixture-")
+                try:
+                    for name in ("alpha.txt", "beta.txt", "gamma.txt"):
+                        with open(os.path.join(test_tmp_dir, name), "w", encoding="utf-8") as f:
+                            f.write(name)
+                    os.makedirs(os.path.join(test_tmp_dir, "sub"), exist_ok=True)
+                    with open(os.path.join(test_tmp_dir, "sub", "inner.txt"), "w", encoding="utf-8") as f:
+                        f.write("inner")
+
+                    time.sleep(0.3)
+                    suite_path = os.path.join(root_dir, "scripts", "v02-phase1-suite.js")
+                    with open(suite_path, "r", encoding="utf-8") as f:
+                        suite_code = f.read()
+                    window.evaluate_js("window.__testTmpDir = " + json.dumps(test_tmp_dir) + ";")
+                    window.evaluate_js(suite_code)
+                    window.evaluate_js("""
+                        (async () => {
+                            try {
+                                const res = await window.__runV02Phase1Suite();
+                                window.__v02Phase1Results = JSON.stringify(res);
+                            } catch (e) {
+                                window.__v02Phase1Results = JSON.stringify({ success: false, results: [{ id: 'RUNNER_ERR', pass: false, msg: String(e) }] });
+                            }
+                        })();
+                    """)
+                    for _ in range(200):
+                        time.sleep(0.1)
+                        res = window.evaluate_js("window.__v02Phase1Results")
+                        if res:
+                            sys.stdout.write(f"[pywebview] v0.2 Phase 1 Results: {res}\n")
+                            sys.stdout.flush()
+                            window.destroy()
+                            shutil.rmtree(test_tmp_dir, ignore_errors=True)
+                            os._exit(0)
+                            return
+                    sys.stderr.write("[pywebview] Error: v0.2 Phase 1 test timed out waiting for results\n")
+                    sys.stderr.flush()
+                    window.destroy()
+                    shutil.rmtree(test_tmp_dir, ignore_errors=True)
+                    os._exit(1)
+                except Exception as e:
+                    sys.stderr.write(f"[pywebview] Error executing v0.2 Phase 1 test: {e}\n")
+                    sys.stderr.flush()
+                    window.destroy()
+                    shutil.rmtree(test_tmp_dir, ignore_errors=True)
+                    os._exit(1)
+
+            t = threading.Thread(target=run_v02_phase1, daemon=True)
+            t.start()
+            return
 
         if is_phase4_test:
             def run_phase4():
@@ -506,7 +972,20 @@ def main():
 
     window.events.loaded += on_loaded
 
-    webview.start()
+    # Electron persists its Chromium profile (recent folders, last folder)
+    # across launches by default. pywebview does not: webview.start() with no
+    # storage_path defaults to private_mode=True, which points WebView2's
+    # UserDataFolder at a fresh tempfile.TemporaryDirectory() every run
+    # (webview/platforms/winforms.py init_storage()), so localStorage never
+    # survives a restart and Explorer/Recent Folders always come back empty.
+    # An explicit storage_path makes pywebview use a persistent profile too,
+    # matching Electron's behavior (FR-K1).
+    storage_path = os.path.join(
+        os.environ.get("LOCALAPPDATA") or tempfile.gettempdir(),
+        "workbench-kit",
+        "pywebview",
+    )
+    webview.start(storage_path=storage_path)
 
 
 if __name__ == "__main__":

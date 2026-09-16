@@ -18,9 +18,29 @@
 
 :root {
   --font-family: system-ui, -apple-system, BlinkMacSystemFont, Roboto, Helvetica, Arial, sans-serif;
-  --titlebar-height: 30px;
-  --statusbar-height: 22px;
-  --activitybar-width: 50px;
+  /*
+   * dockview's tab-overflow popover sets z-index: var(--dv-overlay-z-index)
+   * inline and expects the host app to supply it (the same contract as the
+   * --dv-tab-* tokens above) — left undefined, that inline z-index computes
+   * to `auto`, so the popover ties with .dv-content-container (also
+   * position: relative, z-index: auto) and loses on DOM order: the editor's
+   * content paints over it and swallows its clicks. Not itself a `dv-*`
+   * class the CSP blocks, but the same missing-token failure shape
+   * (.claude/rules/dockview-css.md; user report, 2026-09-13).
+   */
+  --dv-overlay-z-index: 100;
+  /*
+   * The one common chrome thickness (v0.2 FR-D1, D-7): title bar height,
+   * status bar height, activity bar width, explorer header height and the
+   * editor tab strip height are ALL this value. A single token makes FR-D1's
+   * "all five equal 30" and FR-D2's "does not change" true by construction —
+   * it does not depend on the theme, the window state, or the system scale.
+   * This is a deliberate divergence from VS Code (docs/vscode-comparison.md).
+   */
+  --area-size: 30px;
+  --titlebar-height: var(--area-size);
+  --statusbar-height: var(--area-size);
+  --activitybar-width: var(--area-size);
   --sidebar-width: 240px;
   --close-hover-bg: #e81123;
 }
@@ -30,30 +50,45 @@
 [data-theme="dark"] {
   --bg-color: #1f1f1f;
   --text-color: #cccccc;
-  --titlebar-bg: #181818;
-  --titlebar-fg: #cccccc;
-  --activitybar-bg: #181818;
+  /* Chrome (titlebar/activitybar/sidebar/statusbar/tabs/menu) lightened to
+     match the user's actual running VS Code theme (Monokai Dimmed), which
+     they asked to check — user request, 2026-09-14. --editor-bg and the
+     active-tab colors are unchanged on purpose (same request). */
+  --titlebar-bg: #505050;
+  --titlebar-fg: #e0e0e0;
+  --activitybar-bg: #353535;
   --activitybar-fg: #d7d7d7;
-  --sidebar-bg: #181818;
+  --sidebar-bg: #272727;
   --sidebar-fg: #cccccc;
   --editor-bg: #1f1f1f;
-  --statusbar-bg: #181818;
-  --statusbar-fg: #cccccc;
+  --statusbar-bg: #505050;
+  --statusbar-fg: #e0e0e0;
   --border-color: #2b2b2b;
   --button-hover-bg: rgba(255, 255, 255, 0.1);
-  --menu-bg: #1f1f1f;
-  --menu-hover-bg: #0078d4;
+  --menu-bg: #272727;
+  /* A soft neutral-gray highlight instead of VS Code's stock blue accent, to
+     match the rest of the chrome (already de-blued 2026-09-14) — same family
+     as --tab-inactive-bg, one step up from --menu-bg (user request,
+     2026-09-15). */
+  --menu-hover-bg: #454545;
   --menu-hover-fg: #ffffff;
   --menu-shortcut-fg: #909090;
-  --tabs-bg: #181818;
+  --tabs-bg: #282828;
   --tab-active-bg: #1f1f1f;
   --tab-active-fg: #ffffff;
-  --tab-inactive-bg: #181818;
-  --tab-inactive-fg: #909090;
+  --tab-inactive-bg: #404040;
+  --tab-inactive-fg: #b8b8b8;
+  /* Soft gray ring for the tree cursor and the focused tab: still >= 3:1 on
+     the sidebar and on the selection (FR-F11), without the old white glare. */
+  --focus-ring: #7a7a7a;
   --tree-indent-guide: rgba(255, 255, 255, 0.1);
+  --scrollbar-track: rgba(255, 255, 255, 0.04);
+  --scrollbar-thumb: rgba(204, 204, 204, 0.28);
+  --scrollbar-thumb-hover: rgba(204, 204, 204, 0.46);
+  --scrollbar-thumb-active: rgba(204, 204, 204, 0.66);
   --dv-group-view-background-color: var(--editor-bg);
   --dv-tabs-and-actions-container-background-color: var(--tabs-bg);
-  --dv-tabs-and-actions-container-height: 35px;
+  --dv-tabs-and-actions-container-height: var(--area-size);
   --dv-tab-font-size: 13px;
   --dv-activegroup-visiblepanel-tab-background-color: var(--tab-active-bg);
   --dv-activegroup-visiblepanel-tab-color: var(--tab-active-fg);
@@ -67,36 +102,54 @@
   --dv-separator-border: var(--border-color);
   --dv-drag-over-background-color: rgba(0, 120, 212, 0.25);
   --dv-drag-over-border-color: #0078d4;
+  /* monaco colours with no app-token equivalent (see the --vscode-* block
+     below). The line number reuses this theme's dimmed-text value, and the
+     find highlights reuse its scrollbar-thumb base so they read on any
+     background without introducing a new hue (D-19). */
+  --vscode-editorLineNumber-foreground: #909090;
+  --vscode-editor-findMatchBackground: rgba(204, 204, 204, 0.3);
+  --vscode-editor-findMatchHighlightBackground: rgba(204, 204, 204, 0.16);
+  --vscode-editor-findRangeHighlightBackground: rgba(204, 204, 204, 0.1);
 }
 
 /* VS Code Light Modern */
 [data-theme="light"] {
   --bg-color: #ffffff;
   --text-color: #3b3b3b;
-  --titlebar-bg: #f8f8f8;
+  /* Chrome a step darker than the white editor so the two areas separate
+     (user request, 2026-09-14). */
+  --titlebar-bg: #f0f0f0;
   --titlebar-fg: #333333;
-  --activitybar-bg: #f8f8f8;
+  --activitybar-bg: #f0f0f0;
   --activitybar-fg: #1f1f1f;
-  --sidebar-bg: #f8f8f8;
+  --sidebar-bg: #f0f0f0;
   --sidebar-fg: #3b3b3b;
   --editor-bg: #ffffff;
-  --statusbar-bg: #f8f8f8;
+  --statusbar-bg: #f0f0f0;
   --statusbar-fg: #333333;
   --border-color: #e5e5e5;
   --button-hover-bg: rgba(0, 0, 0, 0.07);
   --menu-bg: #ffffff;
-  --menu-hover-bg: #005fb8;
-  --menu-hover-fg: #ffffff;
+  /* Same de-blued, soft neutral-gray family as dark/gray (user request,
+     2026-09-15) — dark text since a light hover background can't carry
+     white text. */
+  --menu-hover-bg: #e0e0e0;
+  --menu-hover-fg: #1f1f1f;
   --menu-shortcut-fg: #505050;
-  --tabs-bg: #f8f8f8;
+  --tabs-bg: #f0f0f0;
   --tab-active-bg: #ffffff;
   --tab-active-fg: #333333;
-  --tab-inactive-bg: #f8f8f8;
-  --tab-inactive-fg: #868686;
+  --tab-inactive-bg: #f0f0f0;
+  --tab-inactive-fg: #6c6c6c;
+  --focus-ring: #8a8a8a;
   --tree-indent-guide: rgba(0, 0, 0, 0.15);
+  --scrollbar-track: rgba(0, 0, 0, 0.03);
+  --scrollbar-thumb: rgba(100, 100, 100, 0.35);
+  --scrollbar-thumb-hover: rgba(100, 100, 100, 0.55);
+  --scrollbar-thumb-active: rgba(100, 100, 100, 0.78);
   --dv-group-view-background-color: var(--editor-bg);
   --dv-tabs-and-actions-container-background-color: var(--tabs-bg);
-  --dv-tabs-and-actions-container-height: 35px;
+  --dv-tabs-and-actions-container-height: var(--area-size);
   --dv-tab-font-size: 13px;
   --dv-activegroup-visiblepanel-tab-background-color: var(--tab-active-bg);
   --dv-activegroup-visiblepanel-tab-color: var(--tab-active-fg);
@@ -110,36 +163,52 @@
   --dv-separator-border: var(--border-color);
   --dv-drag-over-background-color: rgba(0, 95, 184, 0.2);
   --dv-drag-over-border-color: #005fb8;
+  /* See the dark theme's note above (D-19). */
+  --vscode-editorLineNumber-foreground: #6c6c6c;
+  --vscode-editor-findMatchBackground: rgba(100, 100, 100, 0.3);
+  --vscode-editor-findMatchHighlightBackground: rgba(100, 100, 100, 0.16);
+  --vscode-editor-findRangeHighlightBackground: rgba(100, 100, 100, 0.1);
 }
 
-/* Gray Theme (Linear interpolation t = 0.45089 between Dark and Light, L* in [54, 56]) */
+/* Gray Theme. Lighter than the old mid-gray (L* ~55) midpoint, which capped
+   even near-black text at ~5:1 and read as washed out (user request,
+   2026-09-14): text now sits at ~9.6:1 on the editor, ~7.2:1 on chrome. */
 [data-theme="gray"] {
-  --bg-color: #848484;
-  --text-color: #111111;
-  --titlebar-bg: #7d7d7d;
-  --titlebar-fg: #111111;
-  --activitybar-bg: #7d7d7d;
-  --activitybar-fg: #111111;
-  --sidebar-bg: #7d7d7d;
-  --sidebar-fg: #111111;
-  --editor-bg: #848484;
-  --statusbar-bg: #7d7d7d;
-  --statusbar-fg: #111111;
-  --border-color: #7f7f7f;
+  --bg-color: #c0c0c0;
+  --text-color: #1a1a1a;
+  --titlebar-bg: #a6a6a6;
+  --titlebar-fg: #1a1a1a;
+  --activitybar-bg: #a6a6a6;
+  --activitybar-fg: #1a1a1a;
+  --sidebar-bg: #a6a6a6;
+  --sidebar-fg: #1a1a1a;
+  --editor-bg: #c0c0c0;
+  --statusbar-bg: #a6a6a6;
+  --statusbar-fg: #1a1a1a;
+  --border-color: #9a9a9a;
   --button-hover-bg: rgba(0, 0, 0, 0.1);
-  --menu-bg: #848484;
-  --menu-hover-bg: #5a5a5a;
-  --menu-hover-fg: #ffffff;
-  --menu-shortcut-fg: #111111;
-  --tabs-bg: #7d7d7d;
-  --tab-active-bg: #848484;
-  --tab-active-fg: #111111;
-  --tab-inactive-bg: #7d7d7d;
-  --tab-inactive-fg: #222222;
+  --menu-bg: #c0c0c0;
+  /* Lighter than the old #5a5a5a, which read as too heavy a highlight (user
+     request, 2026-09-15) — reuses this theme's own chrome tone
+     (--titlebar-bg) instead of a separate dark gray, same family as the
+     dark/light hovers above. */
+  --menu-hover-bg: #a6a6a6;
+  --menu-hover-fg: #1a1a1a;
+  --menu-shortcut-fg: #1a1a1a;
+  --tabs-bg: #a6a6a6;
+  --tab-active-bg: #c0c0c0;
+  --tab-active-fg: #1a1a1a;
+  --tab-inactive-bg: #a6a6a6;
+  --tab-inactive-fg: #333333;
+  --focus-ring: #505050;
   --tree-indent-guide: rgba(0, 0, 0, 0.2);
+  --scrollbar-track: rgba(0, 0, 0, 0.06);
+  --scrollbar-thumb: rgba(17, 17, 17, 0.30);
+  --scrollbar-thumb-hover: rgba(17, 17, 17, 0.48);
+  --scrollbar-thumb-active: rgba(17, 17, 17, 0.7);
   --dv-group-view-background-color: var(--editor-bg);
   --dv-tabs-and-actions-container-background-color: var(--tabs-bg);
-  --dv-tabs-and-actions-container-height: 35px;
+  --dv-tabs-and-actions-container-height: var(--area-size);
   --dv-tab-font-size: 13px;
   --dv-activegroup-visiblepanel-tab-background-color: var(--tab-active-bg);
   --dv-activegroup-visiblepanel-tab-color: var(--tab-active-fg);
@@ -153,6 +222,134 @@
   --dv-separator-border: var(--border-color);
   --dv-drag-over-background-color: rgba(90, 90, 90, 0.3);
   --dv-drag-over-border-color: #5a5a5a;
+  /* See the dark theme's note above (D-19). The line number takes this
+     theme's own --focus-ring value rather than an interpolation of the
+     light/dark ones (user decision, 2026-09-15). */
+  --vscode-editorLineNumber-foreground: #505050;
+  --vscode-editor-findMatchBackground: rgba(17, 17, 17, 0.3);
+  --vscode-editor-findMatchHighlightBackground: rgba(17, 17, 17, 0.16);
+  --vscode-editor-findRangeHighlightBackground: rgba(17, 17, 17, 0.1);
+}
+
+/*
+ * monaco's colour contract (--vscode-*), the same token names VS Code itself
+ * uses. monaco writes these at runtime into a <style class="monaco-colors">
+ * element — which this app's CSP (style-src 'self') blocks, exactly the
+ * failure .claude/rules/dockview-css.md already records for dockview. The
+ * monaco CSS vite bundles into dist/assets/*.css DOES apply, and it reads
+ * every colour through these variables, so defining them here is the only
+ * thing that makes the editor follow the colour theme at all (D-19, user
+ * request 2026-09-15).
+ *
+ * Calling monaco.editor.setTheme() does NOT substitute for this: the theme's
+ * own stylesheet is the blocked one. texteditor.ts still syncs the theme so
+ * the editor's root class matches, but the colours come from here.
+ *
+ * Every value maps to one of this app's own theme tokens so the three colour
+ * themes keep a single source of truth. The handful with no app equivalent
+ * are set per theme, inside the three theme blocks above.
+ */
+:root {
+  /* Editor surface — what a plain text document actually shows */
+  --vscode-editor-background: var(--editor-bg);
+  --vscode-editor-foreground: var(--text-color);
+  --vscode-editorGutter-background: var(--editor-bg);
+  --vscode-editorLineNumber-activeForeground: var(--text-color);
+  --vscode-editorCursor-foreground: var(--text-color);
+  --vscode-editor-selectionBackground: var(--menu-hover-bg);
+  --vscode-editor-inactiveSelectionBackground: var(--tab-inactive-bg);
+  --vscode-editorWhitespace-foreground: var(--tree-indent-guide);
+  --vscode-editorRuler-foreground: var(--border-color);
+  /* Not read by the bundled CSS (monaco paints these two from the blocked
+     stylesheet), but named the way VS Code names them so the hand-copied
+     rules below stay recognisable. */
+  --vscode-editor-lineHighlightBorder: var(--border-color);
+
+  /* Generic */
+  --vscode-foreground: var(--text-color);
+  --vscode-focusBorder: var(--focus-ring);
+  --vscode-contrastBorder: transparent;
+  --vscode-descriptionForeground: var(--menu-shortcut-fg);
+  --vscode-disabledForeground: var(--menu-shortcut-fg);
+  --vscode-icon-foreground: var(--text-color);
+  --vscode-errorForeground: var(--statusbar-error-fg, #f48771);
+
+  /* Scrollbars — the same tokens the explorer and tab strip already use */
+  --vscode-scrollbar-background: var(--scrollbar-track);
+  --vscode-scrollbarSlider-background: var(--scrollbar-thumb);
+  --vscode-scrollbarSlider-hoverBackground: var(--scrollbar-thumb-hover);
+  --vscode-scrollbarSlider-activeBackground: var(--scrollbar-thumb-active);
+  --vscode-scrollbar-shadow: transparent;
+
+  /* Find / replace — the one editor contribution D-18 leaves on (FR-P2) */
+  --vscode-editorWidget-background: var(--menu-bg);
+  --vscode-editorWidget-foreground: var(--text-color);
+  --vscode-editorWidget-border: var(--border-color);
+  --vscode-editorWidget-resizeBorder: var(--focus-ring);
+  --vscode-editor-findMatchBorder: transparent;
+  --vscode-inputOption-hoverBackground: var(--button-hover-bg);
+  --vscode-toolbar-hoverBackground: var(--button-hover-bg);
+  --vscode-keybindingLabel-background: var(--tab-inactive-bg);
+  --vscode-keybindingLabel-foreground: var(--text-color);
+  --vscode-keybindingLabel-border: var(--border-color);
+  --vscode-keybindingLabel-bottomBorder: var(--border-color);
+  --vscode-list-activeSelectionBackground: var(--menu-hover-bg);
+  --vscode-list-activeSelectionForeground: var(--menu-hover-fg);
+  --vscode-list-hoverBackground: var(--button-hover-bg);
+  --vscode-list-focusOutline: var(--focus-ring);
+  --vscode-list-highlightForeground: var(--text-color);
+  --vscode-button-background: var(--menu-hover-bg);
+  --vscode-button-foreground: var(--menu-hover-fg);
+  --vscode-button-hoverBackground: var(--tab-inactive-bg);
+  --vscode-button-border: var(--border-color);
+  --vscode-button-secondaryBackground: var(--tab-inactive-bg);
+  --vscode-button-secondaryForeground: var(--text-color);
+  --vscode-button-secondaryHoverBackground: var(--menu-hover-bg);
+  --vscode-button-secondaryBorder: var(--border-color);
+  --vscode-button-separator: var(--border-color);
+  --vscode-widget-border: var(--border-color);
+  --vscode-widget-shadow: rgba(0, 0, 0, 0.35);
+
+  /* Non-colour parts of the same contract. Left undefined they compute to
+     invalid and the rule is dropped, so the widget loses its radius/shadow
+     and the sash its width — values here match what this app already uses
+     elsewhere in this file. */
+  --vscode-shadow-md: 0 5px 15px rgba(0, 0, 0, 0.35);
+  --vscode-shadow-lg: 0 5px 15px rgba(0, 0, 0, 0.35);
+  --vscode-shadow-xl: 0 5px 15px rgba(0, 0, 0, 0.45);
+  --vscode-cornerRadius-small: 2px;
+  --vscode-cornerRadius-medium: 3px;
+  --vscode-cornerRadius-large: 5px;
+  --vscode-cornerRadius-xLarge: 10px;
+  --vscode-sash-size: 5px;
+  --vscode-sash-hover-size: 5px;
+  --vscode-sash-hoverBorder: var(--focus-ring);
+}
+
+/*
+ * The one token colour a plain text document uses. Syntax highlighting draws
+ * .mtk2 and up, whose colours live only in that blocked stylesheet — out of
+ * scope until an app turns a language on (user decision, 2026-09-15). Hand
+ * copied here for the same reason the dv-* rules are.
+ */
+.monaco-editor .mtk1 {
+  color: var(--vscode-editor-foreground);
+}
+
+/*
+ * The caret and the current-line marker get no colour from the bundled
+ * stylesheet at all — monaco colours them from the blocked one, so without
+ * these the text cursor is invisible (transparent) and the current line is
+ * unmarked. Hand copied, same as the dv-* rules (D-19).
+ */
+.monaco-editor .cursors-layer > .cursor {
+  background-color: var(--vscode-editorCursor-foreground);
+  color: var(--vscode-editor-background);
+}
+
+.monaco-editor .view-overlays .current-line,
+.monaco-editor .margin-view-overlays .current-line {
+  border: 1px solid var(--vscode-editor-lineHighlightBorder);
 }
 
 * {
@@ -177,6 +374,63 @@ html, body, #app {
   width: 100%;
   height: 100%;
   overflow: hidden;
+  position: relative;
+}
+
+/*
+ * Edge/corner resize grips (user request, 2026-09-12). Electron's frameless
+ * window already gets native OS edge-resize; pywebview's WebView2 child
+ * covers the window pixel-for-pixel, so the OS never sees the cursor at the
+ * true edge to hit-test against. These invisible strips give the cursor
+ * feedback everywhere, and their mousedown starts a native resize via
+ * core/window.ts's startResize() — a no-op on Electron, where the OS
+ * handles it below the page entirely.
+ */
+.resize-grip {
+  position: fixed;
+  z-index: 100;
+  -webkit-app-region: no-drag;
+}
+
+.resize-grip-n, .resize-grip-s {
+  left: 5px;
+  right: 5px;
+  height: 5px;
+  cursor: ns-resize;
+}
+
+.resize-grip-n { top: 0; }
+.resize-grip-s { bottom: 0; }
+
+.resize-grip-e, .resize-grip-w {
+  top: 5px;
+  bottom: 5px;
+  width: 5px;
+  cursor: ew-resize;
+}
+
+.resize-grip-e { right: 0; }
+.resize-grip-w { left: 0; }
+
+.resize-grip-nw, .resize-grip-se {
+  width: 5px;
+  height: 5px;
+  cursor: nwse-resize;
+}
+
+.resize-grip-ne, .resize-grip-sw {
+  width: 5px;
+  height: 5px;
+  cursor: nesw-resize;
+}
+
+.resize-grip-nw { top: 0; left: 0; }
+.resize-grip-ne { top: 0; right: 0; }
+.resize-grip-sw { bottom: 0; left: 0; }
+.resize-grip-se { bottom: 0; right: 0; }
+
+.workbench-root.zen-mode .resize-grip {
+  display: none;
 }
 
 /* 1. Titlebar */
@@ -201,14 +455,27 @@ html, body, #app {
   -webkit-app-region: no-drag;
 }
 
-.titlebar-center {
-  flex: 1;
-  text-align: center;
+/* v0.2 FR-C7: program information sits left-aligned right after the menu
+   button instead of centred in the bar. */
+.titlebar-left {
+  min-width: 0;
+}
+
+.titlebar-program-info {
+  min-width: 0;
   font-size: 13px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
   padding: 0 10px;
+}
+
+/* The empty stretch between the program information and the window controls
+   is what the user drags the window by (v0.1 FR-N2): it inherits the title
+   bar's drag region, while the button groups on either side opt out. */
+.titlebar-spacer {
+  flex: 1;
+  height: 100%;
 }
 
 .titlebar-btn {
@@ -267,7 +534,10 @@ html, body, #app {
 
 .activity-bar-item {
   width: var(--activitybar-width);
-  height: 50px;
+  /* Square, matching width, like .sidebar-action-btn/.editor-action-btn —
+     50px tall on a 30px-wide bar left large gaps between icons (user
+     request, 2026-09-12). */
+  height: var(--activitybar-width);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -288,6 +558,11 @@ html, body, #app {
 /* 3. Sidebar */
 .workbench-sidebar {
   width: var(--sidebar-width);
+  /* Lowered from 260px toward VS Code's narrower range (user request,
+     2026-09-12). A9's Critical finding was at 170px — the title + shell's
+     4 actions (~187px incl. header padding) did not fit. 200px keeps a
+     (tighter) margin above that floor. */
+  min-width: 200px;
   background-color: var(--sidebar-bg);
   color: var(--sidebar-fg);
   display: flex;
@@ -296,22 +571,53 @@ html, body, #app {
   border-right: 1px solid var(--border-color);
 }
 
+/* Drag handle between the explorer and the editor area (v0.2 FR-X5). */
+.sidebar-resize-handle {
+  flex: 0 0 5px;
+  width: 5px;
+  margin-left: -3px;
+  margin-right: -2px;
+  z-index: 5;
+  cursor: ew-resize;
+  background-color: transparent;
+}
+
+.sidebar-resize-handle:hover,
+body.is-resizing-sidebar .sidebar-resize-handle {
+  background-color: var(--menu-hover-bg);
+}
+
+body.is-resizing-sidebar {
+  cursor: ew-resize;
+  user-select: none;
+}
+
+.workbench-root.zen-mode .sidebar-resize-handle,
+.workbench-sidebar.hidden + .sidebar-resize-handle {
+  display: none;
+}
+
 .sidebar-header {
-  height: 35px;
+  height: var(--area-size); /* the common chrome thickness (v0.2 FR-D1) */
+  flex-shrink: 0;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0 10px 0 20px;
+  padding: 0 10px;
   font-size: 11px;
   font-weight: 600;
   letter-spacing: 0.5px;
   text-transform: uppercase;
 }
 
+/*
+ * The title never shrinks below its text (FR-X6): the explorer hits its own
+ * min-width first. `white-space: nowrap` keeps EXPLORER on one line; there is
+ * no `overflow: hidden`/ellipsis, so a too-narrow explorer would visibly
+ * overflow rather than silently truncate — which the min-width prevents.
+ */
 .sidebar-title {
-  flex: 1;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  flex: 0 0 auto;
   white-space: nowrap;
 }
 
@@ -319,17 +625,28 @@ html, body, #app {
   display: flex;
   align-items: center;
   gap: 3px;
+  flex: 0 1 auto;
+  min-width: 0;
 }
 
+/*
+ * The shell's four actions never shrink or clip (FR-X6). App-added actions
+ * (FR-I10, any number) go in this box, which gives up space and clips first
+ * when the header is narrow — the shell four and the EXPLORER title stay.
+ */
 .sidebar-app-actions {
   display: flex;
   align-items: center;
   gap: 3px;
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
 }
 
 .sidebar-action-btn {
   width: 22px;
   height: 22px;
+  flex: 0 0 auto;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -344,6 +661,14 @@ html, body, #app {
   outline: none;
 }
 
+/* The shell's own four never give up their width. */
+#sidebar-action-new-file,
+#sidebar-action-new-folder,
+#sidebar-action-refresh,
+#sidebar-action-collapse-all {
+  flex: 0 0 auto;
+}
+
 .sidebar-action-btn:hover {
   opacity: 1;
   background-color: var(--button-hover-bg);
@@ -355,6 +680,71 @@ html, body, #app {
   display: flex;
   flex-direction: column;
   position: relative;
+}
+
+/*
+ * Scrollbars carry the current theme's colours (v0.2 FR-X11): the tree's
+ * vertical AND horizontal bars, and every other scrollable surface. Track and
+ * thumb differ per theme, and the thumb's rest / hover / active states are
+ * distinct. Reflected live on a theme switch because the tokens are (FR-X14).
+ */
+/*
+ * Chromium (both hosts) ignores every ::-webkit-scrollbar rule the moment a
+ * non-`auto` `scrollbar-color` is set — and the standard property has no
+ * hover/active. So the styling is done ENTIRELY through the ::-webkit
+ * pseudo-elements below, which do give rest / hover / active (A14 R3-3).
+ */
+.workbench-menu-dropdown::-webkit-scrollbar,
+.menu-submenu::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+/* Same thickness as the tab row's bar (user request, 2026-09-14); the monaco
+   editor's own bars are sized to match in texteditor.ts. */
+.tree-list::-webkit-scrollbar,
+.sidebar-content::-webkit-scrollbar,
+.dv-content-container::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+
+.tree-list::-webkit-scrollbar-track,
+.sidebar-content::-webkit-scrollbar-track,
+.dv-content-container::-webkit-scrollbar-track,
+.workbench-menu-dropdown::-webkit-scrollbar-track,
+.menu-submenu::-webkit-scrollbar-track {
+  background-color: var(--scrollbar-track);
+}
+
+.tree-list::-webkit-scrollbar-thumb,
+.sidebar-content::-webkit-scrollbar-thumb,
+.dv-content-container::-webkit-scrollbar-thumb,
+.workbench-menu-dropdown::-webkit-scrollbar-thumb,
+.menu-submenu::-webkit-scrollbar-thumb {
+  background-color: var(--scrollbar-thumb);
+  border-radius: 10px;
+}
+
+.tree-list::-webkit-scrollbar-thumb:hover,
+.sidebar-content::-webkit-scrollbar-thumb:hover,
+.dv-content-container::-webkit-scrollbar-thumb:hover,
+.workbench-menu-dropdown::-webkit-scrollbar-thumb:hover,
+.menu-submenu::-webkit-scrollbar-thumb:hover {
+  background-color: var(--scrollbar-thumb-hover);
+}
+
+.tree-list::-webkit-scrollbar-thumb:active,
+.sidebar-content::-webkit-scrollbar-thumb:active,
+.dv-content-container::-webkit-scrollbar-thumb:active,
+.workbench-menu-dropdown::-webkit-scrollbar-thumb:active,
+.menu-submenu::-webkit-scrollbar-thumb:active {
+  background-color: var(--scrollbar-thumb-active);
+}
+
+.tree-list::-webkit-scrollbar-corner,
+.sidebar-content::-webkit-scrollbar-corner {
+  background-color: var(--scrollbar-track);
 }
 
 /* 4. Main Area & Editor Container (Dockview) */
@@ -417,8 +807,9 @@ html, body, #app {
 /* Tree Component Styles */
 .tree-list {
   flex: 1;
-  overflow-y: auto;
-  overflow-x: hidden;
+  /* Both axes scroll when content overflows, so a deeply nested / long-named
+     tree gets a themed horizontal scrollbar too (v0.2 FR-X11). */
+  overflow: auto;
   outline: none;
   user-select: none;
   font-size: 13px;
@@ -429,20 +820,47 @@ html, body, #app {
   display: flex;
   align-items: center;
   height: 22px;
+  padding-left: 10px;
   cursor: pointer;
   white-space: nowrap;
   outline: none;
   box-sizing: border-box;
   color: var(--sidebar-fg);
+  /* Grow with content past the viewport so a long name produces a real
+     (themed) horizontal scrollbar, while short rows still fill the width so
+     their selection/hover background spans it (v0.2 FR-X11). */
+  min-width: 100%;
+  width: max-content;
 }
 
-.tree-indent-guide {
+/*
+ * One unit per ancestor depth (v0.2 FR-X8). The unit itself is the 10px
+ * indent step; its ::before is the vertical guide for that level, sitting
+ * under that depth's twistie glyph (FR-X9). Structural,
+ * because this app's CSP blocks the inline `style` a per-row padding would
+ * need (.claude/rules/dockview-css.md).
+ */
+.tree-indent-unit {
+  /* Narrower than the 18px twistie box on purpose (user request, 2026-09-14):
+     it sets both the spacing between guide lines and the gap from a guide
+     to the next row's ">". */
+  flex: 0 0 10px;
+  align-self: stretch;
+  position: relative;
+  pointer-events: none;
+}
+
+.tree-indent-unit::before {
+  content: "";
   position: absolute;
+  /* Centre of the twistie glyph: codicons forces the <i> to 16px (overriding
+     .tree-twistie's font-size), and .tree-twistie has no left padding, so the
+     "v" is centred 8px in from the box edge. */
+  left: 8px;
   top: 0;
   bottom: 0;
   width: 1px;
   background-color: var(--tree-indent-guide, rgba(128, 128, 128, 0.2));
-  pointer-events: none;
 }
 
 .tree-row:hover {
@@ -450,17 +868,30 @@ html, body, #app {
 }
 
 .tree-row.selected {
-  background-color: var(--menu-hover-bg);
-  color: var(--menu-hover-fg);
+  /* Same inner color the editor uses to mark its active area (--tab-active-bg/
+     -fg), not the blue menu-hover accent — user request, 2026-09-12. */
+  background-color: var(--tab-active-bg);
+  color: var(--tab-active-fg);
 }
 
-.tree-row.focused {
-  outline: 1px dotted var(--text-color);
+/*
+ * Selection and focus are separate marks (v0.2 D-10, FR-F6). The selected
+ * row keeps its background wherever keyboard focus goes; the cursor's ring is
+ * drawn only while the tree itself holds focus, so the ring alone says which
+ * area is current. On a selected row the ring uses the selection foreground,
+ * because a ring in the selection colour would vanish into its background.
+ */
+.tree-list:focus .tree-row.focused {
+  /* A per-theme soft gray, not the accent: the accent sits too close to the
+     gray theme's background to read as a mark (FR-F11). */
+  outline: 1px solid var(--focus-ring);
   outline-offset: -1px;
 }
 
-.tree-row.selected.focused {
-  outline: 1px solid var(--menu-hover-fg);
+.tree-list:focus .tree-row.selected.focused {
+  /* Same ring color the editor's active-tab-with-focus ring uses, so both
+     areas share border AND fill color. */
+  outline: 1px solid var(--focus-ring);
   outline-offset: -1px;
 }
 
@@ -469,7 +900,11 @@ html, body, #app {
   height: 18px;
   display: flex;
   align-items: center;
-  justify-content: center;
+  /* Left-aligned so the glyph centre sits at a fixed 8px from the box edge,
+     which .tree-indent-unit::before's left relies on to put the guide
+     straight under this "v" (user request, 2026-09-14). */
+  justify-content: flex-start;
+  padding-left: 0px;
   font-size: 13px;
   flex-shrink: 0;
 }
@@ -494,11 +929,25 @@ html, body, #app {
   height: 15px;
 }
 
+/*
+ * VS Code Icons ships one colourful SVG per file type (no per-theme variant).
+ * The colour theme still reaches them (v0.2 FR-X10, D-11): each theme applies
+ * a distinct filter so the rendered colour differs and no theme washes the
+ * icon out against its ground. The SVG MARKUP is untouched, so FR-X13 still
+ * shows the reference glyph. Dark is the baseline (no filter).
+ */
+[data-theme="light"] .tree-icon.svg-icon svg {
+  filter: brightness(0.9) contrast(1.05);
+}
+
+[data-theme="gray"] .tree-icon.svg-icon svg {
+  filter: brightness(0.72) saturate(1.15);
+}
+
 .tree-label {
-  overflow: hidden;
-  text-overflow: ellipsis;
   white-space: nowrap;
-  flex: 1;
+  flex: 0 0 auto;
+  padding-right: 10px;
 }
 
 /* Find in Tree Widget (FR-A13, FR-A19) */
@@ -600,8 +1049,27 @@ html, body, #app {
   align-items: center;
   justify-content: space-between;
   padding: 0 10px;
-  font-size: 11px;
+  /* D-17 (docs/current/DECISIONS.md): explicit, narrowly-scoped exception to
+     D-29's forbidden-value list (user request, 2026-09-15). verify-dist.mjs
+     and verify-phase2.mjs strip exactly this declaration (matched as a
+     literal string) before their D-29 scan — do not add this same font size
+     to any other rule in this file, or the exception silently widens. */
+  font-size: 12px;
   flex-shrink: 0;
+}
+
+/*
+ * Windows' Korean-locale system-ui font (Malgun Gothic) draws the backslash
+ * codepoint (U+005C) with a won-sign (￦) glyph — a legacy code-page-949
+ * convention it keeps for compatibility. The character itself is a real "\"
+ * the whole way through (host, bridge, DOM text); only the glyph is wrong.
+ * statusbar-path and the preset-info item are the two statusbar spots that
+ * show Windows paths, so they get an explicit non-substituting font stack
+ * instead of inheriting --font-family (user report, 2026-09-15).
+ */
+.statusbar-path,
+.statusbar-app-item {
+  font-family: Consolas, 'SFMono-Regular', Menlo, monospace;
 }
 
 .statusbar-item {
@@ -689,10 +1157,11 @@ html, body, #app {
   font-weight: 500;
 }
 
-.menu-category-arrow {
-  font-size: 10px;
+/* A submenu is marked with the codicon chevron, not a text character (v0.2 FR-M11). */
+.menu-category-arrow,
+.menu-item-chevron {
+  font-size: 14px;
   margin-left: 10px;
-  opacity: 0.7;
 }
 
 .menu-submenu {
@@ -710,17 +1179,74 @@ html, body, #app {
   z-index: 1001;
 }
 
-.menu-category-row:hover .menu-submenu,
-.menu-category-row.active .menu-submenu {
+/* Child combinator: a category shows its own list, never the nested ones. */
+.menu-category-row:hover > .menu-submenu,
+.menu-category-row.active > .menu-submenu {
   display: flex;
 }
 
+/* A12: a submenu that would run off the right edge opens leftward instead. */
+.menu-submenu.submenu-flip {
+  left: auto;
+  right: 100%;
+}
+
 .menu-item-row {
+  position: relative;
   display: flex;
   align-items: center;
   padding: 5px 15px;
   cursor: pointer;
   white-space: nowrap;
+}
+
+/* Recent Folders · Color Theme · Icon Theme (v0.2 FR-M7 ~ FR-M9) */
+.menu-child-submenu {
+  top: -5px;
+  min-width: 200px;
+  max-width: 360px;
+  z-index: 1002;
+}
+
+.menu-item-row.has-submenu:hover > .menu-child-submenu,
+.menu-item-row.submenu-open > .menu-child-submenu {
+  display: flex;
+}
+
+.menu-child-row .menu-item-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.menu-item-row.disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+
+.menu-item-row.disabled:hover {
+  background-color: transparent;
+  color: inherit;
+}
+
+.menu-item-secondary {
+  display: inline-flex;
+  align-items: center;
+  margin-left: 10px;
+  padding: 0 2px;
+  background: none;
+  border: none;
+  color: inherit;
+  cursor: pointer;
+  opacity: 0.8;
+}
+
+.menu-item-secondary:hover {
+  opacity: 1;
+}
+
+.menu-item-check .codicon {
+  font-size: 14px;
 }
 
 .menu-item-row:hover,
@@ -936,23 +1462,95 @@ html, body, #app {
   display: flex;
   flex: 1 1 auto;
   height: 100%;
-  overflow: hidden;
+  /* Was overflow: hidden — dockview's own scrollLeft-driven overflow scroll
+     (this is the element it measures/scrolls) had no visible affordance at
+     all once tabs hit their floor width and the row genuinely overflowed
+     (user report, 2026-09-12: "scroll isn't shown properly"). A real,
+     themed horizontal scrollbar (FR-X11 pattern) replaces that silence. */
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+
+/* Thin because this row is pinned to the common 30px chrome thickness (D-7);
+   the explorer and editor bars use the same thickness. */
+.dv-tabs-and-actions-container .dv-scrollable::-webkit-scrollbar {
+  height: 5px;
+}
+
+.dv-tabs-and-actions-container .dv-scrollable::-webkit-scrollbar-track {
+  background-color: var(--scrollbar-track);
+}
+
+.dv-tabs-and-actions-container .dv-scrollable::-webkit-scrollbar-thumb {
+  background-color: var(--scrollbar-thumb);
+  border-radius: 5px;
+}
+
+.dv-tabs-and-actions-container .dv-scrollable::-webkit-scrollbar-thumb:hover {
+  background-color: var(--scrollbar-thumb-hover);
+}
+
+.dv-tabs-and-actions-container .dv-scrollable::-webkit-scrollbar-thumb:active {
+  background-color: var(--scrollbar-thumb-active);
 }
 
 .dv-tabs-container {
   display: flex;
+  align-items: center;
   position: relative;
   height: 100%;
-  overflow: hidden;
+  /* Clipping now happens once, on the ancestor .dv-scrollable above — a
+     second overflow: hidden here would clip tabs before that ancestor's
+     scrollbar ever gets a chance to reveal them. */
+  overflow: visible;
+  /* The missing piece: without this, a flex item that is itself a flex
+     container defaults its automatic minimum size in a way that refused to
+     shrink below the tabs' natural widths at all here — every added tab
+     went straight past .dv-scrollable's edge into the scrollbar instead of
+     the shrink phase ever running (user report, 2026-09-12). min-width: 0
+     lets .dv-scrollable's flex actually narrow this box, which is what
+     then squeezes the .dv-tab children down toward their own 80px floor. */
+  min-width: 0;
 }
 
 .dv-tab {
-  flex-shrink: 0;
+  /* VS Code's "shrink to fit" tab sizing (user request, 2026-09-12), not
+     dockview's own vendor default of flex-shrink: 0 (.claude/rules/
+     dockview-css.md — that default came straight from the injected
+     stylesheet this CSP blocks). `flex-basis: auto` sizes each tab to its
+     OWN title as long as there is room — short titles stay short, nothing is
+     truncated just because tabs exist — capped at 240px so one very long
+     name cannot hog the whole bar. Only once the row of natural (capped)
+     widths no longer fits does flex-shrink kick in, shrinking every tab
+     together (title truncates via the existing .dv-default-tab-content
+     ellipsis rule) down to 80px. Only past that floor does dockview's own
+     scrollLeft-driven overflow scroll take over — exactly where VS Code
+     switches too. */
+  /* flex-basis: auto alone measured this tab's "natural" size through its
+     child .dv-default-tab-content, which is itself overflow: hidden (so
+     ellipsis can truncate it) — that makes its contribution to the auto
+     basis collapse toward the non-text parts (icon, close button) instead
+     of the untruncated title, so every tab landed on the 80px floor even
+     with a nearly-empty bar. width: max-content forces the basis to the
+     REAL full-title size instead; flex-shrink still applies on top of that
+     once there really isn't room. */
+  flex: 0 1 auto;
+  width: max-content;
+  max-width: 240px;
+  min-width: 80px;
   display: flex;
   align-items: center;
-  height: 100%;
+  /* Same height as a tree row (.tree-row) so the active tab's fill and focus
+     ring match the explorer selection; the 30px strip (FR-D1) is unchanged
+     and centres the tab (user request, 2026-09-14). */
+  height: 22px;
   box-sizing: border-box;
-  padding: 0 10px;
+  position: relative;
+  /* Left (before the title) and right (after the close "X") both trimmed
+     from 10px; right kept tighter than left since it has no divider-clearing
+     need the way the left edge does (user request, 2026-09-15; left
+     re-adjusted to 5px, 2026-09-15). */
+  padding: 0 2px 0 5px;
   cursor: pointer;
   border-right: 1px solid var(--dv-tab-divider-color);
 }
@@ -964,6 +1562,9 @@ html, body, #app {
   display: flex;
   align-items: center;
   white-space: nowrap;
+  /* Space between the title and the close "X" — widened from 2px, which cut
+     off the trailing glyph of an italic (preview) title such as "Untitled"'s
+     "d" (user request, 2026-09-15). */
   gap: 5px;
 }
 
@@ -973,17 +1574,56 @@ html, body, #app {
   text-overflow: ellipsis;
 }
 
+/*
+ * A tab holding the group's preview spot (v0.2 FR-P9). It is the one tab that
+ * the next pick replaces, so it has to read as provisional at a glance. The
+ * colour is untouched on purpose: this says "temporary", not "inactive", and
+ * the active/inactive colours already carry that other meaning.
+ */
+.dv-tab.workbench-preview-tab .dv-default-tab-content {
+  font-style: italic;
+}
+
+/*
+ * The dirty dot (●) is plain text prepended to the panel title — dockview's
+ * default tab only accepts a title string, no separate DOM node per
+ * character (node_modules/dockview-core DefaultTab.render() sets
+ * textContent). ::first-letter is the only way to style just that leading
+ * character apart from the rest, so it stays upright even when the title
+ * around it is italic (a dirty preview tab) — user request, 2026-09-15.
+ * Scoped to .workbench-dirty-tab (editor.ts applyDirtyClass) so a clean
+ * tab's own first title letter is never touched.
+ */
+.dv-tab.workbench-dirty-tab .dv-default-tab-content::first-letter {
+  font-style: normal;
+}
+
 .dv-tab .dv-default-tab-action {
   display: flex;
   align-items: center;
   justify-content: center;
   border: none;
   background: none;
-  color: inherit;
+  /* The theme's soft border colour, same as the focus ring (user request,
+     2026-09-14). */
+  color: var(--focus-ring);
   font: inherit;
   cursor: pointer;
-  padding: 2px;
+  /* Trimmed from 2px so the icon's own box hugs it tighter (user request,
+     2026-09-15). */
+  padding: 1px;
   border-radius: 3px;
+}
+
+/* Hand copy of dockview's .dv-svg rule, which the CSP blocks
+   (.claude/rules/dockview-css.md): without it the close "X" path falls back
+   to the SVG default black fill and vanishes on the dark theme. */
+.dv-svg {
+  display: inline-block;
+  fill: currentcolor;
+  line-height: 1;
+  stroke: currentcolor;
+  stroke-width: 0;
 }
 
 .dv-tab.dv-active-tab .dv-default-tab-action {
@@ -1018,6 +1658,52 @@ html, body, #app {
   color: var(--dv-inactivegroup-hiddenpanel-tab-color);
 }
 
+/* Fills the gap between the 22px active tab and the bottom of the 30px strip
+   with the tab's own colour, so the tab runs straight into the editor below
+   (user request, 2026-09-14). */
+.dv-tab.dv-active-tab::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 100%;
+  height: calc((var(--area-size) - 22px) / 2);
+  background-color: inherit;
+  pointer-events: none;
+}
+
+/*
+ * Every group keeps showing its active tab (the rules above); only the group
+ * that holds keyboard focus adds a ring to it (v0.2 FR-F10). Keyed off
+ * :focus-within, so there is at most one — only one element can hold focus.
+ */
+.dv-groupview:focus-within > .dv-tabs-and-actions-container .dv-tabs-container > .dv-tab.dv-active-tab {
+  /* Same ring as the tree cursor: a soft gray that still reads >= 3:1 on the
+     active tab in every theme, which the accent does not. */
+  outline: 1px solid var(--focus-ring);
+  outline-offset: -1px;
+  /*
+   * Every pane but the leftmost has a dockview group-boundary separator
+   * (.dv-view:not(:first-child)::before, z-index 5) and a resize sash
+   * (.dv-sash, z-index 99) sitting exactly on its left edge — the same x
+   * position as this ring's left segment. Neither is part of a stacking
+   * context its .dv-view/.dv-groupview ancestors establish (position with
+   * z-index:auto doesn't create one), so they paint above this ring's
+   * default z-index:auto and cut off its left side in every pane except the
+   * one against the explorer (user report, 2026-09-15). Beating the sash's
+   * 99 (the higher of the two) is enough for the separator too; matching
+   * --dv-overlay-z-index (100) rather than tying the sash at 99 avoids
+   * relying on DOM paint order to break a tie.
+   */
+  z-index: 100;
+}
+
+/* The content area takes focus only so the group can show it; the ring on the
+   active tab is the mark, not a second outline around the whole content. */
+.dv-content-container:focus {
+  outline: none;
+}
+
 .dv-tabs-and-actions-container .dv-void-container {
   display: flex;
   flex-grow: 1;
@@ -1034,6 +1720,37 @@ html, body, #app {
   display: flex;
   align-items: center;
   height: 100%;
+}
+
+/*
+ * The "›N" overflow popover lives outside the .dv-groupview >
+ * .dv-tabs-and-actions-container path that every tab colour/background rule
+ * above targets, so its cloned .dv-tab items got only the page's inherited
+ * text colour and no background at all — invisible in the dark and gray
+ * themes (.claude/rules/dockview-css.md class of bug: dockview ships this
+ * popover's real paint in the injected stylesheet this app's CSP blocks).
+ * Hand-copied here (user report, 2026-09-13).
+ */
+.dv-tabs-overflow-container {
+  background-color: var(--tab-inactive-bg);
+  border: 1px solid var(--border-color);
+  box-shadow: 0 5px 15px rgba(0, 0, 0, 0.35);
+}
+
+.dv-tabs-overflow-container .dv-tab {
+  background-color: var(--tab-inactive-bg);
+  color: var(--tab-inactive-fg);
+  border-right: none;
+  border-bottom: 1px solid var(--dv-tab-divider-color);
+}
+
+.dv-tabs-overflow-container .dv-tab:hover {
+  background-color: var(--tab-active-bg);
+  color: var(--tab-active-fg);
+}
+
+.dv-tabs-overflow-container .dv-tab .dv-default-tab-action {
+  visibility: visible;
 }
 
 .editor-group-header-actions {

@@ -5,17 +5,19 @@ export interface ActivityBarItem {
   action?: () => void;
 }
 
+/*
+ * v0.2 D-3: the Activity Bar holds only the toggles that show and hide areas,
+ * placed to match the screen — the title bar toggle first, the status bar
+ * toggle last. Zen and the colour theme moved beside the window controls;
+ * splitting stays in each group's header and in the menu.
+ */
 export const DEFAULT_ACTIVITY_BAR_TOP_ITEMS: ActivityBarItem[] = [
-  { id: 'activity:toggle-sidebar', label: '탐색기 접기/펴기', iconClass: 'codicon-files' },
-  { id: 'activity:toggle-titlebar', label: '상단 바 감추기/보이기', iconClass: 'codicon-chevron-up' },
-  { id: 'activity:toggle-statusbar', label: '하단 바 감추기/보이기', iconClass: 'codicon-chevron-down' },
-  { id: 'activity:split-horizontal', label: '좌우 스플릿', iconClass: 'codicon-split-horizontal' },
-  { id: 'activity:split-vertical', label: '상하 스플릿', iconClass: 'codicon-split-vertical' },
-  { id: 'activity:zen-mode', label: 'Zen 모드', iconClass: 'codicon-screen-full' },
+  { id: 'activity:toggle-titlebar', label: 'Toggle Title Bar', iconClass: 'codicon-chevron-down' },
+  { id: 'activity:toggle-sidebar', label: 'Toggle Explorer', iconClass: 'codicon-files' },
 ];
 
 export const DEFAULT_ACTIVITY_BAR_BOTTOM_ITEMS: ActivityBarItem[] = [
-  { id: 'activity:cycle-color-theme', label: '테마 바꾸기', iconClass: 'codicon-color-mode' },
+  { id: 'activity:toggle-statusbar', label: 'Toggle Status Bar', iconClass: 'codicon-chevron-up' },
 ];
 
 export class ActivityBarController {
@@ -70,6 +72,22 @@ export class ActivityBarController {
     if (item) {
       item.action = action;
     }
+  }
+
+  /**
+   * Swaps an item's icon in place (e.g. the titlebar/statusbar toggle's
+   * chevron direction flipping with visibility, user request 2026-09-12).
+   * Patches the rendered `<i>` directly rather than a full re-render, so a
+   * toggle press does not rebuild every button in the group.
+   */
+  public setItemIcon(id: string, iconClass: string): void {
+    const item = this.findItem(id);
+    if (!item) return;
+    item.iconClass = iconClass;
+    const btn = (this.topContainer.querySelector(`[data-item-id="${id}"]`) ||
+      this.bottomContainer.querySelector(`[data-item-id="${id}"]`)) as HTMLElement | null;
+    const iconEl = btn?.querySelector('i');
+    if (iconEl) iconEl.className = `codicon ${iconClass}`;
   }
 
   public render(): void {

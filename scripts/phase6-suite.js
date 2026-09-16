@@ -145,13 +145,15 @@ window.__runPhase6TestSuite = async function runPhase6TestSuite() {
       const missingFilePath = window.__testTmpDir.replace(/[/\\]+$/, '') + '\\phase6-missing-file.txt';
       const statusElForG3 = document.getElementById('statusbar-message');
       const panelBeforeG3 = editor.getActivePanel();
-      // openItem() on the currently-active tab updates it IN PLACE (FR-B1) —
-      // dockview does not fire onDidActivePanelChange for that, since the
-      // active panel reference never changes. FR-G3 is specifically about
-      // switching TO an existing tab, so this creates a second, genuinely
-      // different panel and then explicitly switches TO it.
-      const panelG3 = editor.addNewTab();
-      editor.openItem(missingFilePath, 'phase6-missing-file.txt', { meta: { kind: 'file' } });
+      // FR-G3 is specifically about switching TO an existing tab, so the
+      // missing target needs its own panel, distinct from whatever is active.
+      // v0.2 note: this used to be addNewTab() followed by openItem(), relying
+      // on the [+] empty tab absorbing the open (v0.1 FR-B3). That rule is
+      // superseded (SPEC 0.1), so the panel is opened directly and confirmed.
+      const panelG3 = editor.openItem(missingFilePath, 'phase6-missing-file.txt', {
+        mode: 'pinned',
+        meta: { kind: 'file' },
+      });
       // A8 Round-1 (Critical): both switches used to go through
       // `panel.api.setActive()`, so breaking the tab's own pointer activation
       // left this assertion passing while a user could no longer trigger the
@@ -480,7 +482,7 @@ window.__runPhase6TestSuite = async function runPhase6TestSuite() {
     record(
       'P6-FR-L2',
       cancelCloseClicked && app.confirmDialog.isOpen() && dialogButtons.length === 3 && dialogButtons.includes('save') && dialogButtons.includes('discard') && dialogButtons.includes('cancel'),
-      "Clicking the tab's own close button on a dirty tab shows a confirm dialog with exactly [저장, 저장 안 함, 취소] (FR-L2)"
+      "Clicking the tab's own close button on a dirty tab shows a confirm dialog with exactly [Save, Don't Save, Cancel] (FR-L2)"
     );
     await clickDialogButton('cancel');
     await wait(30);
@@ -498,7 +500,7 @@ window.__runPhase6TestSuite = async function runPhase6TestSuite() {
     record(
       'P6-FR-L4',
       !editor.getPanels().some((p) => p.id === panelCancel.id) && saveCallCount === saveCallsBeforeDiscard,
-      '저장 안 함 closes the tab with 0 additional save calls (FR-L4, FR-P7)'
+      "Don't Save closes the tab with 0 additional save calls (FR-L4, FR-P7)"
     );
 
     // FR-L3: Save calls the app-registered handler exactly once, then closes
@@ -513,7 +515,7 @@ window.__runPhase6TestSuite = async function runPhase6TestSuite() {
     record(
       'P6-FR-L3',
       saveCallCount === saveCallsBeforeSave + 1 && !editor.getPanels().some((p) => p.id === panelSave.id),
-      '저장 calls the save handler exactly once and then closes the tab (FR-L3)'
+      "Save calls the save handler exactly once and then closes the tab (FR-L3)"
     );
 
     // FR-L6: quitting with a dirty tab open shows the same confirm dialog.
@@ -547,7 +549,7 @@ window.__runPhase6TestSuite = async function runPhase6TestSuite() {
     const quitPromise2 = editor.confirmQuit();
     await clickDialogButton('discard');
     const quitResultDiscarded = await quitPromise2;
-    record('P6-FR-L6-DISCARD', quitResultDiscarded === true, "저장 안 함 during quit confirms it's OK to quit (FR-L6)");
+    record('P6-FR-L6-DISCARD', quitResultDiscarded === true, "Don't Save during quit confirms it's OK to quit (FR-L6)");
 
     // ------------------------------------------------------------------------
     // 5. Status bar messages and progress (FR-G2 ~ FR-G4, FR-N10a, FR-N10b, WK-035)
@@ -661,14 +663,15 @@ window.__runPhase6TestSuite = async function runPhase6TestSuite() {
         );
 
         tree.clearRoot();
-        app.showRecentFoldersPicker();
+        // v0.2 FR-M7: the list is File > Recent Folders' own submenu.
+        clickMenuRow('file', 'file:open-recent');
         await wait(30);
-        const pickerItems = Array.from(document.querySelectorAll('.workbench-context-menu .context-menu-item-row'));
-        const targetItem = pickerItems.find((el) => el.textContent === testDir);
+        const pickerItems = Array.from(document.querySelectorAll('.menu-child-submenu[data-parent-item="file:open-recent"] > .menu-item-row'));
+        const targetItem = pickerItems.find((el) => el.querySelector('.menu-item-label')?.textContent === testDir);
         record(
           'P6-FR-N6A-PICKER',
           pickerItems.length === recentAfterBoth.length && Boolean(targetItem),
-          "File > 최근 폴더 shows every stored entry, not only the most recent (FR-N6a, D-16)"
+          "File > Recent Folders shows every stored entry, not only the most recent (FR-N6a, D-16, v0.2 FR-M7)"
         );
         if (targetItem) targetItem.click();
         await wait(80);

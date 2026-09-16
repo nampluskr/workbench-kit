@@ -31,6 +31,33 @@ export interface VisibleTreeItem {
   hasChildren: boolean;
 }
 
+/**
+ * The per-icon colour goes on a `data-fg` attribute, not an inline `style=`
+ * (this app's CSP blocks style attributes — .claude/rules/dockview-css.md).
+ * `applyIconColors` reads it back after render and sets it through the CSSOM,
+ * which the CSP does allow. That is what makes the colour actually follow the
+ * theme on screen (v0.2 FR-X10, FR-X14).
+ */
+function renderIconMarkup(iconDesc: IconDescriptor): string {
+  const fg = iconDesc.color ? ` data-fg="${escapeHtml(iconDesc.color)}"` : '';
+  if (iconDesc.kind === 'codicon') {
+    return `<span class="tree-icon"><i class="codicon ${iconDesc.cssClass || 'codicon-file'}"${fg}></i></span>`;
+  }
+  if (iconDesc.kind === 'font') {
+    return `<span class="tree-icon seti-icon"${fg}>${iconDesc.char || ''}</span>`;
+  }
+  if (iconDesc.kind === 'svg') {
+    // Only vscode-icons used 'svg' before (its assets carry their own fixed
+    // vendor colour, so it never needed this) — Simple's outline icons
+    // (user request, 2026-09-15) draw with stroke="currentColor"/
+    // fill="currentColor" and rely on this span's own painted colour for
+    // theme following, the same data-fg -> applyIconColors() path codicon/
+    // font already use.
+    return `<span class="tree-icon svg-icon"${fg}>${iconDesc.svgData || ''}</span>`;
+  }
+  return '';
+}
+
 function escapeHtml(text: string | null | undefined): string {
   if (!text) {
     return '';
@@ -69,6 +96,8 @@ export class TreeController {
   // Event callbacks
   private onSelectCallbacks: ((nodes: TreeNode[]) => void)[] = [];
   private onOpenCallbacks: ((node: TreeNode) => void)[] = [];
+  private onConfirmCallbacks: ((node: TreeNode) => void)[] = [];
+  private onEnterOpenCallbacks: ((node: TreeNode) => void)[] = [];
   private onOpenToSideCallbacks: ((node: TreeNode) => void)[] = [];
   private onRootChangeCallbacks: ((root: TreeNode | null) => void)[] = [];
 
@@ -168,6 +197,32 @@ export class TreeController {
     this.onOpenCallbacks.push(cb);
     return () => {
       this.onOpenCallbacks = this.onOpenCallbacks.filter((c) => c !== cb);
+    };
+  }
+
+  /**
+   * The user said "keep this one" — a double click on a file/folder row
+   * (v0.2 FR-P4). Plain `Enter` no longer fires this directly (D-16) — it
+   * fires `onEnterOpen` instead, which decides preview-vs-confirm itself.
+   */
+  public onConfirm(cb: (node: TreeNode) => void): () => void {
+    this.onConfirmCallbacks.push(cb);
+    return () => {
+      this.onConfirmCallbacks = this.onConfirmCallbacks.filter((c) => c !== cb);
+    };
+  }
+
+  /**
+   * Plain `Enter` on a focused tree row (v0.2 FR-P7, FR-T3, D-16). Unlike
+   * `onConfirm`, this does not by itself mean "keep this one" — the first
+   * press is browsing (preview), same as a click, and a second press on a
+   * target already sitting in the preview spot is what confirms it. The
+   * caller (main.ts) makes that call by checking current preview state.
+   */
+  public onEnterOpen(cb: (node: TreeNode) => void): () => void {
+    this.onEnterOpenCallbacks.push(cb);
+    return () => {
+      this.onEnterOpenCallbacks = this.onEnterOpenCallbacks.filter((c) => c !== cb);
     };
   }
 
@@ -411,6 +466,36 @@ export class TreeController {
     return this.findNodeById(this.root, id);
   }
 
+  /** The id of `id`'s parent node, or null for the root / an unknown id. */
+  public getParentId(id: string | null): string | null {
+    if (!id || !this.root || id === this.root.id) return null;
+    const walk = (node: TreeNode): string | null => {
+      for (const child of node.children || []) {
+        if (child.id === id) return node.id;
+        const deeper = walk(child);
+        if (deeper) return deeper;
+      }
+      return null;
+    };
+    return walk(this.root);
+  }
+
+  /**
+   * Where a "New File" / "New Folder" from the view titlebar should create
+   * (v0.2 FR-X4): inside the focused node when it is a container, otherwise
+   * inside that node's parent container, otherwise the root (returned as
+   * undefined). The shell only ever branches on the generic `isContainer`
+   * flag — never on "file" vs "folder" (NFR-6).
+   */
+  public resolveNewItemParentId(): string | undefined {
+    const focusedId = this.focusedId || this.getSelectedIds()[0] || null;
+    const node = this.getNodeById(focusedId);
+    if (!node) return undefined;
+    if (node.isContainer) return node.id === this.root?.id ? undefined : node.id;
+    const parentId = this.getParentId(node.id);
+    return parentId && parentId !== this.root?.id ? parentId : undefined;
+  }
+
   /**
    * Checks if targetId is a descendant of ancestorId.
    */
@@ -554,6 +639,28 @@ export class TreeController {
     this.render();
   }
 
+  /**
+   * Gives the tree a cursor when it has none, without opening anything
+   * (v0.2 FR-F5). Focus that arrives with nothing to point at would show no
+   * focus mark at all, so the first visible row becomes the cursor.
+   */
+  public ensureCursor(): void {
+    if (!this.root) return;
+    // Something already selected under a live cursor: leave it exactly as it
+    // is — focus arriving must not re-select (FR-F5). Otherwise (nothing
+    // selected, e.g. after Escape, or a cursor pointing at a vanished node)
+    // the first visible row is the one SPEC FR-F5 names.
+    if (this.selectedIds.size > 0 && this.focusedId && this.getNodeById(this.focusedId)) return;
+    const first = this.getVisibleItems()[0];
+    if (!first) return;
+    this.focusedId = first.node.id;
+    this.selectedIds = new Set([first.node.id]);
+    this.anchorId = first.node.id;
+    this.selectionRevision++;
+    this.render();
+    this.emitSelect();
+  }
+
   public focusTree(): void {
     const listEl = this.container.querySelector('.tree-list') as HTMLElement | null;
     if (listEl) {
@@ -572,6 +679,14 @@ export class TreeController {
 
   private emitOpen(node: TreeNode): void {
     this.onOpenCallbacks.forEach((cb) => cb(node));
+  }
+
+  private emitConfirm(node: TreeNode): void {
+    this.onConfirmCallbacks.forEach((cb) => cb(node));
+  }
+
+  private emitEnterOpen(node: TreeNode): void {
+    this.onEnterOpenCallbacks.forEach((cb) => cb(node));
   }
 
   private emitOpenToSide(node: TreeNode): void {
@@ -654,13 +769,18 @@ export class TreeController {
       return;
     }
 
-    // Enter: Select/open focused item (FR-A6)
+    // Enter: open the focused item, preview-first (v0.2 FR-P7, FR-T3, D-16).
+    // In v0.1 this meant "open in the current tab" (v0.1 FR-A6); D-2 then
+    // made it confirm immediately. D-16 reverses that: the first press is
+    // browsing, same as a click, and a second press on the same item (now
+    // sitting in the preview spot) is what confirms it. main.ts decides
+    // which by checking current preview state before calling openItem.
     if (e.key === 'Enter' && !e.ctrlKey && !e.shiftKey && !e.altKey) {
       e.preventDefault();
       e.stopPropagation();
       const node = this.getNodeById(this.focusedId);
       if (node) {
-        this.emitOpen(node);
+        this.emitEnterOpen(node);
       }
       return;
     }
@@ -1005,15 +1125,12 @@ export class TreeController {
       const isSelected = this.selectedIds.has(item.node.id);
       const isFocused = this.focusedId === item.node.id;
 
-      // Safe indentation: 14px step + 10px base (Zero forbidden tokens: 12px, 4px, 8px, 16px, 6px)
-      const indentPx = item.depth * 14 + 10;
-
-      // Vertical Indentation Guides (D-9)
-      let indentGuidesHtml = '';
-      for (let d = 0; d < item.depth; d++) {
-        const guideLeft = d * 14 + 18;
-        indentGuidesHtml += `<span class="tree-indent-guide" style="left: ${guideLeft}px;"></span>`;
-      }
+      // Indentation is one fixed-width unit per ancestor level (v0.2 FR-X8).
+      // Inline `style` attributes are blocked by this app's CSP (see
+      // .claude/rules/dockview-css.md), so the depth cannot be an inline
+      // padding value — it is expressed structurally. Each unit also draws the
+      // vertical guide for its level via CSS ::before (FR-X9).
+      const indentUnitsHtml = '<span class="tree-indent-unit"></span>'.repeat(item.depth);
 
       // Twistie
       let twistieHtml = `<span class="tree-twistie tree-twistie-spacer"></span>`;
@@ -1029,25 +1146,15 @@ export class TreeController {
         item.isExpanded
       );
 
-      let iconHtml = '';
-      if (iconDesc.kind === 'codicon') {
-        const colorStyle = iconDesc.color ? `style="color: ${iconDesc.color};"` : '';
-        iconHtml = `<span class="tree-icon"><i class="codicon ${iconDesc.cssClass || 'codicon-file'}" ${colorStyle}></i></span>`;
-      } else if (iconDesc.kind === 'font') {
-        const colorStyle = iconDesc.color ? `style="color: ${iconDesc.color};"` : '';
-        iconHtml = `<span class="tree-icon seti-icon" ${colorStyle}>${iconDesc.char || ''}</span>`;
-      } else if (iconDesc.kind === 'svg') {
-        iconHtml = `<span class="tree-icon svg-icon">${iconDesc.svgData || ''}</span>`;
-      }
+      const iconHtml = renderIconMarkup(iconDesc);
 
       html += `
         <div class="tree-row ${isSelected ? 'selected' : ''} ${isFocused ? 'focused' : ''}"
              data-id="${escapeHtml(item.node.id)}"
              role="treeitem"
              aria-selected="${isSelected}"
-             aria-expanded="${item.node.isContainer ? item.isExpanded : undefined}"
-             style="padding-left: ${indentPx}px;">
-          ${indentGuidesHtml}
+             aria-expanded="${item.node.isContainer ? item.isExpanded : undefined}">
+          ${indentUnitsHtml}
           ${twistieHtml}
           ${iconHtml}
           <span class="tree-label">${escapeHtml(item.node.label)}</span>
@@ -1060,12 +1167,7 @@ export class TreeController {
         ((this.promptState.parentId && this.promptState.parentId === item.node.id) ||
          (!this.promptState.parentId && item.node.id === this.root.id))
       ) {
-        const promptIndentPx = (item.depth + 1) * 14 + 10;
-        let promptIndentGuidesHtml = '';
-        for (let d = 0; d <= item.depth; d++) {
-          const guideLeft = d * 14 + 18;
-          promptIndentGuidesHtml += `<span class="tree-indent-guide" style="left: ${guideLeft}px;"></span>`;
-        }
+        const promptIndentUnitsHtml = '<span class="tree-indent-unit"></span>'.repeat(item.depth + 1);
         let promptIconHtml = '';
         if (this.promptState.icon) {
           // Render icon only if provided by app (WK-047)
@@ -1080,8 +1182,8 @@ export class TreeController {
         }
 
         html += `
-          <div class="tree-row tree-input-row" style="padding-left: ${promptIndentPx}px;">
-            ${promptIndentGuidesHtml}
+          <div class="tree-row tree-input-row">
+            ${promptIndentUnitsHtml}
             <span class="tree-twistie tree-twistie-spacer"></span>
             ${promptIconHtml}
             <input type="text" class="tree-input-field" placeholder="Name" />
@@ -1093,11 +1195,61 @@ export class TreeController {
     html += `</div>`;
 
     this.container.innerHTML = html;
+    this.applyIconColors();
     this.attachDomEvents();
 
     if (hadFocus) {
       this.focusTree();
     }
+  }
+
+  /**
+   * Paints each icon's `data-fg` colour through the CSSOM (v0.2 FR-X10). The
+   * inline `style=` a template string would emit is dropped by this app's CSP,
+   * but `element.style.color = …` is not — so the theme-computed colour only
+   * reaches the screen from here.
+   */
+  private applyIconColors(): void {
+    const icons = this.container.querySelectorAll<HTMLElement>('.tree-icon [data-fg], .tree-icon[data-fg]');
+    icons.forEach((el) => {
+      const fg = el.getAttribute('data-fg');
+      if (fg) el.style.color = fg;
+    });
+  }
+
+  /**
+   * Re-resolves every visible row's icon colour for the current colour theme
+   * and repaints it in place — WITHOUT rebuilding the DOM (v0.2 FR-X14). A
+   * full `render()` on a theme switch would wipe an open inline-input row, the
+   * scroll position and focus (A14 R1-3); only the colour changed, so only the
+   * colour is touched here. View actions, chevrons and the twistie follow the
+   * theme through `currentColor` and need nothing.
+   */
+  public refreshThemeColors(): void {
+    const rows = this.container.querySelectorAll<HTMLElement>('.tree-row[data-id]');
+    rows.forEach((row) => {
+      const id = row.getAttribute('data-id');
+      const node = this.getNodeById(id);
+      if (!node) return;
+      const desc = this.iconThemeManager.resolveIcon(
+        node.label,
+        Boolean(node.isContainer),
+        node.isContainer ? this.expandedIds.has(node.id) : undefined
+      );
+      // Font / codicon: repaint the colour on the existing element.
+      const fgEl = row.querySelector<HTMLElement>('.tree-icon [data-fg], .tree-icon[data-fg]');
+      if (fgEl && desc.color) {
+        fgEl.setAttribute('data-fg', desc.color);
+        fgEl.style.color = desc.color;
+      }
+      // SVG (VS Code Icons): a theme may pick a different vendor svg (a light
+      // variant). Swap just the icon span's contents if it changed — the row
+      // structure, focus and scroll are untouched.
+      const svgWrap = row.querySelector<HTMLElement>('.tree-icon.svg-icon');
+      if (svgWrap && desc.kind === 'svg' && desc.svgData && svgWrap.innerHTML !== desc.svgData) {
+        svgWrap.innerHTML = desc.svgData;
+      }
+    });
   }
 
   private renderTreeListOnly(): void {
@@ -1121,13 +1273,9 @@ export class TreeController {
     for (const item of visibleItems) {
       const isSelected = this.selectedIds.has(item.node.id);
       const isFocused = this.focusedId === item.node.id;
-      const indentPx = item.depth * 14 + 10;
-
-      let indentGuidesHtml = '';
-      for (let d = 0; d < item.depth; d++) {
-        const guideLeft = d * 14 + 18;
-        indentGuidesHtml += `<span class="tree-indent-guide" style="left: ${guideLeft}px;"></span>`;
-      }
+      // One fixed-width unit per ancestor level; CSP blocks inline padding
+      // (v0.2 FR-X8, .claude/rules/dockview-css.md). Guides via CSS ::before.
+      const indentUnitsHtml = '<span class="tree-indent-unit"></span>'.repeat(item.depth);
 
       let twistieHtml = `<span class="tree-twistie tree-twistie-spacer"></span>`;
       if (item.node.isContainer) {
@@ -1141,25 +1289,15 @@ export class TreeController {
         item.isExpanded
       );
 
-      let iconHtml = '';
-      if (iconDesc.kind === 'codicon') {
-        const colorStyle = iconDesc.color ? `style="color: ${iconDesc.color};"` : '';
-        iconHtml = `<span class="tree-icon"><i class="codicon ${iconDesc.cssClass || 'codicon-file'}" ${colorStyle}></i></span>`;
-      } else if (iconDesc.kind === 'font') {
-        const colorStyle = iconDesc.color ? `style="color: ${iconDesc.color};"` : '';
-        iconHtml = `<span class="tree-icon seti-icon" ${colorStyle}>${iconDesc.char || ''}</span>`;
-      } else if (iconDesc.kind === 'svg') {
-        iconHtml = `<span class="tree-icon svg-icon">${iconDesc.svgData || ''}</span>`;
-      }
+      const iconHtml = renderIconMarkup(iconDesc);
 
       rowsHtml += `
         <div class="tree-row ${isSelected ? 'selected' : ''} ${isFocused ? 'focused' : ''}"
              data-id="${escapeHtml(item.node.id)}"
              role="treeitem"
              aria-selected="${isSelected}"
-             aria-expanded="${item.node.isContainer ? item.isExpanded : undefined}"
-             style="padding-left: ${indentPx}px;">
-          ${indentGuidesHtml}
+             aria-expanded="${item.node.isContainer ? item.isExpanded : undefined}">
+          ${indentUnitsHtml}
           ${twistieHtml}
           ${iconHtml}
           <span class="tree-label">${escapeHtml(item.node.label)}</span>
@@ -1168,6 +1306,7 @@ export class TreeController {
     }
 
     listContainer.innerHTML = rowsHtml;
+    this.applyIconColors();
     this.attachRowEvents();
 
     if (hadFocus) {
@@ -1268,10 +1407,14 @@ export class TreeController {
       });
 
       rowEl.addEventListener('dblclick', () => {
+        // Double click splits by what was clicked, not by what it does elsewhere
+        // (v0.2 D-2): on a folder row this already means "expand", and that
+        // meaning wins. Confirming a folder goes through Enter or the tab
+        // title instead (FR-P5, FR-P7).
         if (node.isContainer) {
           this.toggleExpand(node.id);
         } else {
-          this.emitOpen(node);
+          this.emitConfirm(node);
         }
       });
     });

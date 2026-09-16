@@ -50,7 +50,7 @@
 | FR-A24 | `scripts/phase7-suite.js:P7-FR-A20`(WK-048의 데모 배선이 이미 앱 액션 1개를 등록해 두므로 "앱 미등록" 상태 자체는 실호스트에서 재현 불가 — 대신 앱 액션이 존재해도 껍데기 액션 2개가 `:not(.app-action-btn)`로 항상 구분되어 정확히 2개임을 확인하는 더 좁은 형태로 판정) |
 | FR-B1 | `scripts/phase4-suite.js:P4-FR-B1` |
 | FR-B2 | `scripts/phase4-suite.js:P4-FR-B2` · `P4-FR-A14-DUP` |
-| FR-B3 | `scripts/phase4-suite.js:P4-FR-B3` · `P4-FR-B3-DUP` |
+| FR-B3 | **v0.2에서 대체됨** — `docs/current/SPEC.md` 0.1절. 후속 판정은 `scripts/v02-phase1-suite.js:V2P1-FR-P8` |
 | FR-B4 | `scripts/phase4-suite.js:P4-FR-B4` |
 | FR-C1 | `scripts/verify-phase4.mjs:(assert)`(구조 확인) · `scripts/phase4-suite.js:P4-D13-D15` · `P4-FR-C1` · `P4-FR-C1-ACTIVE` |
 | FR-C2 | `scripts/phase4-suite.js:P4-FR-C2` |

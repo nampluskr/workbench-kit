@@ -1,4 +1,4 @@
-export type FileIconThemeId = 'seti' | 'vscode-icons';
+export type FileIconThemeId = 'seti' | 'vscode-icons' | 'simple';
 export type ColorThemeId = 'dark' | 'light' | 'gray';
 
 export interface IconDescriptor {

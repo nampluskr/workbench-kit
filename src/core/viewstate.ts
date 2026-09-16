@@ -18,17 +18,26 @@ export class ViewStateManager {
   }
 
   private setupKeyboardListeners(): void {
-    window.addEventListener('keydown', (e: KeyboardEvent) => {
-      if (e.key === 'F11') {
-        e.preventDefault();
-        this.toggleZenMode();
-      } else if (e.key === 'Escape') {
-        if (this._isZenMode) {
+    // Capture phase (A12 Critical): a reserved key is the shell's regardless of
+    // focus (reserved-keys.md §1). A bubbling listener could be blocked by a
+    // tab view that calls stopPropagation() on its own keydown; a capture
+    // listener on window runs before the event ever reaches that view.
+    window.addEventListener(
+      'keydown',
+      (e: KeyboardEvent) => {
+        // Only bare F11 is reserved — Ctrl/Alt/Shift+F11 belong to the app
+        // (A12 Major, reserved-keys.md §1).
+        const bare = !e.ctrlKey && !e.altKey && !e.shiftKey && !e.metaKey;
+        if (e.key === 'F11' && bare) {
+          e.preventDefault();
+          this.toggleZenMode();
+        } else if (e.key === 'Escape' && this._isZenMode && bare) {
           e.preventDefault();
           this.exitZenMode();
         }
-      }
-    });
+      },
+      true
+    );
   }
 
   public getState(): ViewState {
@@ -96,6 +105,19 @@ export class ViewStateManager {
   }
 
   private onZenEnterCallbacks: (() => void)[] = [];
+  private onZenChangeCallbacks: ((isZen: boolean) => void)[] = [];
+
+  /**
+   * Fires on every Zen transition, in both directions and whichever way it was
+   * triggered (F11, Escape, a menu row, a button), so anything showing Zen
+   * state can stay in step with it (v0.2 FR-C2, FR-C11).
+   */
+  public onZenChange(cb: (isZen: boolean) => void): () => void {
+    this.onZenChangeCallbacks.push(cb);
+    return () => {
+      this.onZenChangeCallbacks = this.onZenChangeCallbacks.filter((c) => c !== cb);
+    };
+  }
 
   public onZenEnter(cb: () => void): () => void {
     this.onZenEnterCallbacks.push(cb);
@@ -113,6 +135,7 @@ export class ViewStateManager {
       window.dispatchEvent(new CustomEvent('workbench:zen-enter'));
     }
     this.onZenEnterCallbacks.forEach((cb) => cb());
+    this.onZenChangeCallbacks.forEach((cb) => cb(true));
     const openMenus = document.querySelectorAll('.workbench-menu-dropdown');
     openMenus.forEach((menu) => menu.remove());
   }
@@ -121,5 +144,6 @@ export class ViewStateManager {
     if (!this._isZenMode) return;
     this._isZenMode = false;
     this.layout.root.classList.remove('zen-mode');
+    this.onZenChangeCallbacks.forEach((cb) => cb(false));
   }
 }

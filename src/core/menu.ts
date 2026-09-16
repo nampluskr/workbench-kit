@@ -4,9 +4,24 @@ export interface MenuItem {
   id: string;
   label: string;
   shortcut?: string;
-  type?: 'normal' | 'checkbox' | 'separator';
-  checked?: boolean;
+  /** `submenu` rows open a list supplied by `setSubmenuProvider` when shown. */
+  type?: 'normal' | 'separator' | 'submenu';
   action?: () => void;
+}
+
+/**
+ * One row of a submenu. Rows are asked for each time the submenu is drawn, so
+ * a list that changes while the menu is closed — recent folders, the current
+ * theme — is never shown stale (v0.2 FR-M7 ~ FR-M9).
+ */
+export interface MenuSubItem {
+  id: string;
+  label: string;
+  checked?: boolean;
+  disabled?: boolean;
+  action?: () => void;
+  /** A button at the row's right end that acts on the row without choosing it (FR-M7). */
+  secondaryAction?: { title: string; iconClass: string; action: () => void };
 }
 
 export interface MenuGroup {
@@ -15,29 +30,40 @@ export interface MenuGroup {
   items: MenuItem[];
 }
 
+const separator = (id: string): MenuItem => Object.freeze({ id, label: '', type: 'separator' as const });
+
+// v0.2 FR-M1 · FR-M6 (UT-MNU-002): list, order and separator positions.
 export const DEFAULT_FILE_ITEMS: readonly MenuItem[] = Object.freeze([
-  Object.freeze({ id: 'file:open-folder', label: '폴더 열기', shortcut: 'Ctrl+O' }),
-  Object.freeze({ id: 'file:open-recent', label: '최근 폴더' }),
-  Object.freeze({ id: 'file:close-tab', label: '탭 닫기', shortcut: 'Ctrl+W' }),
-  Object.freeze({ id: 'file:close-folder', label: '폴더 닫기' }),
-  Object.freeze({ id: 'file:exit', label: '끝내기', action: () => closeWindow() }),
+  Object.freeze({ id: 'file:open-folder', label: 'Open Folder...', shortcut: 'Ctrl+O' }),
+  separator('file:separator-open'),
+  Object.freeze({ id: 'file:open-recent', label: 'Recent Folders', type: 'submenu' as const }),
+  separator('file:separator-recent'),
+  Object.freeze({ id: 'file:split-right', label: 'Split Right' }),
+  Object.freeze({ id: 'file:split-down', label: 'Split Down' }),
+  Object.freeze({ id: 'file:close-tab', label: 'Close Active Tab', shortcut: 'Ctrl+W' }),
+  Object.freeze({ id: 'file:close-editor-group', label: 'Close Editor Group' }),
+  Object.freeze({ id: 'file:close-all-tabs', label: 'Close All Tabs' }),
+  separator('file:separator-close'),
+  Object.freeze({ id: 'file:exit', label: 'Exit', shortcut: 'Alt+F4', action: () => closeWindow() }),
 ]);
 
+// v0.2 FR-M2 · FR-M6.
 export const DEFAULT_VIEW_ITEMS: readonly MenuItem[] = Object.freeze([
-  Object.freeze({ id: 'view:toggle-sidebar', label: '탐색기 접기/펴기' }),
-  Object.freeze({ id: 'view:toggle-titlebar', label: '상단 바 감추기/보이기' }),
-  Object.freeze({ id: 'view:toggle-statusbar', label: '하단 바 감추기/보이기' }),
-  Object.freeze({ id: 'view:zen-mode', label: 'Zen 모드', shortcut: 'F11' }),
-  Object.freeze({ id: 'view:cycle-color-theme', label: '테마 바꾸기' }),
-  Object.freeze({ id: 'view:cycle-icon-theme', label: '아이콘 테마 바꾸기' }),
-  Object.freeze({ id: 'view:split-horizontal', label: '좌우 스플릿' }),
-  Object.freeze({ id: 'view:split-vertical', label: '상하 스플릿' }),
-  Object.freeze({ id: 'view:close-active-tabs', label: '활성 칸 탭 모두 닫기' }),
-  Object.freeze({ id: 'view:toggle-context-menu', label: '우클릭 메뉴 사용', type: 'checkbox', checked: false }),
+  Object.freeze({ id: 'view:color-theme', label: 'Color Theme', type: 'submenu' as const }),
+  separator('view:separator-color'),
+  Object.freeze({ id: 'view:icon-theme', label: 'Icon Theme', type: 'submenu' as const }),
+  separator('view:separator-icon'),
+  Object.freeze({ id: 'view:zen-mode', label: 'Zen Mode', shortcut: 'F11' }),
+  Object.freeze({ id: 'view:toggle-sidebar', label: 'Show Sidebar', shortcut: 'Ctrl+B' }),
+  Object.freeze({ id: 'view:toggle-titlebar', label: 'Show Title Bar' }),
+  Object.freeze({ id: 'view:toggle-statusbar', label: 'Show Status Bar' }),
+  separator('view:separator-layout'),
+  Object.freeze({ id: 'view:preset-info', label: 'Preset Info' }),
 ]);
 
+// v0.2 FR-M3.
 export const DEFAULT_HELP_ITEMS: readonly MenuItem[] = Object.freeze([
-  Object.freeze({ id: 'help:about', label: '정보' }),
+  Object.freeze({ id: 'help:about', label: 'About' }),
 ]);
 
 export class MenuController {
@@ -45,6 +71,9 @@ export class MenuController {
   private _isOpen = false;
   private activeCategoryId: string = 'file';
   private focusedItemIndex = 0;
+  /** The submenu row whose list is open, and the keyboard position inside it. */
+  private openSubmenuId: string | null = null;
+  private focusedSubIndex = 0;
 
   private readonly coreFileItems: readonly MenuItem[] = Object.freeze(
     DEFAULT_FILE_ITEMS.map((it) => Object.freeze({ ...it }))
@@ -57,7 +86,8 @@ export class MenuController {
   );
   private appFileItems: MenuItem[] = [];
   private itemActions: Map<string, () => void> = new Map();
-  private checkboxStates: Map<string, boolean> = new Map([['view:toggle-context-menu', false]]);
+  private checkedProviders: Map<string, () => boolean> = new Map();
+  private submenuProviders: Map<string, () => MenuSubItem[]> = new Map();
 
   constructor(private hamburgerBtn: HTMLButtonElement, private rootContainer: HTMLElement) {
     this.setupListeners();
@@ -75,46 +105,71 @@ export class MenuController {
       }
     });
 
+    // Capture phase (A12 Critical): F10, and every key the open menu consumes,
+    // is the shell's regardless of focus (reserved-keys.md §1 · §2). A tab view
+    // that stops its own keydown from propagating must not be able to block
+    // them.
     document.addEventListener('keydown', (e) => {
       // F10 opens/closes the menu with zero mouse involvement (NFR-7, D-7).
-      if (e.key === 'F10' && !e.ctrlKey && !e.altKey && !e.shiftKey) {
+      if (e.key === 'F10' && !e.ctrlKey && !e.altKey && !e.shiftKey && !e.metaKey) {
         e.preventDefault();
         this.toggleMenu();
         return;
       }
 
       if (!this._isOpen) return;
+      // While the menu is open only the bare keys below are the menu's; a
+      // modified combo (Ctrl+ArrowDown, Shift+Delete, ...) belongs to the app
+      // (A12 Major, reserved-keys.md §2).
+      if (e.ctrlKey || e.altKey || e.shiftKey || e.metaKey) return;
 
       if (e.key === 'Escape') {
         e.preventDefault();
         this.closeMenu();
         return;
       }
-      if (e.key === 'ArrowDown') {
+      if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
         e.preventDefault();
-        this.moveItemFocus(1);
-        return;
-      }
-      if (e.key === 'ArrowUp') {
-        e.preventDefault();
-        this.moveItemFocus(-1);
+        const delta = e.key === 'ArrowDown' ? 1 : -1;
+        if (this.openSubmenuId) this.moveSubFocus(delta);
+        else this.moveItemFocus(delta);
         return;
       }
       if (e.key === 'ArrowRight') {
         e.preventDefault();
-        this.moveCategoryFocus(1);
+        const focused = this.getFocusedItem();
+        if (!this.openSubmenuId && focused?.type === 'submenu') this.openSubmenu(focused.id);
+        else this.moveCategoryFocus(1);
         return;
       }
       if (e.key === 'ArrowLeft') {
         e.preventDefault();
-        this.moveCategoryFocus(-1);
+        if (this.openSubmenuId) {
+          this.openSubmenuId = null;
+          this.renderMenu();
+        } else {
+          this.moveCategoryFocus(-1);
+        }
         return;
       }
       if (e.key === 'Enter') {
         e.preventDefault();
         this.triggerFocusedItem();
+        return;
       }
-    });
+      // The keyboard path to a row's remove button — only where a row actually
+      // has one (Recent Folders). In a submenu with no removal (Color Theme,
+      // Icon Theme) Delete is the app's (A12 R3 Major, reserved-keys.md §2).
+      if (e.key === 'Delete' && this.openSubmenuId) {
+        const row = this.getSubmenuItems(this.openSubmenuId)[this.focusedSubIndex];
+        if (row?.secondaryAction) {
+          e.preventDefault();
+          row.secondaryAction.action();
+          this.clampSubFocus();
+          this.renderMenu();
+        }
+      }
+    }, true);
 
     const handleZenEnter = () => {
       if (this._isOpen) {
@@ -156,6 +211,7 @@ export class MenuController {
     this._isOpen = true;
     this.activeCategoryId = 'file';
     this.focusedItemIndex = 0;
+    this.openSubmenuId = null;
     this.renderMenu();
     this.rootContainer.dispatchEvent(new CustomEvent('workbench:menu-open'));
     if (typeof window !== 'undefined') {
@@ -166,6 +222,10 @@ export class MenuController {
   private getSelectableItems(categoryId: string): MenuItem[] {
     const group = this.getGroups().find((g) => g.id === categoryId);
     return (group?.items || []).filter((it) => it.type !== 'separator');
+  }
+
+  private getFocusedItem(): MenuItem | undefined {
+    return this.getSelectableItems(this.activeCategoryId)[this.focusedItemIndex];
   }
 
   private moveItemFocus(delta: number): void {
@@ -181,26 +241,62 @@ export class MenuController {
     const nextIndex = (currentIndex + delta + groups.length) % groups.length;
     this.activeCategoryId = groups[nextIndex].id;
     this.focusedItemIndex = 0;
+    this.openSubmenuId = null;
     this.renderMenu();
   }
 
+  private openSubmenu(id: string): void {
+    this.openSubmenuId = id;
+    const rows = this.getSubmenuItems(id);
+    const firstEnabled = rows.findIndex((r) => !r.disabled);
+    this.focusedSubIndex = firstEnabled >= 0 ? firstEnabled : 0;
+    this.renderMenu();
+  }
+
+  private moveSubFocus(delta: number): void {
+    if (!this.openSubmenuId) return;
+    const rows = this.getSubmenuItems(this.openSubmenuId);
+    if (!rows.some((r) => !r.disabled)) return;
+    let next = this.focusedSubIndex;
+    do {
+      next = (next + delta + rows.length) % rows.length;
+    } while (rows[next].disabled);
+    this.focusedSubIndex = next;
+    this.renderMenu();
+  }
+
+  /** Keeps the keyboard position on a real row after the list got shorter. */
+  private clampSubFocus(): void {
+    if (!this.openSubmenuId) return;
+    const rows = this.getSubmenuItems(this.openSubmenuId);
+    if (this.focusedSubIndex >= rows.length) this.focusedSubIndex = Math.max(0, rows.length - 1);
+  }
+
   private triggerFocusedItem(): void {
-    const items = this.getSelectableItems(this.activeCategoryId);
-    const item = items[this.focusedItemIndex];
-    if (!item) return;
-    if (item.type === 'checkbox') {
-      this.setItemChecked(item.id, !this.isItemChecked(item.id));
+    if (this.openSubmenuId) {
+      const row = this.getSubmenuItems(this.openSubmenuId)[this.focusedSubIndex];
+      if (!row || row.disabled) return;
+      this.closeMenu();
+      row.action?.();
+      return;
     }
+    const item = this.getFocusedItem();
+    if (!item) return;
+    if (item.type === 'submenu') {
+      this.openSubmenu(item.id);
+      return;
+    }
+    this.closeMenu();
     const act = this.itemActions.get(item.id) || item.action;
     if (act) {
       act();
     }
-    this.closeMenu();
   }
 
   public closeMenu(): void {
     if (!this._isOpen) return;
     this._isOpen = false;
+    this.openSubmenuId = null;
     if (this.menuDropdownEl && this.menuDropdownEl.parentNode) {
       this.menuDropdownEl.parentNode.removeChild(this.menuDropdownEl);
     }
@@ -260,18 +356,17 @@ export class MenuController {
     }
   }
 
-  public setItemChecked(id: string, checked: boolean): void {
-    this.checkboxStates.set(id, checked);
-    if (this.menuDropdownEl) {
-      const el = this.menuDropdownEl.querySelector(`[data-item-id="${id}"] .menu-item-check`);
-      if (el) {
-        el.textContent = checked ? '✓' : '';
-      }
-    }
+  /** A check mark beside the row, read from live state each time the menu is drawn. */
+  public setCheckedProvider(id: string, isChecked: () => boolean): void {
+    this.checkedProviders.set(id, isChecked);
   }
 
-  public isItemChecked(id: string): boolean {
-    return this.checkboxStates.get(id) ?? false;
+  public setSubmenuProvider(id: string, rows: () => MenuSubItem[]): void {
+    this.submenuProviders.set(id, rows);
+  }
+
+  public getSubmenuItems(id: string): MenuSubItem[] {
+    return this.submenuProviders.get(id)?.() ?? [];
   }
 
   private renderMenu(): void {
@@ -294,12 +389,14 @@ export class MenuController {
       labelSpan.className = 'menu-category-label';
       labelSpan.textContent = group.label;
 
-      const arrowSpan = document.createElement('span');
-      arrowSpan.className = 'menu-category-arrow';
-      arrowSpan.textContent = '▶';
+      // The same chevron glyph VS Code uses for a submenu, not a text
+      // character (FR-M11, UT-MNU-001).
+      const arrow = document.createElement('i');
+      arrow.className = 'codicon codicon-chevron-right menu-category-arrow';
+      arrow.setAttribute('aria-hidden', 'true');
 
       groupRow.appendChild(labelSpan);
-      groupRow.appendChild(arrowSpan);
+      groupRow.appendChild(arrow);
 
       const submenuEl = document.createElement('div');
       submenuEl.className = 'menu-submenu';
@@ -314,44 +411,77 @@ export class MenuController {
           return;
         }
         selectableIndex++;
-        const isKeyboardFocused =
-          group.id === this.activeCategoryId && selectableIndex === this.focusedItemIndex;
+        const indexInGroup = selectableIndex;
+        const isActiveGroup = group.id === this.activeCategoryId;
+        const isKeyboardFocused = isActiveGroup && indexInGroup === this.focusedItemIndex;
+        const isSubmenu = item.type === 'submenu';
 
         const itemRow = document.createElement('div');
-        itemRow.className = 'menu-item-row' + (isKeyboardFocused ? ' kbd-focused' : '');
+        itemRow.className =
+          'menu-item-row' +
+          (isKeyboardFocused ? ' kbd-focused' : '') +
+          (isSubmenu ? ' has-submenu' : '') +
+          (isSubmenu && isActiveGroup && this.openSubmenuId === item.id ? ' submenu-open' : '');
         itemRow.dataset.itemId = item.id;
 
-        const checkMark = document.createElement('span');
-        checkMark.className = 'menu-item-check';
-        if (item.type === 'checkbox') {
-          checkMark.textContent = this.isItemChecked(item.id) ? '✓' : '';
-        }
+        itemRow.appendChild(this.createCheckCell(this.checkedProviders.get(item.id)?.() ?? false));
 
         const itemLabel = document.createElement('span');
         itemLabel.className = 'menu-item-label';
         itemLabel.textContent = item.label;
+        itemRow.appendChild(itemLabel);
 
-        const shortcut = document.createElement('span');
-        shortcut.className = 'menu-item-shortcut';
+        // Only a row that has a shortcut gets the cell at all, so no row shows
+        // an empty shortcut text (FR-M4).
         if (item.shortcut) {
+          const shortcut = document.createElement('span');
+          shortcut.className = 'menu-item-shortcut';
           shortcut.textContent = item.shortcut;
+          itemRow.appendChild(shortcut);
         }
 
-        itemRow.appendChild(checkMark);
-        itemRow.appendChild(itemLabel);
-        itemRow.appendChild(shortcut);
+        if (isSubmenu) {
+          const chevron = document.createElement('i');
+          chevron.className = 'codicon codicon-chevron-right menu-item-chevron';
+          chevron.setAttribute('aria-hidden', 'true');
+          itemRow.appendChild(chevron);
+          itemRow.appendChild(this.createChildSubmenu(item.id, isActiveGroup));
+        }
 
         itemRow.addEventListener('click', (e) => {
           e.stopPropagation();
-          if (item.type === 'checkbox') {
-            const next = !this.isItemChecked(item.id);
-            this.setItemChecked(item.id, next);
+          if (isSubmenu) {
+            this.activeCategoryId = group.id;
+            this.focusedItemIndex = indexInGroup;
+            if (this.openSubmenuId === item.id) {
+              this.openSubmenuId = null;
+              this.renderMenu();
+            } else {
+              this.openSubmenu(item.id);
+            }
+            return;
           }
+          this.closeMenu();
           const act = this.itemActions.get(item.id) || item.action;
           if (act) {
             act();
           }
-          this.closeMenu();
+        });
+
+        // Pointing at a row opens its submenu, and pointing at any other row
+        // closes it — without redrawing, which would drop the hover state.
+        itemRow.addEventListener('mouseenter', () => {
+          if (group.id !== this.activeCategoryId) return;
+          this.focusedItemIndex = indexInGroup;
+          this.openSubmenuId = isSubmenu ? item.id : null;
+          if (isSubmenu) this.focusedSubIndex = 0;
+          menuEl.querySelectorAll('.menu-item-row').forEach((r) => {
+            r.classList.remove('kbd-focused');
+            if (r.classList.contains('has-submenu')) r.classList.remove('submenu-open');
+          });
+          itemRow.classList.add('kbd-focused');
+          if (isSubmenu) itemRow.classList.add('submenu-open');
+          this.flipClippedSubmenusSoon();
         });
 
         submenuEl.appendChild(itemRow);
@@ -360,17 +490,25 @@ export class MenuController {
       groupRow.appendChild(submenuEl);
 
       groupRow.addEventListener('mouseenter', () => {
-        this.activeCategoryId = group.id;
-        this.focusedItemIndex = 0;
-        menuEl.querySelectorAll('.menu-category-row').forEach((r) => r.classList.remove('active'));
-        groupRow.classList.add('active');
+        if (this.activeCategoryId !== group.id) {
+          this.activeCategoryId = group.id;
+          this.focusedItemIndex = 0;
+          this.openSubmenuId = null;
+          menuEl.querySelectorAll('.menu-category-row').forEach((r) => r.classList.remove('active'));
+          menuEl.querySelectorAll('.menu-item-row').forEach((r) => r.classList.remove('submenu-open', 'kbd-focused'));
+          groupRow.classList.add('active');
+        }
+        this.flipClippedSubmenusSoon();
       });
 
       groupRow.addEventListener('click', (e) => {
         e.stopPropagation();
+        if (this.activeCategoryId === group.id) return;
         this.activeCategoryId = group.id;
         this.focusedItemIndex = 0;
+        this.openSubmenuId = null;
         menuEl.querySelectorAll('.menu-category-row').forEach((r) => r.classList.remove('active'));
+        menuEl.querySelectorAll('.menu-item-row').forEach((r) => r.classList.remove('submenu-open', 'kbd-focused'));
         groupRow.classList.add('active');
       });
 
@@ -379,5 +517,118 @@ export class MenuController {
 
     this.rootContainer.appendChild(menuEl);
     this.menuDropdownEl = menuEl;
+    this.flipClippedSubmenusSoon();
+  }
+
+  /**
+   * A12 Major: a row's child submenu opens to the right (`left: 100%`) and can
+   * run past the window edge in a narrow window. After layout, each visible
+   * child submenu is placed to keep it on screen: right by default, flipped
+   * left when it fits there, and otherwise clamped into the viewport with an
+   * explicit left (A12 R3 Major — a flip that does not fit must not just move
+   * the overflow to the other edge). The first-level File/View/Help lists are
+   * anchored at the viewport's left edge, so flipping them never helps and
+   * they are left alone.
+   */
+  private flipClippedSubmenusSoon(): void {
+    if (typeof requestAnimationFrame !== 'function') {
+      this.positionChildSubmenus();
+      return;
+    }
+    requestAnimationFrame(() => this.positionChildSubmenus());
+  }
+
+  private positionChildSubmenus(): void {
+    if (!this.menuDropdownEl) return;
+    const viewportWidth = typeof window !== 'undefined' ? window.innerWidth : Infinity;
+    const margin = 4;
+    this.menuDropdownEl.querySelectorAll<HTMLElement>('.menu-child-submenu').forEach((el) => {
+      // Reset to the CSS default (open right) before measuring.
+      el.classList.remove('submenu-flip');
+      el.style.left = '';
+      if (getComputedStyle(el).display === 'none') return;
+
+      const rect = el.getBoundingClientRect();
+      if (rect.right <= viewportWidth - margin) return; // fits as-is
+
+      const rowRect = el.parentElement?.getBoundingClientRect();
+      if (!rowRect) return;
+
+      if (rowRect.left - rect.width >= margin) {
+        el.classList.add('submenu-flip'); // room on the left
+        return;
+      }
+      // Neither side fits: pin the submenu inside the viewport.
+      const clampedViewportLeft = Math.max(margin, viewportWidth - margin - rect.width);
+      el.style.left = `${clampedViewportLeft - rowRect.left}px`;
+    });
+  }
+
+  private createCheckCell(checked: boolean): HTMLElement {
+    const cell = document.createElement('span');
+    cell.className = 'menu-item-check';
+    if (checked) {
+      const icon = document.createElement('i');
+      icon.className = 'codicon codicon-check';
+      icon.setAttribute('aria-hidden', 'true');
+      cell.appendChild(icon);
+    }
+    return cell;
+  }
+
+  private createChildSubmenu(parentId: string, isActiveGroup: boolean): HTMLElement {
+    const childEl = document.createElement('div');
+    childEl.className = 'menu-submenu menu-child-submenu';
+    childEl.dataset.parentItem = parentId;
+
+    this.getSubmenuItems(parentId).forEach((row, index) => {
+      const rowEl = document.createElement('div');
+      const isFocused = isActiveGroup && this.openSubmenuId === parentId && index === this.focusedSubIndex;
+      rowEl.className =
+        'menu-item-row menu-child-row' + (row.disabled ? ' disabled' : '') + (isFocused ? ' kbd-focused' : '');
+      rowEl.dataset.itemId = row.id;
+
+      rowEl.appendChild(this.createCheckCell(Boolean(row.checked)));
+
+      const label = document.createElement('span');
+      label.className = 'menu-item-label';
+      label.textContent = row.label;
+      label.title = row.label;
+      rowEl.appendChild(label);
+
+      if (row.secondaryAction) {
+        const secondary = row.secondaryAction;
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'menu-item-secondary';
+        btn.title = secondary.title;
+        btn.setAttribute('aria-label', secondary.title);
+        const icon = document.createElement('i');
+        icon.className = `codicon ${secondary.iconClass}`;
+        icon.setAttribute('aria-hidden', 'true');
+        btn.appendChild(icon);
+        btn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          secondary.action();
+          // The list stays open on the row the user was working in.
+          this.openSubmenuId = parentId;
+          this.focusedSubIndex = index;
+          this.clampSubFocus();
+          this.renderMenu();
+        });
+        rowEl.appendChild(btn);
+      }
+
+      rowEl.addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (row.disabled) return;
+        this.closeMenu();
+        row.action?.();
+      });
+
+      childEl.appendChild(rowEl);
+    });
+
+    return childEl;
   }
 }

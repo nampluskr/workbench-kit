@@ -137,6 +137,15 @@ function createWindow() {
     process.exit(1);
   });
 
+  // The window can leave the maximized state through more than the
+  // 'window:maximize' IPC above — double-clicking the draggable titlebar
+  // region (style.css -webkit-app-region: drag) and an OS-level Snap both
+  // call win.maximize()/unmaximize() directly. These native events fire for
+  // all of those the same way, so the renderer's button icon (FR request,
+  // 2026-09-15) always matches the real window state.
+  win.on('maximize', () => win.webContents.send('window:maximized-changed', true));
+  win.on('unmaximize', () => win.webContents.send('window:maximized-changed', false));
+
   // Native/title-bar close asks first if any tab is dirty, same as File >
   // Exit (FR-L6, D-28). Resolves near-instantly to true for an undirtied
   // session, so this is a no-op for smoke tests and other automated flows.

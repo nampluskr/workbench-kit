@@ -6,7 +6,21 @@ This removes WS_THICKFRAME and WS_MAXIMIZEBOX styles, disabling Aero Snap
 
 This module restores both window styles and handles WM_NCCALCSIZE by returning 0
 to eliminate the non-client area. This maintains the frameless visual style while
-restoring native snap, resize, and maximize window management behaviors.
+restoring native snap and maximize window management behaviors.
+
+Edge-drag resize is NOT handled here. WS_THICKFRAME's usual resize-by-edge relies
+on Windows' own hit-testing against the non-client area this module zeroes out,
+and even patching WM_NCHITTEST to recompute it does not help: the WebView2 child
+control covers the window pixel-for-pixel, so real mouse input at the edge is
+resolved to that child (a separate hwnd, possibly a separate process) and never
+reaches this Form's window procedure at all (confirmed by simulating an actual
+OS-level mouse drag — the hit-test patch worked when a message was sent directly
+to this hwnd, but did nothing for a real drag). Resize is instead driven from
+JS mouse coordinates calling window.resize()/window.move() directly (see
+WindowApi.get_window_bounds/set_window_bounds in main.py, and the resize-grip
+elements + core/window.ts on the frontend) — entirely inside the same renderer
+that already owns real mouse capture, rather than fighting across the child
+window boundary for it.
 
 This code interacts directly with Windows and WinForms APIs, residing strictly
 in host-specific code (D-20).

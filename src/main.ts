@@ -1,19 +1,20 @@
 import { createWorkbenchLayout, WorkbenchLayoutElements } from './core/layout';
-import { setupWindowControls, closeWindow } from './core/window';
+import { setupWindowControls, setupResizeGrips, closeWindow } from './core/window';
 import { ConfirmDialogController } from './core/dialog';
 import { AboutDialogController } from './core/about';
 import { StatusMessageController } from './core/statusmessage';
-import { TextEditorView } from './core/texteditor';
+import { TextEditorView, setEditorColorTheme } from './core/texteditor';
 import { MenuController } from './core/menu';
 import { ActivityBarController } from './core/activitybar';
 import { ViewStateManager } from './core/viewstate';
-import { ThemeManager } from './core/theme';
-import { IconThemeManager } from './core/icontheme';
-import { SetiResolver, VscodeIconsResolver } from './icons';
-import { TreeController } from './core/tree';
+import { FocusAreaController } from './core/focusareas';
+import { ThemeManager, ColorTheme } from './core/theme';
+import { IconThemeManager, FileIconThemeId } from './core/icontheme';
+import { SetiResolver, VscodeIconsResolver, SimpleResolver } from './icons';
+import { TreeController, TreeNode } from './core/tree';
 import { ExplorerTitlebarController } from './core/sidebar';
 import { FileSystemTreeProvider, promptOpenFolderDialog } from './providers/filesystem';
-import { EditorController } from './core/editor';
+import { EditorController, EditorOpenMode } from './core/editor';
 import { ContextMenuController, ContextMenuItem } from './core/contextmenu';
 import { ResourceKindRegistry } from './registry/kind-registry';
 import { registerFilePreset, FILE_KIND } from './presets/file-preset';
@@ -22,6 +23,25 @@ import { AppEditorSurface, createAppEditorSurface } from './core/editor';
 import { MenuItem } from './core/menu';
 import { ActivityBarItem } from './core/activitybar';
 import { ViewAction } from './core/sidebar';
+
+/** Injected at build time by vite.config.ts (v0.2 FR-C7, FR-C8). */
+declare const __WB_VERSION__: string;
+declare const __WB_COMMIT_DATE__: string;
+
+/**
+ * The one place `package.json`'s version and the last-commit date turn into
+ * display text — the title bar (FR-C7) and Help > About both read it, so
+ * neither can drift from `package.json` or from each other (A15 round-1
+ * Critical finding: About used to hardcode its own copy of this string
+ * independently of the title bar's, so the two could show different
+ * versions). The version NUMBER itself is `package.json`'s — an agent does
+ * not change it on its own (project versioning policy); this only formats
+ * whatever it is.
+ */
+function appInfoBase(): string {
+  const [major, minor] = __WB_VERSION__.split('.');
+  return `Workbench-Kit v${major}.${minor} (${__WB_COMMIT_DATE__})`;
+}
 
 /**
  * Everything a real app-extension author is meant to use (FR-I1 ~ FR-I11,
@@ -34,6 +54,8 @@ export interface WorkbenchAppSurface {
   kindRegistry: ResourceKindRegistry;
   addFileMenuItem: (item: MenuItem) => void;
   addSidebarViewAction: (action: ViewAction) => void;
+  /** What the shell's New File / New Folder view actions do once a name is typed (v0.2 FR-X4). */
+  setSidebarNewItemHandler: (fn: (req: { type: 'leaf' | 'container'; name: string; parentId?: string }) => void) => void;
   setActivityBarTopItems: (items: ActivityBarItem[]) => void;
   setActivityBarBottomItems: (items: ActivityBarItem[]) => void;
   setContextMenuEnabled: (enabled: boolean) => void;
@@ -59,8 +81,6 @@ export class WorkbenchApp {
   public editor: EditorController;
   public kindRegistry: ResourceKindRegistry;
   public contextMenu: ContextMenuController;
-  /** Shell-internal picker for the File menu's "recent folder" item (D-16: a list, not just the most recent). Always enabled — unlike `contextMenu`, this is not the user-toggleable right-click feature (D-22). */
-  private recentFoldersMenu: ContextMenuController;
   public confirmDialog: ConfirmDialogController;
   public aboutDialog: AboutDialogController;
   public statusMessages: StatusMessageController;
@@ -76,6 +96,7 @@ export class WorkbenchApp {
       this.layout.windowMaxBtn,
       this.layout.windowCloseBtn
     );
+    setupResizeGrips(this.layout.root);
     this.menu = new MenuController(this.layout.menuBtn, this.layout.root);
     this.activityBar = new ActivityBarController(
       this.layout.activityBarTop,
@@ -86,7 +107,20 @@ export class WorkbenchApp {
     this.iconTheme = new IconThemeManager('seti', this.theme.getTheme());
     this.iconTheme.registerResolver('seti', new SetiResolver());
     this.iconTheme.registerResolver('vscode-icons', new VscodeIconsResolver());
-    this.theme.onThemeChange((theme) => this.iconTheme.setColorTheme(theme));
+    this.iconTheme.registerResolver('simple', new SimpleResolver());
+    // The editor area follows the colour theme like every other area (D-11,
+    // D-19). Its colours come from style.css's --vscode-* block; this call
+    // only keeps monaco's own theme class in step — see setEditorColorTheme.
+    setEditorColorTheme(this.theme.getTheme());
+    this.theme.onThemeChange((theme) => {
+      this.iconTheme.setColorTheme(theme);
+      setEditorColorTheme(theme);
+      // Repaint the tree's icon colours for the new theme in place (FR-X14).
+      // A full re-render would drop an open inline-input row, focus and scroll
+      // position (A14 R1-3), so this only touches colour. `this.tree` exists by
+      // the time any theme change can fire.
+      this.tree?.refreshThemeColors();
+    });
 
     // Initialize EditorController layout engine (FR-C, FR-D, FR-E, FR-J, WK-019 ~ WK-024)
     this.editor = new EditorController(this.layout.editorContainer);
@@ -100,8 +134,6 @@ export class WorkbenchApp {
 
     // Right-click menu device, default off (FR-G5, FR-G6, D-22, WK-030)
     this.contextMenu = new ContextMenuController(this.layout.root);
-    this.recentFoldersMenu = new ContextMenuController(this.layout.root);
-    this.recentFoldersMenu.setEnabled(true);
 
     // Save-confirmation dialog (FR-L2 ~ FR-L7, D-28) and status message/progress line (D-21, D-32)
     this.confirmDialog = new ConfirmDialogController(this.layout.root);
@@ -110,16 +142,17 @@ export class WorkbenchApp {
 
     // Help > About (FR-Q5, D-23, WK-037): required attribution for the two
     // CC-licensed icon sets.
-    this.aboutDialog = new AboutDialogController(this.layout.root, 'workbench-kit v0.1.0');
+    this.aboutDialog = new AboutDialogController(this.layout.root, appInfoBase());
     this.menu.setAction('help:about', () => this.aboutDialog.show());
 
     // Initialize TreeController and Explorer view titlebar (FR-A, D-9, D-30)
     this.tree = new TreeController(this.layout.sidebarContent, this.iconTheme);
     this.explorerTitlebar = new ExplorerTitlebarController(
-      this.layout.sidebarHeader,
       this.layout.sidebarAppActions,
-      this.layout.sidebarCollapseAllBtn,
+      this.layout.sidebarNewFileBtn,
+      this.layout.sidebarNewFolderBtn,
       this.layout.sidebarRefreshBtn,
+      this.layout.sidebarCollapseAllBtn,
       this.tree
     );
     this.fsProvider = new FileSystemTreeProvider();
@@ -127,10 +160,27 @@ export class WorkbenchApp {
 
     this.loadRecentFolders();
 
-    // Bind File menu actions (FR-A1, FR-N6a, FR-N6c)
+    // Bind File menu actions (FR-A1, FR-N6a)
     this.menu.setAction('file:open-folder', () => this.handleOpenFolderDialog());
-    this.menu.setAction('file:open-recent', () => this.showRecentFoldersPicker());
-    this.menu.setAction('file:close-folder', () => this.closeFolder());
+    // Recent Folders opens the stored paths as a list, read each time it is
+    // shown. A row opens that folder; its remove button drops the path for
+    // good (v0.2 FR-M7, v0.1 FR-N6a · D-16).
+    this.menu.setSubmenuProvider('file:open-recent', () =>
+      this.recentFolders.length === 0
+        ? [{ id: 'file:open-recent:empty', label: '(Empty)', disabled: true }]
+        : this.recentFolders.map((folderPath, index) => ({
+            id: `file:open-recent:${index}`,
+            label: folderPath,
+            action: () => {
+              void this.openFolder(folderPath);
+            },
+            secondaryAction: {
+              title: 'Remove from Recent Folders',
+              iconClass: 'codicon-close',
+              action: () => this.removeRecentFolder(folderPath),
+            },
+          }))
+    );
 
     // Update statusbar path on node selection
     this.tree.onSelect((nodes) => {
@@ -144,43 +194,134 @@ export class WorkbenchApp {
       }
     });
 
-    // Update sidebar title on root change
+    // The explorer title is always EXPLORER — the open folder's name shows in
+    // the tree's root row, not the header (v0.2 FR-X1, UT-EXP-001, v0.1 impl fix).
+    if (this.layout.sidebarTitle) {
+      this.layout.sidebarTitle.textContent = 'EXPLORER';
+    }
     this.tree.onRootChange((root) => {
-      if (this.layout.sidebarTitle) {
-        this.layout.sidebarTitle.textContent = root ? root.label.toUpperCase() : 'EXPLORER';
-      }
       if (!root && this.layout.statusbarPath) {
         this.layout.statusbarPath.textContent = '';
       }
     });
 
+    // View titlebar's New File / New Folder: the shell opens the inline input
+    // row; the app does the actual creation (v0.2 FR-X4, D-6). This wiring is
+    // an example (INTENT 7) — a real app registers its own handler through the
+    // app surface. It reuses the host directory bridge, no new native code.
+    this.explorerTitlebar.setNewItemHandler((req) => {
+      const parentNode = req.parentId ? this.tree.getNodeById(req.parentId) : this.tree.getRoot();
+      const parentPath = (parentNode?.data as { path?: string } | undefined)?.path || parentNode?.id;
+      this.statusMessages.showMessage(
+        `App would create ${req.type === 'container' ? 'folder' : 'file'} "${req.name}" in ${parentPath ?? '(root)'}`
+      );
+      void this.tree.refresh();
+    });
+
+    // Explorer width: a drag handle between the tree and the editor area
+    // (v0.2 FR-X5 ~ FR-X7). The width is not persisted (D-8) — a restart
+    // starts at the initial value baked into --sidebar-width.
+    this.setupSidebarResize();
+
     // Bind sidebar, titlebar, statusbar, and zen toggles
+    // Titlebar/statusbar toggles also flip their Activity Bar chevron to
+    // point the opposite way once hidden (user request, 2026-09-12) —
+    // wrapped here so it happens the same way whether triggered from the
+    // menu or the Activity Bar button itself.
+    const toggleTitlebar = () => {
+      const visible = this.viewState.toggleTitlebar();
+      this.activityBar.setItemIcon('activity:toggle-titlebar', visible ? 'codicon-chevron-down' : 'codicon-chevron-up');
+    };
+    const toggleStatusbar = () => {
+      const visible = this.viewState.toggleStatusbar();
+      this.activityBar.setItemIcon('activity:toggle-statusbar', visible ? 'codicon-chevron-up' : 'codicon-chevron-down');
+    };
     this.menu.setAction('view:toggle-sidebar', () => this.viewState.toggleSidebar());
-    this.menu.setAction('view:toggle-titlebar', () => this.viewState.toggleTitlebar());
-    this.menu.setAction('view:toggle-statusbar', () => this.viewState.toggleStatusbar());
+    this.menu.setAction('view:toggle-titlebar', toggleTitlebar);
+    this.menu.setAction('view:toggle-statusbar', toggleStatusbar);
     this.menu.setAction('view:zen-mode', () => this.viewState.toggleZenMode());
+    // Each row's check mark is read from the live state whenever the menu is
+    // drawn, so a change made by key, title bar or Activity Bar shows the next
+    // time the menu opens (UT-MNU-002).
+    this.menu.setCheckedProvider('view:zen-mode', () => this.viewState.isZenMode);
+    this.menu.setCheckedProvider('view:toggle-sidebar', () => this.viewState.getState().sidebarVisible);
+    this.menu.setCheckedProvider('view:toggle-titlebar', () => this.viewState.getState().titlebarVisible);
+    this.menu.setCheckedProvider('view:toggle-statusbar', () => this.viewState.getState().statusbarVisible);
 
     this.activityBar.setAction('activity:toggle-sidebar', () => this.viewState.toggleSidebar());
-    this.activityBar.setAction('activity:toggle-titlebar', () => this.viewState.toggleTitlebar());
-    this.activityBar.setAction('activity:toggle-statusbar', () => this.viewState.toggleStatusbar());
-    this.activityBar.setAction('activity:zen-mode', () => this.viewState.toggleZenMode());
+    this.activityBar.setAction('activity:toggle-titlebar', toggleTitlebar);
+    this.activityBar.setAction('activity:toggle-statusbar', toggleStatusbar);
 
     // Ensure menu controller state is closed when entering Zen mode (FR-F5, D-12)
     this.viewState.onZenEnter(() => this.menu.closeMenu());
 
-    // Bind theme cycling (FR-M1: White -> Gray -> Dark)
-    this.menu.setAction('view:cycle-color-theme', () => this.theme.cycleTheme());
-    this.activityBar.setAction('activity:cycle-color-theme', () => this.theme.cycleTheme());
+    // View > Color Theme lists the three themes and marks the current one
+    // (v0.2 FR-M8). The title bar button keeps cycling through them in the
+    // same White -> Gray -> Dark order (FR-C3, v0.1 FR-M1).
+    const colorThemes: { id: ColorTheme; label: string }[] = [
+      { id: 'light', label: 'White' },
+      { id: 'gray', label: 'Gray' },
+      { id: 'dark', label: 'Dark' },
+    ];
+    this.menu.setSubmenuProvider('view:color-theme', () =>
+      colorThemes.map((t) => ({
+        id: `view:color-theme:${t.id}`,
+        label: t.label,
+        checked: this.theme.getTheme() === t.id,
+        action: () => this.theme.setTheme(t.id),
+      }))
+    );
 
-    // Bind icon theme cycling (FR-Q1a: seti <-> vscode-icons, View menu only).
-    // Phase 7 finding: toggling the theme alone only flips internal state —
+    // Title bar state actions (v0.2 FR-C1 ~ FR-C3, FR-C11, D-3). Zen and the
+    // colour theme sit beside the window controls. Their icons are drawn from
+    // the state itself rather than from the click, so F11, Escape and the View
+    // menu keep them in step with no path of their own.
+    this.layout.titlebarZenBtn.addEventListener('click', () => this.viewState.toggleZenMode());
+    this.layout.titlebarThemeBtn.addEventListener('click', () => this.theme.cycleTheme());
+    const themeGlyph: Record<string, string> = {
+      light: 'codicon-circle-large-outline',
+      gray: 'codicon-color-mode',
+      dark: 'codicon-circle-large-filled',
+    };
+    const renderThemeIcon = (theme: string) => {
+      const icon = this.layout.titlebarThemeBtn.querySelector('i');
+      if (icon) icon.className = `codicon ${themeGlyph[theme] || 'codicon-color-mode'}`;
+      this.layout.titlebarThemeBtn.title = `Color Theme: ${theme}`;
+    };
+    const renderZenIcon = (isZen: boolean) => {
+      const icon = this.layout.titlebarZenBtn.querySelector('i');
+      if (icon) icon.className = `codicon ${isZen ? 'codicon-screen-normal' : 'codicon-screen-full'}`;
+      this.layout.titlebarZenBtn.setAttribute('aria-pressed', String(isZen));
+    };
+    this.theme.onThemeChange(renderThemeIcon);
+    this.viewState.onZenChange(renderZenIcon);
+    renderThemeIcon(this.theme.getTheme());
+    renderZenIcon(this.viewState.isZenMode);
+
+    // View > Icon Theme: choose one of the three, still from the View menu
+    // only (v0.2 FR-M9, v0.1 FR-Q1a; Simple added 2026-09-15, reversing
+    // FR-M9's earlier "Simple does not exist" requirement — DECISIONS.md
+    // D-18). Phase 7 finding: switching the theme alone only flips internal
+    // state —
     // already-rendered tree rows keep resolving icons at render time, so
-    // without an explicit re-render the visible icons would not actually
-    // change until some unrelated refresh happened to redraw the tree.
-    this.menu.setAction('view:cycle-icon-theme', () => {
-      this.iconTheme.toggleTheme();
-      this.tree.render();
-    });
+    // without an explicit re-render the visible icons would not change until
+    // some unrelated refresh redrew the tree.
+    const iconThemes: { id: FileIconThemeId; label: string }[] = [
+      { id: 'seti', label: 'VS Code Built-in' },
+      { id: 'vscode-icons', label: 'VS Code Icons' },
+      { id: 'simple', label: 'Simple' },
+    ];
+    this.menu.setSubmenuProvider('view:icon-theme', () =>
+      iconThemes.map((t) => ({
+        id: `view:icon-theme:${t.id}`,
+        label: t.label,
+        checked: this.iconTheme.getTheme() === t.id,
+        action: () => {
+          this.iconTheme.setTheme(t.id);
+          this.tree.render();
+        },
+      }))
+    );
 
     // Bind Tree item opening rules (FR-B1 ~ FR-B4, FR-A6, FR-A14, D-5).
     // Which kind a node opens as is an app-layer decision (isContainer is a
@@ -189,19 +330,79 @@ export class WorkbenchApp {
     // Round-1 adversarial finding (Critical): selecting a new item replaces
     // the target group's active tab in place (FR-B1), which would silently
     // discard an unsaved edit. Ask first, same as closing that tab would (D-28).
-    this.tree.onOpen((node) => {
-      // Stays fully synchronous in the common (clean) case — Phase 4's
-      // FR-A6/FR-B1~B4/FR-J8 assert state right after a synchronous
-      // keydown/click with 0 waits. Only a genuinely dirty active tab takes
-      // the async confirm path.
-      if (this.editor.isActivePanelDirty()) {
+    // A single pick is browsing: it goes to the group's preview spot and
+    // replaces whatever was being looked at there (v0.2 FR-P1 ~ FR-P3).
+    // A9 Round-3 (Major): a double click delivers click, click, dblclick.
+    // With a dirty preview each click used to start its own confirmation, and
+    // the dblclick opened the target pinned *behind* the dialog — after which
+    // "Discard" found the target already open and discarded nothing. While a
+    // confirmation is on screen, further requests fold into the one pending
+    // request instead: the latest target wins, and a confirm upgrades it.
+    let pendingOpen: { node: TreeNode; mode: EditorOpenMode } | null = null;
+
+    const openFromTree = (node: TreeNode, mode: EditorOpenMode) => {
+      const openNow = (target: TreeNode, how: EditorOpenMode) =>
+        this.editor.openItem(target.id, target.label, {
+          mode: how,
+          meta: { kind: kindOf(target.isContainer) },
+        });
+
+      if (pendingOpen) {
+        const keepPinned = pendingOpen.node.id === node.id && pendingOpen.mode === 'pinned';
+        pendingOpen = { node, mode: keepPinned ? 'pinned' : mode };
+        return;
+      }
+
+      // Stays fully synchronous in the common (clean) case — the acceptance
+      // suites assert state right after a synchronous keydown/click with 0
+      // waits. Only a genuinely dirty replace target takes the async confirm
+      // path: overwriting it would discard an unsaved edit (D-28).
+      //
+      // A9 Round-1 (Critical): the tab about to be overwritten is the preview
+      // spot, which is not necessarily the active one. Both the question and
+      // the answer have to name that same panel.
+      //
+      // A9 Round-3 (Major): a target that is already open in THIS group is
+      // jumped to, not loaded into the preview spot, so nothing is
+      // overwritten and asking would be a false alarm whose "Discard"
+      // discards nothing. FR-P15/D-15 narrowed this to the active group —
+      // the target being open, confirmed, in some OTHER group no longer
+      // stops the active group's dirty preview from being the real target.
+      const activeGroupForCheck = this.editor.getActiveGroup();
+      const alreadyOpen = Boolean(activeGroupForCheck?.panels.some((p) => p.params?.targetId === node.id));
+      const doomed = mode === 'preview' && !alreadyOpen ? this.editor.getPreviewPanel() : undefined;
+      if (doomed?.params?.isDirty) {
+        pendingOpen = { node, mode };
         void (async () => {
-          if (!(await this.editor.confirmReplaceIfDirty())) return;
-          this.editor.openItem(node.id, node.label, { meta: { kind: kindOf(node.isContainer) } });
+          const proceed = await this.editor.confirmReplaceIfDirty(doomed);
+          const request = pendingOpen;
+          pendingOpen = null;
+          if (!proceed || !request) return;
+          // What the user just agreed to is replacing the dirty preview spot,
+          // so the target goes INTO that spot. A pinned request would
+          // otherwise open beside it and leave the "discarded" content in
+          // place. A double click folded in here is then honoured by
+          // confirming the tab the target landed in.
+          const landed = openNow(request.node, 'preview');
+          if (request.mode === 'pinned') this.editor.pinPanel(landed);
         })();
         return;
       }
-      this.editor.openItem(node.id, node.label, { meta: { kind: kindOf(node.isContainer) } });
+      openNow(node, mode);
+    };
+
+    this.tree.onOpen((node) => openFromTree(node, 'preview'));
+    // A double click on a file/folder row: the user is keeping this one
+    // (v0.2 FR-P4).
+    this.tree.onConfirm((node) => openFromTree(node, 'pinned'));
+    // Plain Enter: preview-first, like a click, unless the focused item is
+    // already the active group's preview spot — a second Enter on the same
+    // item is what confirms it (v0.2 FR-P7, FR-T3, D-16).
+    this.tree.onEnterOpen((node) => {
+      const activeGroup = this.editor.getActiveGroup();
+      const currentPreview = activeGroup ? this.editor.getPreviewPanel(activeGroup) : undefined;
+      const alreadyPreviewing = currentPreview?.params?.targetId === node.id;
+      openFromTree(node, alreadyPreviewing ? 'pinned' : 'preview');
     });
     this.tree.onOpenToSide((node) => {
       const activeGroup = this.editor.getActiveGroup();
@@ -220,9 +421,8 @@ export class WorkbenchApp {
 
     // Right-click menu wiring (FR-G5, FR-G6, D-22). The shell only draws the
     // device; whether it is enabled and what items appear are app decisions.
-    this.menu.setAction('view:toggle-context-menu', () => {
-      this.contextMenu.setEnabled(this.menu.isItemChecked('view:toggle-context-menu'));
-    });
+    // v0.2 removed the View menu's own switch (FR-M2), so the app turns it on
+    // through setContextMenuEnabled.
     this.layout.sidebarContent.addEventListener('contextmenu', (e) => {
       const row = (e.target as HTMLElement).closest('.tree-row') as HTMLElement | null;
       if (!row) return;
@@ -240,8 +440,11 @@ export class WorkbenchApp {
       this.contextMenu.show(e.clientX, e.clientY, items);
     });
 
-    // File menu tab actions (FR-N6b)
+    // File menu close commands, each a different scope (v0.2 FR-M10, D-5):
+    // the active tab, the active tab's whole group, every open tab.
     this.menu.setAction('file:close-tab', () => this.editor.closeActiveTab());
+    this.menu.setAction('file:close-editor-group', () => void this.editor.closeAllTabsInGroup());
+    this.menu.setAction('file:close-all-tabs', () => void this.editor.closeAllTabs());
 
     // Overrides the built-in `file:exit` action (setAction takes priority
     // over the item's own embedded action) so quitting with unsaved changes
@@ -259,6 +462,15 @@ export class WorkbenchApp {
       // checking any other kind would hammer the host bridge for targets
       // that were never meant to resolve to a path (e.g. test/demo kinds).
       if (!targetId || (kind !== FILE_KIND && kind !== FOLDER_KIND)) return;
+
+      // Editor tab selection also drives the statusbar path (user request,
+      // 2026-09-15) — same label the tree's onSelect above already writes,
+      // so switching editor tabs keeps it in sync with whichever surface
+      // (tree or editor) the user is actually looking at.
+      if (this.layout.statusbarPath) {
+        this.layout.statusbarPath.textContent = targetId;
+      }
+
       void this.fsProvider.pathExists(targetId).then((exists) => {
         if (!exists) {
           this.statusMessages.showError(`Error: target no longer exists: ${targetId}`);
@@ -266,34 +478,22 @@ export class WorkbenchApp {
       });
     });
 
-    // View menu layout actions (FR-D3, FR-J2)
-    this.menu.setAction('view:split-horizontal', () => this.editor.splitActiveGroup('right'));
-    this.menu.setAction('view:split-vertical', () => this.editor.splitActiveGroup('below'));
-    this.menu.setAction('view:close-active-tabs', () => this.editor.closeAllTabsInGroup());
+    // File menu split actions (v0.2 FR-M1; the menu path of v0.1 FR-D3 moved
+    // here from View).
+    this.menu.setAction('file:split-right', () => this.editor.splitActiveGroup('right'));
+    this.menu.setAction('file:split-down', () => this.editor.splitActiveGroup('below'));
 
-    // Activity bar split actions (FR-D3)
-    this.activityBar.setAction('activity:split-horizontal', () => this.editor.splitActiveGroup('right'));
-    this.activityBar.setAction('activity:split-vertical', () => this.editor.splitActiveGroup('below'));
+    // View > Preset Info (v0.2 FR-M12, D-6): the presets are registered right
+    // here by this composition root, which is what lets it name them.
+    this.menu.setAction('view:preset-info', () => {
+      this.statusMessages.showMessage('Presets registered: file, folder');
+    });
 
-    // Minimal example wiring proving the app-facing extension slots (WK-048, WK-029):
-    // File menu item below the shell's separator (FR-I9), a view-titlebar action left
-    // of the shell's two actions (FR-I10), and one status bar item beside the shell's
-    // three slots (FR-N10). These are wiring examples, not domain functionality (INTENT 7).
-    this.menu.addAppFileItem({
-      id: 'app:file:preset-info',
-      label: 'Preset Info',
-      action: () => {
-        this.statusMessages.showMessage('Presets registered: file, folder');
-      },
-    });
-    this.explorerTitlebar.addAppAction({
-      id: 'app:sidebar:preset-info',
-      title: 'Preset Info',
-      iconClass: 'codicon-info',
-      action: () => {
-        this.statusMessages.showMessage('Presets registered: file, folder');
-      },
-    });
+    // Minimal example wiring proving one app-facing extension slot (WK-029):
+    // a status bar item beside the shell's slots (FR-N10). Preset Info is no
+    // longer a view-titlebar action (v0.2 FR-X3) — it lives in View > Preset
+    // Info (FR-M12). FR-I10's view-titlebar app-action slot stays open; a real
+    // app registers through addSidebarViewAction.
     if (this.layout.statusbarAppItems) {
       const presetInfoEl = document.createElement('span');
       presetInfoEl.className = 'statusbar-app-item';
@@ -301,36 +501,137 @@ export class WorkbenchApp {
       this.layout.statusbarAppItems.appendChild(presetInfoEl);
     }
 
-    // Global keyboard shortcuts: Ctrl+O, Ctrl+W, Ctrl+\
+    // Focus areas — F6 / Shift+F6 between the tree and each group, Ctrl+Tab
+    // inside a group, and a press on the explorer's empty space (v0.2 D-10,
+    // FR-F1 ~ FR-F5).
+    new FocusAreaController(this.layout.sidebarContent, this.tree, this.editor, this.viewState);
+
+    // Global keyboard shortcuts: Ctrl+O, Ctrl+W, Ctrl+\, Ctrl+B, Alt+F4.
+    // Capture phase (A12 Critical): these are the shell's regardless of focus
+    // (reserved-keys.md §1). A tab view that calls stopPropagation() on its own
+    // keydown must not be able to swallow them, so the listener runs before the
+    // event reaches the view. Non-reserved keys fall through untouched.
     if (typeof window !== 'undefined') {
       window.addEventListener('keydown', (e) => {
-        if (e.ctrlKey && !e.shiftKey && !e.altKey && (e.key === 'o' || e.key === 'O')) {
+        const ctrlOnly = e.ctrlKey && !e.shiftKey && !e.altKey && !e.metaKey;
+        const altOnly = e.altKey && !e.ctrlKey && !e.shiftKey && !e.metaKey;
+        // A12 R3 Major: a displayed shortcut must land on the same screen state
+        // as clicking its row — and clicking a row closes the menu first. Run
+        // the command with the menu already closed.
+        const run = (fn: () => void) => {
           e.preventDefault();
-          this.handleOpenFolderDialog();
-        } else if (e.ctrlKey && !e.shiftKey && !e.altKey && (e.key === 'w' || e.key === 'W')) {
-          e.preventDefault();
-          this.editor.closeActiveTab();
-        } else if (e.ctrlKey && !e.shiftKey && !e.altKey && e.key === '\\') {
-          e.preventDefault();
-          this.editor.splitActiveGroup('right');
+          if (this.menu.isOpen) this.menu.closeMenu();
+          fn();
+        };
+        if (ctrlOnly && (e.key === 'o' || e.key === 'O')) {
+          run(() => this.handleOpenFolderDialog());
+        } else if (ctrlOnly && (e.key === 'w' || e.key === 'W')) {
+          run(() => this.editor.closeActiveTab());
+        } else if (ctrlOnly && e.key === '\\') {
+          run(() => this.editor.splitActiveGroup('right'));
+        } else if (ctrlOnly && (e.key === 'b' || e.key === 'B')) {
+          // The key View > Show Sidebar displays (v0.2 FR-M4, FR-M5).
+          run(() => this.viewState.toggleSidebar());
+        } else if (altOnly && e.key === 'F4') {
+          // The key File > Exit displays (FR-M4, FR-M5). It takes the same
+          // path as the menu row, so a dirty tab is asked about through the
+          // same host close gate. A plain F4 is untouched (v0.1 FR-I6).
+          run(() => this.handleExitRequest());
         }
-      });
+      }, true);
     }
 
-    // Statusbar app info: app name, version, host branch (FR-N9, D-7)
+    // Program information, one line left in the title bar (v0.2 FR-C7 ~ FR-C9,
+    // D-4). Version and last-commit date are baked in at build time; the host
+    // branch is read at run time because both branches load one build (NFR-2).
     const updateAppInfo = () => {
       const isElectron = typeof window !== 'undefined' && (Boolean(window.workbenchHost) || (navigator.userAgent && navigator.userAgent.includes('Electron')));
       const isPywebview = typeof window !== 'undefined' && (Boolean(window.pywebview) || (navigator.userAgent && navigator.userAgent.includes('pywebview')));
-      const branch = isElectron ? 'Electron' : (isPywebview ? 'pywebview' : '');
-      const text = branch ? `workbench-kit v0.1.0 · ${branch}` : 'workbench-kit v0.1.0';
-      if (this.layout.statusbarAppInfo) {
-        this.layout.statusbarAppInfo.textContent = text;
-      }
+      const branch = isElectron ? 'Electron' : (isPywebview ? 'PyWebView' : '');
+      const base = appInfoBase();
+      this.layout.windowTitle.textContent = branch ? `${base} - ${branch}` : base;
     };
     updateAppInfo();
     if (typeof window !== 'undefined') {
       window.addEventListener('pywebviewready', updateAppInfo);
     }
+  }
+
+  /**
+   * Drag — or arrow-key nudge — the handle between the explorer and the editor
+   * area to resize the explorer (v0.2 FR-X5, keyboard path per NFR-8). The
+   * width is clamped so `EXPLORER` and the four view actions never clip (FR-X6)
+   * and it cannot pass ~60% of the window; it lives only in the CSS variable,
+   * never persisted (FR-X7, D-8 — this method touches 0 storage).
+   */
+  private setupSidebarResize(): void {
+    const handle = this.layout.sidebarResizeHandle;
+    const sidebar = this.layout.sidebar;
+    if (!handle || !sidebar) return;
+
+    // Wide enough for the full EXPLORER label + the 4 shell actions, at the
+    // header's padding (A13 Critical + R3 Major) — lowered from 260 toward
+    // VS Code's narrower range (user request, 2026-09-12); app actions clip
+    // first and soonest at this width, by design (.sidebar-app-actions).
+    const MIN = 200;
+    const clamp = (px: number) => {
+      const max = Math.max(MIN, Math.round((window.innerWidth || 1280) * 0.6));
+      return Math.min(max, Math.max(MIN, px));
+    };
+    const setWidth = (px: number) => {
+      this.layout.root.style.setProperty('--sidebar-width', `${clamp(px)}px`);
+    };
+
+    let dragging = false;
+    const onMove = (e: PointerEvent) => {
+      if (!dragging) return;
+      setWidth(e.clientX - sidebar.getBoundingClientRect().left);
+    };
+    const stop = () => {
+      if (!dragging) return;
+      dragging = false;
+      document.body.classList.remove('is-resizing-sidebar');
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', stop);
+      window.removeEventListener('pointercancel', stop);
+      window.removeEventListener('blur', stop);
+      try {
+        handle.releasePointerCapture?.(activePointerId);
+      } catch {
+        // no capture held
+      }
+    };
+    let activePointerId = -1;
+    handle.addEventListener('pointerdown', (e) => {
+      if (this.viewState.isZenMode || !this.viewState.getState().sidebarVisible) return;
+      dragging = true;
+      activePointerId = e.pointerId;
+      try {
+        handle.setPointerCapture?.(e.pointerId);
+      } catch {
+        // capture unavailable — window listeners below still track the drag
+      }
+      document.body.classList.add('is-resizing-sidebar');
+      window.addEventListener('pointermove', onMove);
+      window.addEventListener('pointerup', stop);
+      window.addEventListener('pointercancel', stop);
+      window.addEventListener('blur', stop);
+      e.preventDefault();
+    });
+
+    // Keyboard path (NFR-8, reserved-keys.md §3b): focus the handle, then
+    // Left/Right nudges the width; Home/End jump to the min/a comfortable max.
+    handle.setAttribute('tabindex', '0');
+    handle.addEventListener('keydown', (e) => {
+      if (this.viewState.isZenMode || !this.viewState.getState().sidebarVisible) return;
+      const current = sidebar.getBoundingClientRect().width;
+      if (e.key === 'ArrowLeft') setWidth(current - 16);
+      else if (e.key === 'ArrowRight') setWidth(current + 16);
+      else if (e.key === 'Home') setWidth(MIN);
+      else if (e.key === 'End') setWidth(Math.round((window.innerWidth || 1280) * 0.4));
+      else return;
+      e.preventDefault();
+    });
   }
 
   private currentFolderRequestId = 0;
@@ -431,22 +732,10 @@ export class WorkbenchApp {
     }
   }
 
-  /**
-   * Shows the full recent-folders list (D-16: the recent-folder list lives
-   * in the menu) so the user can pick any of the up to 10 stored entries, not
-   * only the most recent one (FR-N6a, round-1 session review finding).
-   */
-  public showRecentFoldersPicker(): void {
-    if (this.recentFolders.length === 0) return;
-    const anchor = this.layout.menuBtn.getBoundingClientRect();
-    const items = this.recentFolders.map((folderPath, index) => ({
-      id: `recent-folder-${index}`,
-      label: folderPath,
-      action: () => {
-        void this.openFolder(folderPath);
-      },
-    }));
-    this.recentFoldersMenu.show(anchor.left, anchor.bottom, items);
+  /** Drops one path from the stored list; it stays gone after a restart (v0.2 FR-M7). */
+  public removeRecentFolder(folderPath: string): void {
+    this.recentFolders = this.recentFolders.filter((p) => p !== folderPath);
+    this.saveRecentFolders();
   }
 
   public getRecentFolders(): readonly string[] {
@@ -464,6 +753,7 @@ export class WorkbenchApp {
       kindRegistry: this.kindRegistry,
       addFileMenuItem: (item) => this.menu.addAppFileItem(item),
       addSidebarViewAction: (action) => this.explorerTitlebar.addAppAction(action),
+      setSidebarNewItemHandler: (fn) => this.explorerTitlebar.setNewItemHandler(fn),
       setActivityBarTopItems: (items) => this.activityBar.setTopItems(items),
       setActivityBarBottomItems: (items) => this.activityBar.setBottomItems(items),
       setContextMenuEnabled: (enabled) => this.contextMenu.setEnabled(enabled),
@@ -493,6 +783,10 @@ export class WorkbenchApp {
 
   private addRecentFolder(folderPath: string): void {
     this.recentFolders = [folderPath, ...this.recentFolders.filter((p) => p !== folderPath)].slice(0, 10);
+    this.saveRecentFolders();
+  }
+
+  private saveRecentFolders(): void {
     try {
       if (typeof localStorage !== 'undefined') {
         localStorage.setItem('workbench:recent-folders', JSON.stringify(this.recentFolders));

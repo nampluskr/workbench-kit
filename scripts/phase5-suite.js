@@ -333,12 +333,15 @@ window.__runPhase5TestSuite = async function runPhase5TestSuite() {
     // ------------------------------------------------------------------------
     const appItemsEl = document.getElementById('statusbar-app-items');
     record('P5-FR-N10-APPEND', appItemsEl !== null && appItemsEl.children.length >= 1, 'App status bar item is present (FR-N10)');
+    // v0.2 replaces part of v0.1 FR-N10 (SPEC 0.1): the shell's app-info slot
+    // is gone (FR-C10, D-4), so the shell keeps two slots — path and message —
+    // and the app item still attaches with zero core changes.
     record(
       'P5-FR-N10-SLOTS',
       Boolean(document.getElementById('statusbar-path')) &&
         Boolean(document.getElementById('statusbar-message')) &&
-        Boolean(document.getElementById('statusbar-app-info')),
-      "The shell's three status bar slots remain intact (FR-N10)"
+        document.getElementById('statusbar-app-info') === null,
+      "The shell's status bar slots (path, message) remain intact, and the removed app-info slot stays gone (v0.1 FR-N10 → v0.2 FR-C10)"
     );
 
     // ------------------------------------------------------------------------
@@ -364,6 +367,11 @@ window.__runPhase5TestSuite = async function runPhase5TestSuite() {
     // ------------------------------------------------------------------------
     // 9. File menu app item (FR-I9, WK-048)
     // ------------------------------------------------------------------------
+    // v0.2 moved the wiring example's File item to View > Preset Info
+    // (FR-M12), so the production File menu has no app item any more. The
+    // app adds one here through its own extension surface, exactly as an app
+    // would (v0.1 FR-I9: zero core changes).
+    window.__workbenchAppSurface.addFileMenuItem({ id: 'app:file:preset-info', label: 'Sample App Item', action: () => {} });
     const fileGroup = menu.getGroups().find((g) => g.id === 'file');
     const coreFileItems = menu.getFileItems();
     const fileItemsMatchCore = coreFileItems.every((it, i) => fileGroup.items[i].id === it.id);
@@ -380,22 +388,31 @@ window.__runPhase5TestSuite = async function runPhase5TestSuite() {
     );
 
     // ------------------------------------------------------------------------
-    // 10. Sidebar view titlebar app action (FR-I10, WK-048)
+    // 10. Sidebar view titlebar app action (FR-I10, FR-X2). v0.2 has four shell
+    // actions and no wiring-example sidebar app action, so the app adds one
+    // here through its own surface (v0.1 FR-I10: 0 core changes).
     // ------------------------------------------------------------------------
+    window.__workbenchAppSurface.addSidebarViewAction({
+      id: 'app:sidebar:sample',
+      title: 'Sample App Action',
+      iconClass: 'codicon-beaker',
+      action: () => {},
+    });
     const sidebarActions = document.getElementById('sidebar-actions');
     const actionChildren = sidebarActions ? Array.from(sidebarActions.children) : [];
     const appActionsIndex = actionChildren.findIndex((el) => el.id === 'sidebar-app-actions');
-    const collapseAllIndex = actionChildren.findIndex((el) => el.id === 'sidebar-action-collapse-all');
+    const shellIds = ['sidebar-action-new-file', 'sidebar-action-new-folder', 'sidebar-action-refresh', 'sidebar-action-collapse-all'];
+    const shellIndices = shellIds.map((id) => actionChildren.findIndex((el) => el.id === id));
     const appActionsEl = document.getElementById('sidebar-app-actions');
     record(
       'P5-FR-I10-POSITION',
-      appActionsIndex >= 0 && collapseAllIndex >= 0 && appActionsIndex < collapseAllIndex,
-      'App-added view-titlebar action sits to the left of the two shell actions (FR-I10, D-30, D-31)'
+      appActionsIndex >= 0 && shellIndices.every((n, i) => n > appActionsIndex && (i === 0 || n > shellIndices[i - 1])),
+      'App-added view-titlebar action sits to the left of the four shell actions, which stay in order (FR-I10, FR-X2)'
     );
     record(
       'P5-FR-I10-COUNT',
       appActionsEl !== null && appActionsEl.children.length === 1,
-      'Exactly one app action is present in the view titlebar (FR-I10)'
+      'Exactly the one app action the app added is present in the view titlebar, and the shell added none (FR-I10)'
     );
 
     // ------------------------------------------------------------------------

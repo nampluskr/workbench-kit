@@ -26,12 +26,17 @@ console.log('\n--- 1. Verifying Zero Tab-Explorer-Templates Values in CSS (C-10,
 const cssPath = path.join(rootDir, 'src/style.css');
 const css = fs.readFileSync(cssPath, 'utf8');
 
+// D-17 (docs/current/DECISIONS.md): .workbench-statusbar's font-size: 12px is
+// an explicitly approved, narrowly-scoped exception to D-29's forbidden-value
+// list (user request, 2026-09-15) — stripped once before the scan below, so
+// any OTHER 12px occurrence is still caught.
+const cssForForbiddenScan = css.replace('font-size: 12px;', '');
 const forbiddenTokens = ['12px', '4px', '8px', '16px', '6px', '#353b44', 'Segoe UI', 'Cascadia Mono'];
 for (const token of forbiddenTokens) {
   const isExactWord = /^[a-zA-Z0-9]/.test(token);
   const regex = isExactWord ? new RegExp(`\\b${token}\\b`, 'g') : new RegExp(token.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g');
-  const matches = css.match(regex);
-  assert(!matches || matches.length === 0, `src/style.css contains 0 occurrences of "${token}" (found: ${matches ? matches.length : 0})`);
+  const matches = cssForForbiddenScan.match(regex);
+  assert(!matches || matches.length === 0, `src/style.css contains 0 occurrences of "${token}" (found: ${matches ? matches.length : 0}) beyond the D-17 statusbar exception`);
 }
 
 // --------------------------------------------------------------------------
@@ -72,7 +77,8 @@ assert(!activityBarTs.includes('칸 닫기') && !activityBarTs.includes('칸 삭
 assert(!menuTs.includes('칸 닫기') && !menuTs.includes('칸 삭제'), 'Menu contains zero 칸 닫기/칸 삭제 items (FR-D8, FR-J6)');
 
 // FR-J3: "활성 칸 탭 모두 닫기" in View menu only
-assert(menuTs.includes('view:close-active-tabs') && menuTs.includes('활성 칸 탭 모두 닫기'), 'View menu contains "활성 칸 탭 모두 닫기" (FR-J2, FR-J3)');
+// v0.1 FR-J2/FR-J3's View item became File > Close Editor Group (SPEC 0.1, v0.2 FR-M10).
+assert(menuTs.includes('file:close-editor-group') && menuTs.includes('Close Editor Group') && !menuTs.includes('view:close-active-tabs'), 'File menu contains "Close Editor Group" and View no longer has the v0.1 item (FR-J2, FR-J3 → v0.2 FR-M10)');
 assert(!activityBarTs.includes('활성 칸 탭 모두 닫기'), 'Activity bar contains zero "활성 칸 탭 모두 닫기" items (FR-J3)');
 assert(!editorTs.includes('close-all-tabs') && !editorTs.includes('tab-action-close-all'), 'Tab header actions contain zero "활성 칸 탭 모두 닫기" buttons (FR-J3)');
 
@@ -163,6 +169,10 @@ try {
 // --------------------------------------------------------------------------
 // Phase 4 Required Assertion Manifest (Immutable Contract)
 // --------------------------------------------------------------------------
+// v0.2 removed P4-FR-B3 and P4-FR-B3-DUP: v0.1 FR-B3 (a pick is absorbed by
+// the [+] empty tab) is superseded by the preview-spot rule, and is listed in
+// v0.2 SPEC 0.1's replacement table. Its successors are asserted in
+// scripts/v02-phase1-suite.js.
 const REQUIRED_PHASE4_ASSERTIONS = Object.freeze([
   'INIT',
   'P4-INIT-GROUP',
@@ -177,10 +187,10 @@ const REQUIRED_PHASE4_ASSERTIONS = Object.freeze([
   'P4-FR-C1-ACTIVE',
   'P4-FR-C2',
   'P4-FR-A6',
-  'P4-FR-B3',
   'P4-FR-B1',
+  'V2P4-FR-P14-REUSE',
+  'V2P4-FR-P14-CONFIRM-REOPEN',
   'P4-FR-C1-2',
-  'P4-FR-B3-DUP',
   'P4-FR-B2',
   'P4-FR-B4',
   'P4-FR-E4',
@@ -208,6 +218,7 @@ const REQUIRED_PHASE4_ASSERTIONS = Object.freeze([
   'P4-2D-ACTIVE-MAIN',
   'P4-FR-A14-2D-COUNT',
   'P4-FR-A14-2D-TARGET',
+  'P4-FR-A14-DUP-PRECONDITION',
   'P4-FR-A14-DUP',
   'P4-FR-D1',
   'P4-FR-D2',
