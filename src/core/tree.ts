@@ -186,6 +186,66 @@ export class TreeController {
     return this.selectedIds.has(id);
   }
 
+  /** The scrollable list element's current scroll offset (v0.3 D-5). */
+  public getScrollTop(): number {
+    const listEl = this.container.querySelector('.tree-list') as HTMLElement | null;
+    return listEl ? listEl.scrollTop : 0;
+  }
+
+  public setScrollTop(value: number): void {
+    const listEl = this.container.querySelector('.tree-list') as HTMLElement | null;
+    if (listEl) listEl.scrollTop = value;
+  }
+
+  /**
+   * Re-expands a saved set of folder ids top-down (v0.3 D-5, WK-098/099).
+   * Shallowest paths first, since a deeper id is only reachable through
+   * `getNodeById` once its ancestor's children have actually been loaded —
+   * `setExpanded` already lazy-loads a node's own children via
+   * `ensureChildrenLoaded`, so awaiting each level in turn is what makes the
+   * next one findable at all.
+   */
+  public async restoreExpanded(ids: readonly string[]): Promise<void> {
+    const opId = this.refreshOpId;
+    // setRoot() defaults to "root expanded" (so a fresh Explorer shows
+    // something). A saved state that does NOT include the root must
+    // COLLAPSE it, not just leave the default on top — additive-only
+    // restoration silently kept a collapsed root expanded forever (A4 R1
+    // Critical finding).
+    if (this.root && !ids.includes(this.root.id) && this.expandedIds.has(this.root.id)) {
+      this.expandedIds.delete(this.root.id);
+      this.expansionRevision++;
+      this.reconcileFocusAndSelectionAfterCollapse(this.root.id);
+      this.render();
+    }
+    const depthOf = (id: string) => id.split(/[/\\]/).filter(Boolean).length;
+    const sorted = [...ids].sort((a, b) => depthOf(a) - depthOf(b));
+    for (const id of sorted) {
+      if (this.refreshOpId !== opId || !this.root) return;
+      if (this.getNodeById(id)) {
+        await this.setExpanded(id, true);
+      }
+    }
+  }
+
+  /**
+   * Restores selection/focus onto nodes that exist NOW — a saved id whose
+   * file was deleted or renamed since is silently dropped rather than
+   * crashing the restore (v0.3 D-5). Call after `restoreExpanded` so the
+   * saved nodes are actually reachable.
+   */
+  public restoreSelection(selectedIds: readonly string[], focusedId: string | null): void {
+    if (!this.root) return;
+    const valid = selectedIds.filter((id) => this.getNodeById(id));
+    this.selectedIds = new Set(valid.length > 0 ? valid : [this.root.id]);
+    const focusCandidate = focusedId && this.getNodeById(focusedId) ? focusedId : valid[0] ?? this.root.id;
+    this.focusedId = focusCandidate;
+    this.anchorId = focusCandidate;
+    this.selectionRevision++;
+    this.render();
+    this.emitSelect();
+  }
+
   public onSelect(cb: (nodes: TreeNode[]) => void): () => void {
     this.onSelectCallbacks.push(cb);
     return () => {

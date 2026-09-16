@@ -271,7 +271,7 @@
     },
     {
       "id": "WK-098",
-      "status": "todo",
+      "status": "done",
       "priority": "P4",
       "category": "탐색기",
       "title": "폴더 탭별 Explorer 상태 저장 구조",
@@ -284,11 +284,11 @@
         "WK-083",
         "WK-085"
       ],
-      "done_at": null
+      "done_at": "2026-09-16"
     },
     {
       "id": "WK-099",
-      "status": "todo",
+      "status": "done",
       "priority": "P4",
       "category": "탐색기",
       "title": "폴더 전환 시 Explorer 상태 스왑",
@@ -300,11 +300,11 @@
       "deps": [
         "WK-098"
       ],
-      "done_at": null
+      "done_at": "2026-09-16"
     },
     {
       "id": "WK-100",
-      "status": "todo",
+      "status": "done",
       "priority": "P4",
       "category": "탐색기",
       "title": "재시작 복원 — Electron",
@@ -316,11 +316,11 @@
       "deps": [
         "WK-099"
       ],
-      "done_at": null
+      "done_at": "2026-09-16"
     },
     {
       "id": "WK-101",
-      "status": "todo",
+      "status": "done",
       "priority": "P4",
       "category": "탐색기",
       "title": "재시작 복원 — pywebview",
@@ -332,7 +332,7 @@
       "deps": [
         "WK-100"
       ],
-      "done_at": null
+      "done_at": "2026-09-16"
     },
     {
       "id": "WK-102",

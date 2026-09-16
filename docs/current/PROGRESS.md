@@ -156,3 +156,52 @@ Phase 3(WK-093 ~ WK-097, 레일 토글과 Explorer 연동)로 진행.
 Phase 4(WK-098 ~ WK-101, 폴더별 Explorer 상태 보존과 복원) — **필수 통과 Phase**로
 진행. 영속 저장이 처음 들어가는 Phase이므로 반대 벤더 검증에서 미해결 Critical이
 있으면 다음 Phase로 넘어가지 않는다.
+
+---
+
+## Phase 4 — 폴더별 Explorer 상태 보존과 복원 (WK-098 ~ WK-101) — done, 2026-09-16
+
+**무엇을 했나**
+
+- `src/core/tree.ts`: `getScrollTop`/`setScrollTop`, `restoreExpanded(ids)`(저장된
+  집합에 없으면 루트를 먼저 명시적으로 접음), `restoreSelection(ids, focusedId)`를
+  추가했다.
+- `src/core/foldertabs.ts`: `restoreTabs(tabs, activeTabId)`(재시작 복원 전용,
+  `onActivate`/`onSelect`/`onChange` 미발화), `onChange`(매 렌더 후 발화 — 저장
+  트리거), `onRemove`(탭 닫힘 즉시 발화, `render()`보다 먼저)를 추가했다.
+- `src/main.ts`: 탭 id별 `ExplorerState`(펼침·선택·스크롤) 맵을 앱에 두고,
+  `activateFolderTab()`에서 나가는 탭 상태 저장 → 새 탭 로드 → 들어오는 탭 상태
+  복원을 한다. `persistFolderTabs()`가 탭 목록·순서·별칭·활성 탭·각 탭 상태를
+  `localStorage`(`workbench:folder-tabs`)에 직렬화하고, `restoreFolderTabs()`가
+  시작 시 복원한다(`initWorkbench()`에서 호출).
+- `src/hosts/pywebview/main.py`: **재시작 복원이 실제로는 전혀 동작하지 않던
+  두 가지 버그**를 찾아 고쳤다 — `private_mode`가 기본값 `True`라 `storage_path`를
+  줘도 로컬스토리지가 저장 안 됐고, 로컬 파일이 매 실행마다 무작위 포트의 내부
+  HTTP 서버로 서빙되어 origin이 매번 달라졌다. `private_mode=False` + 고정
+  `http_port`(충돌 시 사전 확인 후 임의 포트로 폴백)로 고쳤다.
+
+**검증**
+
+- `npx tsc --noEmit` 통과. `py_compile` 통과.
+- `node scripts/verify-v04-phase4.mjs`: Electron·pywebview 두 갈래 각각 단일
+  세션 + **실제 프로세스 재시작 쌍**(launch1/launch2, phase6 A8의 "진짜 재시작으로
+  검증" 패턴 재사용) 전부 통과, 두 갈래 불일치 0건.
+- `node scripts/verify-v03-phase{1,2,3}.mjs` 재실행으로 회귀 0건 확인.
+- 반대 벤더 적대적 검증(Codex `gpt-5.6-sol`, **필수 통과**): `docs/reviews/A19.md`.
+  **3회 제한을 전부 소진**했다 — 1회차 Critical 3건, 2회차에 그중 2건이 재발(순서·
+  ABA 경쟁 문제), 3회차에도 같은 근본 원인이 다른 형태로 다시 나타나 Critical 2건
+  미해결로 게이트가 FAIL 판정을 받았다. 이 세션은 그 2건을 직접 수정하고(활성 탭
+  닫기 시 `activeFolderTabId` 즉시 정리, ABA를 막는 `restoringReqId` 토큰 도입)
+  새 회귀 테스트로 실측 검증했지만 **4회차 자동 재검증은 프로젝트 규정(3회
+  제한)상 받지 않았다** — `docs/reviews/A19.md`의 "처리 — 3회차 이후" 절에
+  이 사실을 명시했다.
+
+**계획 외 개선**
+
+- pywebview의 재시작 복원이 이번 Phase 전까지 v0.1/v0.2 내내 **한 번도 실제로
+  검증된 적이 없었다**(기존 v0.2 Phase 6 검증은 단일 프로세스 시뮬레이션만
+  했음). 이번에 실제 2-프로세스 재시작으로 검증하다가 위 두 버그를 발견했다.
+
+**다음**
+
+Phase 5(WK-102 ~ WK-104, 사라진 경로의 오류 상태)로 진행.

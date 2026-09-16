@@ -45,6 +45,18 @@ function appInfoBase(): string {
 }
 
 /**
+ * One folder tab's saved Explorer state (v0.3 D-5). Keyed by folder-tab id
+ * in `WorkbenchApp.explorerStateByTab` — see there for why it lives on the
+ * app rather than on `FolderTabsController` or `TreeController`.
+ */
+interface ExplorerState {
+  expandedIds: string[];
+  selectedIds: string[];
+  focusedId: string | null;
+  scrollTop: number;
+}
+
+/**
  * Everything a real app-extension author is meant to use (FR-I1 ~ FR-I11,
  * FR-N10, FR-N12, FR-G6). Unlike `window.__workbenchApp` (a full-access
  * diagnostic hook the Phase 1-4 test harnesses already depend on), this
@@ -199,6 +211,7 @@ export class WorkbenchApp {
     this.folderTabs.onEmpty(() => {
       this.currentFolderRequestId++;
       this.tree.clearRoot();
+      this.activeFolderTabId = null;
       if (this.layout.statusbarPath) {
         this.layout.statusbarPath.textContent = '';
       }
@@ -208,6 +221,33 @@ export class WorkbenchApp {
       // "Opening folder: …" showing forever (A2 R1 Major finding).
       this.statusMessages.stopProgress();
     });
+    // Drop a closed tab's saved Explorer state immediately — otherwise it
+    // stays in the map forever and can leak onto a later, unrelated tab
+    // that happens to reuse the same id after a restart (A4 R1 Critical
+    // finding).
+    this.folderTabs.onRemove((id) => {
+      this.explorerStateByTab.delete(id);
+      // Closing the ACTIVE tab leaves `activeFolderTabId` pointing at the
+      // just-deleted id until activateFolderTab() for its replacement
+      // finishes (that happens later, asynchronously, via the
+      // activateCallbacks removeTab() fires after this). In between,
+      // removeTab()'s own render() call fires onChange -> persistFolderTabs(),
+      // which would otherwise still see the stale activeFolderTabId, live-
+      // capture the (now wrong) tree, and resurrect the entry onRemove just
+      // deleted (A4 R3 Critical finding).
+      if (this.activeFolderTabId === id) {
+        this.activeFolderTabId = null;
+      }
+    });
+    // Persist after every folder-tabs mutation (add/remove/reorder/alias/
+    // activate) — see FolderTabsController.onChange's doc comment (v0.3 D-5,
+    // WK-100/101).
+    this.folderTabs.onChange(() => this.persistFolderTabs());
+    // Safety net for whatever browsing (expand/select/scroll) happened on
+    // the active tab since its last onChange-triggered save.
+    if (typeof window !== 'undefined') {
+      window.addEventListener('beforeunload', () => this.persistFolderTabs());
+    }
 
     this.loadRecentFolders();
 
@@ -693,6 +733,45 @@ export class WorkbenchApp {
 
   private currentFolderRequestId = 0;
   private lastActivationPromise: Promise<void> = Promise.resolve();
+  /**
+   * Per-folder-tab Explorer state (v0.3 D-5, WK-098/099) — expansion,
+   * selection, and scroll position, keyed by folder-tab id (not by path:
+   * two tabs on the same path keep independent state, PLAN Phase 4's
+   * "같은 경로로 연 탭들도 각각 다른 상태를 유지한다"). Lives only on
+   * `WorkbenchApp`, not on `FolderTabsController` or `TreeController` —
+   * neither of those needs to know the other exists.
+   */
+  private explorerStateByTab = new Map<string, ExplorerState>();
+  private activeFolderTabId: string | null = null;
+  /**
+   * The tab id currently mid-`restoreExpanded()`, or null. While set, the
+   * live tree reflects a PARTIALLY restored state for that tab — capturing
+   * and saving it (on switch-away or on any other persist trigger) would
+   * silently downgrade that tab's own last-known-good snapshot to whatever
+   * had loaded so far (A4 R1 Critical finding). Every capture site checks
+   * this before overwriting `explorerStateByTab`.
+   */
+  private restoringTabId: string | null = null;
+  /**
+   * The `currentFolderRequestId` value of whichever `activateFolderTab()`
+   * call currently owns `restoringTabId` — an ABA guard (A4 R3 Critical
+   * finding). Two overlapping restorations of the SAME tab (switch to A,
+   * away, back to A while the first A restoration is still finishing) both
+   * compare equal on tab id alone; comparing the request id too means only
+   * the call that actually set `restoringTabId` may clear it, so an older,
+   * cancelled restoration's `finally` can never wipe a newer one's guard.
+   */
+  private restoringReqId: number | null = null;
+
+  private captureExplorerState(): ExplorerState | null {
+    if (!this.tree.getRoot()) return null;
+    return {
+      expandedIds: this.tree.getExpandedIds(),
+      selectedIds: this.tree.getSelectedIds(),
+      focusedId: this.tree.getFocusedId(),
+      scrollTop: this.tree.getScrollTop(),
+    };
+  }
 
   /**
    * Points the Explorer's one tree root at `tab.path` (v0.3 D-1, D-9). Does
@@ -701,6 +780,20 @@ export class WorkbenchApp {
    */
   private async activateFolderTab(tab: FolderTab): Promise<void> {
     const reqId = ++this.currentFolderRequestId;
+    // Save the OUTGOING tab's Explorer state before switching away (D-5,
+    // WK-099) — capturing from the live tree, not from whatever was saved
+    // last time, so mid-session browsing on that tab isn't lost. Skipped if
+    // that tab's OWN restoration is still in flight (see restoringTabId's
+    // doc comment) — its last-known-good snapshot is already correct and
+    // must not be replaced with a partial one.
+    if (
+      this.activeFolderTabId &&
+      this.activeFolderTabId !== tab.id &&
+      this.restoringTabId !== this.activeFolderTabId
+    ) {
+      const outgoing = this.captureExplorerState();
+      if (outgoing) this.explorerStateByTab.set(this.activeFolderTabId, outgoing);
+    }
     const folderPath = tab.path;
     this.statusMessages.startProgress(`Opening folder: ${folderPath}`);
     try {
@@ -709,16 +802,117 @@ export class WorkbenchApp {
         return;
       }
       this.tree.setRoot(rootNode);
+      this.activeFolderTabId = tab.id;
       if (this.layout.statusbarPath) {
         this.layout.statusbarPath.textContent = folderPath;
       }
       this.addRecentFolder(folderPath);
       this.statusMessages.stopProgress();
+
+      // Restore this tab's own saved expansion/selection/scroll, if any
+      // (D-5, WK-098/099). `setRoot` above already put the tree in its
+      // default "just the root expanded" state — this replaces that with
+      // whatever this SPECIFIC tab had last time it was active.
+      const saved = this.explorerStateByTab.get(tab.id);
+      if (saved) {
+        this.restoringTabId = tab.id;
+        this.restoringReqId = reqId;
+        try {
+          await this.tree.restoreExpanded(saved.expandedIds);
+          if (this.currentFolderRequestId !== reqId) return;
+          this.tree.restoreSelection(saved.selectedIds, saved.focusedId);
+          this.tree.setScrollTop(saved.scrollTop);
+        } finally {
+          // Compare-and-clear keyed by reqId, not tab id (A4 R3 Critical
+          // finding — comparing only tab id is an ABA race: switching to A,
+          // away, and back to A again while the FIRST A restoration is still
+          // in flight means two calls both compare equal on tab id, so the
+          // older one's finally could still clear the newer one's guard).
+          // Only the call that actually set restoringReqId may clear it.
+          if (this.restoringReqId === reqId) {
+            this.restoringTabId = null;
+            this.restoringReqId = null;
+          }
+        }
+      }
+      this.persistFolderTabs();
     } catch (err) {
       if (this.currentFolderRequestId !== reqId) {
         return;
       }
       this.statusMessages.showError(`Error opening folder: ${String(err)}`);
+    }
+  }
+
+  /**
+   * Serializes the folder-tab list, the active tab, and every tab's saved
+   * Explorer state to `localStorage` (v0.3 D-5, WK-100/101). Called after
+   * every folder-tabs mutation (`FolderTabsController.onChange`) and once
+   * more on `beforeunload` as a safety net for whatever browsing happened on
+   * the currently active tab since its last save point.
+   */
+  private persistFolderTabs(): void {
+    try {
+      if (typeof localStorage === 'undefined') return;
+      // Same guard as activateFolderTab's outgoing-state capture above — a
+      // persist triggered by something else (reorder, alias, …) while the
+      // active tab's own restoration is still in flight must not overwrite
+      // its last-known-good snapshot with the partial live state (A4 R1
+      // Critical finding).
+      if (this.activeFolderTabId && this.restoringTabId !== this.activeFolderTabId) {
+        const live = this.captureExplorerState();
+        if (live) this.explorerStateByTab.set(this.activeFolderTabId, live);
+      }
+      const explorerState: Record<string, ExplorerState> = {};
+      for (const [id, state] of this.explorerStateByTab) {
+        explorerState[id] = state;
+      }
+      const payload = {
+        tabs: this.folderTabs.getTabs(),
+        activeTabId: this.folderTabs.getActiveTab()?.id ?? null,
+        explorerState,
+      };
+      localStorage.setItem('workbench:folder-tabs', JSON.stringify(payload));
+    } catch {
+      // Ignore localStorage errors (quota, disabled storage, …) — restart
+      // restoration degrading to "start empty" is acceptable; a thrown
+      // error from a save-path is not.
+    }
+  }
+
+  /**
+   * Restart restoration (v0.3 D-5, WK-100/101): registered folders, order,
+   * aliases, the last active tab, and each tab's Explorer state. Called once
+   * at startup. A missing or unparsable record just leaves the rail empty —
+   * the same shape a first run has.
+   */
+  public async restoreFolderTabs(): Promise<void> {
+    let raw: string | null = null;
+    try {
+      if (typeof localStorage !== 'undefined') {
+        raw = localStorage.getItem('workbench:folder-tabs');
+      }
+    } catch {
+      return;
+    }
+    if (!raw) return;
+
+    let data: { tabs?: FolderTab[]; activeTabId?: string | null; explorerState?: Record<string, ExplorerState> };
+    try {
+      data = JSON.parse(raw);
+    } catch {
+      return;
+    }
+    if (!data || !Array.isArray(data.tabs) || data.tabs.length === 0) return;
+
+    this.folderTabs.restoreTabs(data.tabs, data.activeTabId ?? null);
+    for (const [id, state] of Object.entries(data.explorerState || {})) {
+      this.explorerStateByTab.set(id, state);
+    }
+
+    const activeTab = this.folderTabs.getActiveTab();
+    if (activeTab) {
+      await this.activateFolderTab(activeTab);
     }
   }
 
@@ -882,9 +1076,11 @@ export function initWorkbench(): WorkbenchApp {
     // an isolated view directly, e.g. to prove read-only mode blocks edits).
     (window as any).__TextEditorView = TextEditorView;
   }
-  // v0.2 restored the single last-opened folder here; v0.3 removes that
-  // (D-3) — restart restoration of the whole folder-tab list is Phase 4's
-  // job (D-5), not yet wired up.
+  // v0.2 restored the single last-opened folder here; v0.3 replaces that
+  // with the whole folder-tab list — registered folders, order, aliases,
+  // the last active tab, and each tab's Explorer state (D-3, D-5,
+  // WK-100/101).
+  void appInstance.restoreFolderTabs();
   return appInstance;
 }
 

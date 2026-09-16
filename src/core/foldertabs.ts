@@ -85,6 +85,8 @@ export class FolderTabsController {
   private selectCallbacks: Array<(tab: FolderTab) => void> = [];
   /** Fired when the rail has no active tab left (e.g. all tabs removed). */
   private emptyCallbacks: Array<() => void> = [];
+  private changeCallbacks: Array<() => void> = [];
+  private removeCallbacks: Array<(id: string) => void> = [];
 
   public onAddRequested: (() => void) | null = null;
 
@@ -136,6 +138,18 @@ export class FolderTabsController {
   }
 
   /**
+   * Fires after every render — i.e. after any mutation (add/remove/reorder/
+   * alias/activate) — so a caller can persist the tab list without wiring a
+   * separate hook per mutation kind (v0.3 D-5, WK-100/101).
+   */
+  public onChange(cb: () => void): () => void {
+    this.changeCallbacks.push(cb);
+    return () => {
+      this.changeCallbacks = this.changeCallbacks.filter((c) => c !== cb);
+    };
+  }
+
+  /**
    * Always creates a new tab, even for an already-registered path (D-3). The
    * new tab is activated immediately.
    */
@@ -178,6 +192,14 @@ export class FolderTabsController {
       const next = this.tabs[idx] ?? this.tabs[idx - 1] ?? null;
       this.activeId = next ? next.id : null;
     }
+    // Fire BEFORE render() — render() fires onChange, which a caller
+    // (main.ts) uses to persist to localStorage. onRemove has to run first
+    // so a caller can drop its own per-tab data (explorerStateByTab) before
+    // that persist call, or the stale entry gets written to disk once more
+    // before cleanup ever catches up (A4 R2 Critical finding: the previous
+    // "fire onRemove after render()" order persisted the leak once before
+    // deleting it in memory).
+    for (const cb of this.removeCallbacks) cb(id);
     this.render();
 
     if (wasActive) {
@@ -188,6 +210,20 @@ export class FolderTabsController {
         for (const cb of this.emptyCallbacks) cb();
       }
     }
+  }
+
+  /**
+   * Fires with the removed tab's id, once per `removeTab()` call. Lets a
+   * caller drop any per-tab data it keyed by tab id (main.ts's
+   * `explorerStateByTab`) — without this, a closed tab's saved Explorer
+   * state stayed in the map forever and could leak onto an unrelated later
+   * tab that reused the same freed id (A4 R1 Critical finding).
+   */
+  public onRemove(cb: (id: string) => void): () => void {
+    this.removeCallbacks.push(cb);
+    return () => {
+      this.removeCallbacks = this.removeCallbacks.filter((c) => c !== cb);
+    };
   }
 
   public activateTab(id: string): void {
@@ -213,6 +249,26 @@ export class FolderTabsController {
 
   public getTabs(): readonly FolderTab[] {
     return this.tabs;
+  }
+
+  /**
+   * Replaces the whole tab list at once — restart restoration (v0.3 D-5,
+   * WK-100/101), never a user action. Unlike `addTab`, this does NOT fire
+   * `onSelect`/`onActivate`/`onChange` — the caller (main.ts) still has to
+   * separately trigger the Explorer load for whichever tab was active,
+   * since restoring the registration and restoring the filesystem root are
+   * different things with different failure modes (a dead path is Phase 5's
+   * concern, not this method's).
+   */
+  public restoreTabs(tabs: readonly FolderTab[], activeTabId: string | null): void {
+    this.tabs = tabs.map((t) => ({ ...t }));
+    const usedSeqs = this.tabs
+      .map((t) => /^ft-(\d+)$/.exec(t.id))
+      .filter((m): m is RegExpExecArray => Boolean(m))
+      .map((m) => parseInt(m[1], 10));
+    this.nextSeq = usedSeqs.length > 0 ? Math.max(...usedSeqs) + 1 : 1;
+    this.activeId = activeTabId && this.tabs.some((t) => t.id === activeTabId) ? activeTabId : null;
+    this.render();
   }
 
   /**
@@ -557,6 +613,7 @@ export class FolderTabsController {
     }
 
     this.applyIconColors();
+    for (const cb of this.changeCallbacks) cb();
   }
 
   private applyIconColors(): void {

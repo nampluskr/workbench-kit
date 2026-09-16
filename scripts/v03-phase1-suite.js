@@ -70,6 +70,17 @@ window.__runV03Phase1Suite = async function () {
   }
 
   const app = window.__workbenchApp;
+  // Defensive isolation: a shared/persistent host profile (pywebview
+  // genuinely persists localStorage as of the v0.3 Phase 4 fix — private_mode
+  // was silently discarding it before) could carry leftover folder tabs into
+  // this run. Clear them so this suite starts from a known-empty state
+  // regardless of what ran before it in this profile.
+  for (const t of [...app.folderTabs.getTabs()]) app.folderTabs.removeTab(t.id);
+  try {
+    localStorage.clear();
+  } catch {
+    // ignore
+  }
   const tree = app.tree;
   const dir1 = window.__testTmpDir;
   const dir2 = window.__testTmpDir2;
