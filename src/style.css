@@ -555,6 +555,116 @@ html, body, #app {
   background-color: var(--button-hover-bg);
 }
 
+/*
+ * 2b. Folder Tabs rail (v0.3 D-1) — a vertical strip of registered working
+ * folders, between the Activity Bar and the Explorer. Deliberately its own
+ * area, not part of .workbench-sidebar: Activity Bar toggles pick WHICH view
+ * shows, while this rail lists the sidebar's own dataset (v0.3 INTENT 3).
+ */
+.workbench-foldertabs-rail {
+  width: 180px;
+  min-width: 120px;
+  background-color: var(--sidebar-bg);
+  color: var(--sidebar-fg);
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+  border-right: 1px solid var(--border-color);
+}
+
+.foldertabs-header {
+  height: var(--area-size);
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 10px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.foldertabs-title {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
+.foldertabs-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.foldertabs-action-btn {
+  width: 22px;
+  height: 22px;
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  color: inherit;
+  cursor: pointer;
+  border-radius: 3px;
+  font-size: 15px;
+  opacity: 0.8;
+  padding: 0;
+  outline: none;
+}
+
+.foldertabs-action-btn:hover {
+  opacity: 1;
+  background-color: var(--button-hover-bg);
+}
+
+.foldertabs-action-btn:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.foldertabs-action-btn:disabled:hover {
+  background-color: transparent;
+}
+
+.foldertabs-list {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+.foldertabs-tab {
+  display: flex;
+  align-items: center;
+  height: 28px;
+  padding: 0 10px;
+  cursor: pointer;
+  white-space: nowrap;
+  outline: none;
+  box-sizing: border-box;
+  color: var(--sidebar-fg);
+  border-left: 2px solid transparent;
+}
+
+.foldertabs-tab:hover {
+  background-color: var(--button-hover-bg);
+}
+
+/* The active folder tab is distinguishable by fill AND edge, not colour
+   alone, so it reads on the gray theme too (v0.3 D-1, PLAN Phase 1). */
+.foldertabs-tab.active {
+  background-color: var(--tab-active-bg);
+  color: var(--tab-active-fg);
+  border-left-color: var(--focus-ring);
+}
+
+.foldertabs-tab-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 /* 3. Sidebar */
 .workbench-sidebar {
   width: var(--sidebar-width);

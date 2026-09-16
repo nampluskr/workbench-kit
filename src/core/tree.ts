@@ -38,7 +38,7 @@ export interface VisibleTreeItem {
  * which the CSP does allow. That is what makes the colour actually follow the
  * theme on screen (v0.2 FR-X10, FR-X14).
  */
-function renderIconMarkup(iconDesc: IconDescriptor): string {
+export function renderIconMarkup(iconDesc: IconDescriptor): string {
   const fg = iconDesc.color ? ` data-fg="${escapeHtml(iconDesc.color)}"` : '';
   if (iconDesc.kind === 'codicon') {
     return `<span class="tree-icon"><i class="codicon ${iconDesc.cssClass || 'codicon-file'}"${fg}></i></span>`;
@@ -58,7 +58,7 @@ function renderIconMarkup(iconDesc: IconDescriptor): string {
   return '';
 }
 
-function escapeHtml(text: string | null | undefined): string {
+export function escapeHtml(text: string | null | undefined): string {
   if (!text) {
     return '';
   }

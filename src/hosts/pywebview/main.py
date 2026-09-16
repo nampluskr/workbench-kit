@@ -29,6 +29,7 @@ is_v02_phase4_test = "--v02-phase4-test" in sys.argv
 is_v02_phase5_test = "--v02-phase5-test" in sys.argv
 is_v02_phase6_test = "--v02-phase6-test" in sys.argv
 is_v02_phase7_test = "--v02-phase7-test" in sys.argv
+is_v03_phase1_test = "--v03-phase1-test" in sys.argv
 loaded_called = False
 
 INSPECTION_EXPRESSION = """
@@ -716,6 +717,71 @@ def main():
                     os._exit(1)
 
             t = threading.Thread(target=run_v02_phase1, daemon=True)
+            t.start()
+            return
+
+        if is_v03_phase1_test:
+            def run_v03_phase1():
+                # Two real folders on disk: FOLDERS-rail numbering (D-3) and
+                # Open Recent (WK-087) both need a second, distinct path.
+                test_tmp_dir = tempfile.mkdtemp(prefix="wb-v03p1-fixture-")
+                test_tmp_dir2 = tempfile.mkdtemp(prefix="wb-v03p1-fixture2-")
+                try:
+                    with open(os.path.join(test_tmp_dir, "alpha.txt"), "w", encoding="utf-8") as f:
+                        f.write("alpha")
+                    os.makedirs(os.path.join(test_tmp_dir, "sub"), exist_ok=True)
+                    with open(os.path.join(test_tmp_dir, "sub", "inner.txt"), "w", encoding="utf-8") as f:
+                        f.write("inner")
+                    with open(os.path.join(test_tmp_dir2, "alpha.txt"), "w", encoding="utf-8") as f:
+                        f.write("alpha2")
+
+                    def stubbed_open_folder_dialog():
+                        return window.evaluate_js("window.__nextDialogPath ?? null")
+                    api.open_folder_dialog = stubbed_open_folder_dialog
+
+                    time.sleep(0.3)
+                    suite_path = os.path.join(root_dir, "scripts", "v03-phase1-suite.js")
+                    with open(suite_path, "r", encoding="utf-8") as f:
+                        suite_code = f.read()
+                    window.evaluate_js("window.__testTmpDir = " + json.dumps(test_tmp_dir) + ";")
+                    window.evaluate_js("window.__testTmpDir2 = " + json.dumps(test_tmp_dir2) + ";")
+                    window.evaluate_js(suite_code)
+                    window.evaluate_js("""
+                        (async () => {
+                            try {
+                                const res = await window.__runV03Phase1Suite();
+                                window.__v03Phase1Results = JSON.stringify(res);
+                            } catch (e) {
+                                window.__v03Phase1Results = JSON.stringify({ success: false, results: [{ id: 'RUNNER_ERR', pass: false, msg: String(e) }] });
+                            }
+                        })();
+                    """)
+                    for _ in range(200):
+                        time.sleep(0.1)
+                        res = window.evaluate_js("window.__v03Phase1Results")
+                        if res:
+                            sys.stdout.write(f"[pywebview] v0.3 Phase 1 Results: {res}\n")
+                            sys.stdout.flush()
+                            window.destroy()
+                            shutil.rmtree(test_tmp_dir, ignore_errors=True)
+                            shutil.rmtree(test_tmp_dir2, ignore_errors=True)
+                            os._exit(0)
+                            return
+                    sys.stderr.write("[pywebview] Error: v0.3 Phase 1 test timed out waiting for results\n")
+                    sys.stderr.flush()
+                    window.destroy()
+                    shutil.rmtree(test_tmp_dir, ignore_errors=True)
+                    shutil.rmtree(test_tmp_dir2, ignore_errors=True)
+                    os._exit(1)
+                except Exception as e:
+                    sys.stderr.write(f"[pywebview] Error executing v0.3 Phase 1 test: {e}\n")
+                    sys.stderr.flush()
+                    window.destroy()
+                    shutil.rmtree(test_tmp_dir, ignore_errors=True)
+                    shutil.rmtree(test_tmp_dir2, ignore_errors=True)
+                    os._exit(1)
+
+            t = threading.Thread(target=run_v03_phase1, daemon=True)
             t.start()
             return
 

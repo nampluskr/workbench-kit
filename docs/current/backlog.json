@@ -32,7 +32,7 @@
   "tasks": [
     {
       "id": "WK-083",
-      "status": "todo",
+      "status": "done",
       "priority": "P1",
       "category": "탐색기",
       "title": "FOLDERS 레일 뼈대와 헤더 두 아이콘",
@@ -42,11 +42,11 @@
       "note": "D-1 · D-4",
       "parent": null,
       "deps": [],
-      "done_at": null
+      "done_at": "2026-09-16"
     },
     {
       "id": "WK-084",
-      "status": "todo",
+      "status": "done",
       "priority": "P1",
       "category": "탐색기",
       "title": "Open Folder·Add Folder를 교체 대신 새 탭 추가로",
@@ -58,11 +58,11 @@
       "deps": [
         "WK-083"
       ],
-      "done_at": null
+      "done_at": "2026-09-16"
     },
     {
       "id": "WK-085",
-      "status": "todo",
+      "status": "done",
       "priority": "P1",
       "category": "탐색기",
       "title": "같은 경로 (N) 접미사 채번",
@@ -74,11 +74,11 @@
       "deps": [
         "WK-084"
       ],
-      "done_at": null
+      "done_at": "2026-09-16"
     },
     {
       "id": "WK-086",
-      "status": "todo",
+      "status": "done",
       "priority": "P1",
       "category": "탐색기",
       "title": "활성 폴더 탭 시각 구분",
@@ -90,11 +90,11 @@
       "deps": [
         "WK-083"
       ],
-      "done_at": null
+      "done_at": "2026-09-16"
     },
     {
       "id": "WK-087",
-      "status": "todo",
+      "status": "done",
       "priority": "P1",
       "category": "탐색기",
       "title": "Open Recent 유지 + 새 탭 추가로 연결",
@@ -106,7 +106,7 @@
       "deps": [
         "WK-084"
       ],
-      "done_at": null
+      "done_at": "2026-09-16"
     },
     {
       "id": "WK-088",

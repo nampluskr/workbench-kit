@@ -14,6 +14,11 @@ export interface WorkbenchLayoutElements {
   activityBar: HTMLElement;
   activityBarTop: HTMLElement;
   activityBarBottom: HTMLElement;
+  /** Folder Tabs rail, between the Activity Bar and Explorer (v0.3 D-1). */
+  folderTabsRail: HTMLElement;
+  folderTabsAddBtn: HTMLButtonElement;
+  folderTabsRenameBtn: HTMLButtonElement;
+  folderTabsList: HTMLElement;
   sidebar: HTMLElement;
   sidebarHeader: HTMLElement;
   sidebarTitle: HTMLElement;
@@ -58,6 +63,17 @@ export function createWorkbenchLayout(container: HTMLElement): WorkbenchLayoutEl
           <div id="activity-bar-top" class="activity-bar-group top"></div>
           <div id="activity-bar-bottom" class="activity-bar-group bottom"></div>
         </nav>
+
+        <aside id="foldertabs-rail" class="workbench-foldertabs-rail" aria-label="Folder Tabs">
+          <div id="foldertabs-header" class="foldertabs-header">
+            <span id="foldertabs-title" class="foldertabs-title">FOLDERS</span>
+            <div class="foldertabs-header-actions">
+              <button id="foldertabs-add-btn" class="foldertabs-action-btn" title="Add Folder" aria-label="Add Folder"><i class="codicon codicon-new-folder"></i></button>
+              <button id="foldertabs-rename-btn" class="foldertabs-action-btn" title="Rename Folder Tab" aria-label="Rename Folder Tab" disabled><i class="codicon codicon-edit"></i></button>
+            </div>
+          </div>
+          <div id="foldertabs-list" class="foldertabs-list" role="tablist" aria-label="Folder Tabs List"></div>
+        </aside>
 
         <aside id="sidebar" class="workbench-sidebar" aria-label="Explorer">
           <div id="sidebar-header" class="sidebar-header">
@@ -117,6 +133,10 @@ export function createWorkbenchLayout(container: HTMLElement): WorkbenchLayoutEl
     activityBar: container.querySelector('#activity-bar') as HTMLElement,
     activityBarTop: container.querySelector('#activity-bar-top') as HTMLElement,
     activityBarBottom: container.querySelector('#activity-bar-bottom') as HTMLElement,
+    folderTabsRail: container.querySelector('#foldertabs-rail') as HTMLElement,
+    folderTabsAddBtn: container.querySelector('#foldertabs-add-btn') as HTMLButtonElement,
+    folderTabsRenameBtn: container.querySelector('#foldertabs-rename-btn') as HTMLButtonElement,
+    folderTabsList: container.querySelector('#foldertabs-list') as HTMLElement,
     sidebar: container.querySelector('#sidebar') as HTMLElement,
     sidebarHeader: container.querySelector('#sidebar-header') as HTMLElement,
     sidebarTitle: container.querySelector('#sidebar-title') as HTMLElement,

@@ -12,6 +12,7 @@ import { ThemeManager, ColorTheme } from './core/theme';
 import { IconThemeManager, FileIconThemeId } from './core/icontheme';
 import { SetiResolver, VscodeIconsResolver, SimpleResolver } from './icons';
 import { TreeController, TreeNode } from './core/tree';
+import { FolderTabsController, FolderTab } from './core/foldertabs';
 import { ExplorerTitlebarController } from './core/sidebar';
 import { FileSystemTreeProvider, promptOpenFolderDialog } from './providers/filesystem';
 import { EditorController, EditorOpenMode } from './core/editor';
@@ -76,6 +77,7 @@ export class WorkbenchApp {
   public theme: ThemeManager;
   public iconTheme: IconThemeManager;
   public tree: TreeController;
+  public folderTabs: FolderTabsController;
   public explorerTitlebar: ExplorerTitlebarController;
   public fsProvider: FileSystemTreeProvider;
   public editor: EditorController;
@@ -120,6 +122,11 @@ export class WorkbenchApp {
       // position (A14 R1-3), so this only touches colour. `this.tree` exists by
       // the time any theme change can fire.
       this.tree?.refreshThemeColors();
+      // Folder tabs re-resolve their icon colour from the same iconTheme, and
+      // the active-tab accent reads theme tokens too (v0.3 D-1). The rail has
+      // no inline-input row yet (that arrives with Phase 2 rename), so a full
+      // re-render is safe here, unlike the tree's colour-only path above.
+      this.folderTabs?.refresh();
     });
 
     // Initialize EditorController layout engine (FR-C, FR-D, FR-E, FR-J, WK-019 ~ WK-024)
@@ -158,13 +165,31 @@ export class WorkbenchApp {
     this.fsProvider = new FileSystemTreeProvider();
     this.tree.setDataProvider(this.fsProvider);
 
+    // Folder Tabs rail (v0.3 D-1, D-3, D-4): registers working folders as
+    // tabs instead of the Explorer having a single swappable root. Add
+    // Folder does the same dialog + registration `Open Folder` does.
+    this.folderTabs = new FolderTabsController(
+      this.layout.folderTabsList,
+      this.layout.folderTabsAddBtn,
+      this.layout.folderTabsRenameBtn,
+      this.iconTheme
+    );
+    this.folderTabs.onAddRequested = () => this.handleOpenFolderDialog();
+    this.folderTabs.onActivate((tab) => {
+      // Tracked so the `openFolder()` compat shim below can await the
+      // activation this triggers, instead of returning before the Explorer
+      // root has actually resolved (A1 R2 Minor finding).
+      this.lastActivationPromise = this.activateFolderTab(tab);
+    });
+
     this.loadRecentFolders();
 
-    // Bind File menu actions (FR-A1, FR-N6a)
+    // Bind File menu actions (FR-A1, FR-N6a). `Open Folder` adds a new
+    // folder tab rather than replacing the current one (v0.3 D-3).
     this.menu.setAction('file:open-folder', () => this.handleOpenFolderDialog());
     // Recent Folders opens the stored paths as a list, read each time it is
-    // shown. A row opens that folder; its remove button drops the path for
-    // good (v0.2 FR-M7, v0.1 FR-N6a · D-16).
+    // shown. A row adds that folder as a new tab (v0.3 D-3); its remove
+    // button drops the path for good (v0.2 FR-M7, v0.1 FR-N6a · D-16).
     this.menu.setSubmenuProvider('file:open-recent', () =>
       this.recentFolders.length === 0
         ? [{ id: 'file:open-recent:empty', label: '(Empty)', disabled: true }]
@@ -172,7 +197,7 @@ export class WorkbenchApp {
             id: `file:open-recent:${index}`,
             label: folderPath,
             action: () => {
-              void this.openFolder(folderPath);
+              this.folderTabs.addTab(folderPath);
             },
             secondaryAction: {
               title: 'Remove from Recent Folders',
@@ -319,6 +344,7 @@ export class WorkbenchApp {
         action: () => {
           this.iconTheme.setTheme(t.id);
           this.tree.render();
+          this.folderTabs.refresh();
         },
       }))
     );
@@ -635,9 +661,16 @@ export class WorkbenchApp {
   }
 
   private currentFolderRequestId = 0;
+  private lastActivationPromise: Promise<void> = Promise.resolve();
 
-  public async openFolder(folderPath: string): Promise<void> {
+  /**
+   * Points the Explorer's one tree root at `tab.path` (v0.3 D-1, D-9). Does
+   * not touch the folder-tabs list itself — that is `FolderTabsController`'s
+   * job. Called whenever a folder tab is activated.
+   */
+  private async activateFolderTab(tab: FolderTab): Promise<void> {
     const reqId = ++this.currentFolderRequestId;
+    const folderPath = tab.path;
     this.statusMessages.startProgress(`Opening folder: ${folderPath}`);
     try {
       const rootNode = await this.fsProvider.createRootNode(folderPath);
@@ -649,7 +682,6 @@ export class WorkbenchApp {
         this.layout.statusbarPath.textContent = folderPath;
       }
       this.addRecentFolder(folderPath);
-      this.saveLastOpenedFolder(folderPath);
       this.statusMessages.stopProgress();
     } catch (err) {
       if (this.currentFolderRequestId !== reqId) {
@@ -660,44 +692,37 @@ export class WorkbenchApp {
   }
 
   /**
-   * Reopens the last folder that was open when the app last closed (FR-K1).
-   * Tab/pane layout, active tab, and tree expansion are deliberately not
-   * restored (FR-K2, FR-K3, D-27, X-11) — the editor already starts with 1
-   * empty pane and the tree already starts collapsed to just the root.
+   * Compatibility shim for the v0.1/v0.2 verification suites, which still
+   * call `app.openFolder(path)` directly (A1 R1 High finding: removing the
+   * method outright made those suites throw TypeError instead of failing
+   * individual assertions on the intentionally changed behavior). Adds a new
+   * folder tab exactly like `Open Folder...` does now (v0.3 D-3) — it no
+   * longer replaces the active root.
+   */
+  public async openFolder(path: string): Promise<FolderTab> {
+    const tab = this.folderTabs.addTab(path);
+    // addTab() activates synchronously but the activation itself (reading
+    // the directory, setting the tree root) is async — await it so old
+    // callers doing `await app.openFolder(path); tree.getRoot()` still see a
+    // settled root, not a race (A1 R2 Minor finding).
+    await this.lastActivationPromise;
+    return tab;
+  }
+
+  /**
+   * Compatibility shim, same reason as `openFolder` above. v0.2 restored the
+   * single last-opened folder here; v0.3 removes that path entirely (D-3,
+   * WK-087) — nothing is stored to restore, so this is now an intentional
+   * no-op. Restart restoration of the whole folder-tab list is Phase 4's job
+   * (D-5), not this method's.
    */
   public async restoreLastSession(): Promise<void> {
-    const lastFolder = this.loadLastOpenedFolder();
-    if (lastFolder) {
-      await this.openFolder(lastFolder);
-    }
-  }
-
-  private saveLastOpenedFolder(folderPath: string): void {
-    try {
-      if (typeof localStorage !== 'undefined') {
-        localStorage.setItem('workbench:last-folder', folderPath);
-      }
-    } catch {
-      // Ignore localStorage errors
-    }
-  }
-
-  private loadLastOpenedFolder(): string | null {
-    try {
-      if (typeof localStorage !== 'undefined') {
-        return localStorage.getItem('workbench:last-folder');
-      }
-    } catch {
-      // Ignore localStorage errors
-    }
-    return null;
+    // Intentionally empty.
   }
 
   /**
    * Clears root and returns tree to empty state without altering editor tabs
-   * (FR-G1, FR-N6c). Does not touch the persisted last-opened folder (FR-K1,
-   * D-27): that value names the folder a restart should restore, and Close
-   * Folder is a this-session-only action, not "forget for next time".
+   * (FR-G1, FR-N6c).
    */
   public closeFolder(): void {
     this.currentFolderRequestId++;
@@ -705,6 +730,11 @@ export class WorkbenchApp {
     if (this.layout.statusbarPath) {
       this.layout.statusbarPath.textContent = '';
     }
+    // Without this the folder tab that had been active stayed visually
+    // active while pointing at an empty Explorer, and clicking it again did
+    // nothing (activateTab() treats "already active" as a no-op) — A1 R1
+    // Medium finding.
+    this.folderTabs.clearActive();
   }
 
   /**
@@ -719,16 +749,17 @@ export class WorkbenchApp {
     closeWindow();
   }
 
+  /** `Open Folder...` always adds a new folder tab; it never replaces the active one (v0.3 D-3). */
   public async handleOpenFolderDialog(): Promise<void> {
     const selected = await promptOpenFolderDialog();
     if (selected) {
-      await this.openFolder(selected);
+      this.folderTabs.addTab(selected);
     }
   }
 
-  public async handleOpenRecentFolder(): Promise<void> {
+  public handleOpenRecentFolder(): void {
     if (this.recentFolders.length > 0) {
-      await this.openFolder(this.recentFolders[0]);
+      this.folderTabs.addTab(this.recentFolders[0]);
     }
   }
 
@@ -816,7 +847,9 @@ export function initWorkbench(): WorkbenchApp {
     // an isolated view directly, e.g. to prove read-only mode blocks edits).
     (window as any).__TextEditorView = TextEditorView;
   }
-  void appInstance.restoreLastSession();
+  // v0.2 restored the single last-opened folder here; v0.3 removes that
+  // (D-3) — restart restoration of the whole folder-tab list is Phase 4's
+  // job (D-5), not yet wired up.
   return appInstance;
 }
 
