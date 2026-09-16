@@ -16,7 +16,10 @@
 같은 공통 UI를 두 갈래가 공유한다 — 파이썬이 필요한 앱은 **pywebview**로, 필요 없는
 앱은 **Electron**으로 낸다.
 
-> **기획을 마치고 착수했다.** 구현은 Phase 1부터 시작한다.
+> **v0.2 마감.** Phase 1~7 전부 완료 — 임시/확정 탭, 선택·포커스 표시, 창 껍데기 배치,
+> 메뉴·칸 수명, 탐색기 구조, 테마·아이콘·치수, 표시 언어까지. 아이콘 테마는
+> `VS Code Built-in` · `VS Code Icons` · `Simple` 셋, monaco 에디터 색은 VS Code의
+> `--vscode-*` 토큰을 따른다.
 
 ---
 
@@ -179,11 +182,14 @@ monaco)가 받는 것뿐이다 — 다른 보기를 넣은 앱에서는 그 보�
 | 문서 | 무엇이 있나 |
 | --- | --- |
 | [`INTENT.md`](docs/current/INTENT.md) | 이 프로젝트가 무엇을 왜 하는가. 버전이 바뀌어도 변하지 않는 것 |
-| [`BRIEF.md`](docs/current/BRIEF.md) | 이번 버전(v0.1)에서 무엇을 왜 하는가. 하지 않을 것. 완료 조건 |
-| [`DECISIONS.md`](docs/current/DECISIONS.md) | 설계 결정 32개(D-1 ~ D-32)와 각각의 근거·배제한 대안 |
-| [`SPEC.md`](docs/current/SPEC.md) | 이번 버전이 만족해야 할 것 — 기능 요구 133건, 비기능 7, 제약 11, 미구현 22 |
+| [`BRIEF.md`](docs/current/BRIEF.md) | 이번 버전(v0.2)에서 무엇을 왜 하는가. 하지 않을 것. 완료 조건 |
+| [`DECISIONS.md`](docs/current/DECISIONS.md) | 설계 결정 20개(D-1 ~ D-20)와 각각의 근거·배제한 대안 |
+| [`SPEC.md`](docs/current/SPEC.md) | 이번 버전이 만족해야 할 것 |
 | [`PLAN.md`](docs/current/PLAN.md) | Phase 1 ~ 7의 목적·대응 요구 ID·완료 조건, 그리고 적대적 검증 게이트 |
-| [`backlog.json`](docs/current/backlog.json) | task 48개. `id` · `phase`(= `priority` P1 ~ P7) · 완료 조건 |
+| [`backlog.json`](docs/current/backlog.json) | task 34개, 전건 완료. `id` · `phase`(= `priority` P1 ~ P7) · 완료 조건 |
+| [`PROGRESS.md`](docs/current/PROGRESS.md) | task별 진행 기록과 계획 외 개선 26건, 마감 요약 |
+
+이전 버전(v0.1) 문서는 [`docs/history/v0.1/`](docs/history/v0.1/)에 있다.
 
 ### 참고 자료 (`refs/`)
 
@@ -201,10 +207,10 @@ monaco)가 받는 것뿐이다 — 다른 보기를 넣은 앱에서는 그 보�
 
 ## 다음
 
-기획을 마치고 **착수했다**(2026-09-08, `INIT.md` 모드 C). 문서는 `docs/current/`,
-참고 자료는 `docs/refs/`, Phase별 적대적 검증 기록은 `docs/reviews/`에 쌓인다.
-구현은 `docs/current/PLAN.md`의 Phase 1부터, task는 `docs/current/backlog.json`의
-`WK-001`부터다. 구현 세션에 줄 지시문은 [`docs/refs/handoff.md`](docs/refs/handoff.md).
+v0.2를 마감했다(2026-09-16). 남긴 것과 다음 버전 후보는
+[`PROGRESS.md`의 마감 요약](docs/current/PROGRESS.md)에 있다 — 트리 세로선 간격
+등 금지 값 예외 2건, 대비 미달 5건, pywebview 재확인 항목, monaco 문법 강조
+(범위 밖으로 제외)가 그 후보다. 다음 버전의 범위·번호는 사람이 정한다.
 
 ## 가져다 쓰는 것
 
