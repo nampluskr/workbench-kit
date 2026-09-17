@@ -1669,8 +1669,8 @@ body.is-resizing-sidebar {
   font-size: 13px;
 }
 
-.menu-item-row:hover .menu-item-secondary,
-.menu-item-row.kbd-focused .menu-item-secondary,
+.menu-item-row:hover > .menu-item-secondary,
+.menu-item-row.kbd-focused > .menu-item-secondary,
 .menu-item-secondary:focus {
   opacity: 0.8;
 }

@@ -57,8 +57,9 @@
 - **메뉴 Recent Folders 닫기(x) 버튼 스타일 통일** (2026-09-18)
   - `src/style.css`: `.menu-item-secondary`에 폴더탭 레일(`.foldertabs-tab-close`)과 동일한
     스타일 규칙을 적용했다.
-  - 평소에는 숨김(`opacity: 0`), 메뉴 행 hover 시 또는 키보드 포커스 시 노출(`opacity: 0.8`),
+  - 평소에는 숨김(`opacity: 0`), 개별 메뉴 행 hover 시(`.menu-item-row:hover > .menu-item-secondary`) 또는 키보드 포커스 시 노출(`opacity: 0.8`),
     버튼 자체 hover 시 강조(`opacity: 1`, `background-color: var(--button-hover-bg)`).
+    (상위 서브메뉴 행 hover로 인한 전체 x 동시 노출 버그를 직계 자식 결합자 `>`로 해결)
   - 아이콘 크기를 기존 16px에서 폴더탭 레일과 동일한 `13px` (`width: 18px; height: 18px;`)로 축소·통일.
 
 - **스타일시트 내 금지 토큰(4px, 8px, 16px) 정비** (2026-09-18)
