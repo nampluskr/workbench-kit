@@ -41,11 +41,12 @@
   --titlebar-height: var(--area-size);
   --statusbar-height: var(--area-size);
   --activitybar-width: var(--area-size);
-  --sidebar-width: 240px;
+  /* Default 200 / min 160 (user request, 2026-09-17). */
+  --sidebar-width: 200px;
   /* Same default/min/max as the Explorer's own --sidebar-width, and resizable
      the same way (user request, 2026-09-17: apply the Explorer's width
      values to the Folder Tabs rail too). */
-  --foldertabs-width: 240px;
+  --foldertabs-width: 200px;
   --close-hover-bg: #e81123;
 }
 
@@ -574,10 +575,10 @@ html, body, #app {
 .workbench-foldertabs-rail {
   /* Matches the Explorer's own default/min/max width behavior (user
      request, 2026-09-17) — see .foldertabs-resize-handle and
-     setupFolderTabsResize() for the same clamp (min 200, max ~60% of the
+     setupFolderTabsResize() for the same clamp (min 160, max ~60% of the
      window) the Explorer's own resize handle uses. */
   width: var(--foldertabs-width);
-  min-width: 200px;
+  min-width: 160px;
   background-color: var(--sidebar-bg);
   color: var(--sidebar-fg);
   display: flex;
@@ -672,10 +673,13 @@ body.is-resizing-foldertabs {
 
 .foldertabs-list {
   flex: 1;
-  /* Both axes scroll when content overflows, matching .tree-list — a long
-     folder name grows a real horizontal scrollbar instead of being cut off
-     (user request, 2026-09-17). */
-  overflow: auto;
+  /* Vertical only — a long folder name now wraps onto further lines inside
+     its own row instead of overflowing horizontally (user request,
+     2026-09-17, superseding the earlier horizontal-scroll-instead-of-
+     ellipsis behavior — the user explicitly chose wrapping for both the
+     rename input and normal, non-editing row display). */
+  overflow-y: auto;
+  overflow-x: hidden;
   /* Matches the Explorer's .tree-list font-size, so the two areas read at
      the same scale (user request, 2026-09-17). */
   font-size: 13px;
@@ -683,22 +687,21 @@ body.is-resizing-foldertabs {
 
 .foldertabs-tab {
   display: flex;
-  align-items: center;
-  /* Matches the Explorer's .tree-row height (user request, 2026-09-17). */
-  height: 22px;
-  padding: 0 10px;
+  /* Was center — a row can now be taller than one line, so the icon aligns
+     with the FIRST line of a wrapped title rather than the row's vertical
+     center (user request, 2026-09-17). */
+  align-items: flex-start;
+  /* Was a fixed height — now only a floor, so a wrapped multi-line title
+     can grow the row taller (user request, 2026-09-17). Matches the
+     Explorer's single-line .tree-row height (plus this row's own vertical
+     padding) when the title fits on one line. */
+  min-height: 22px;
+  padding: 3px 10px;
   cursor: pointer;
-  white-space: nowrap;
   outline: none;
   box-sizing: border-box;
   color: var(--sidebar-fg);
   border-left: 2px solid transparent;
-  /* Grows with content past the viewport, like .tree-row, so a long folder
-     name produces a real (themed) horizontal scrollbar instead of an
-     ellipsis, while short rows still fill the width so their selection/
-     hover background spans it (user request, 2026-09-17). */
-  min-width: 100%;
-  width: max-content;
 }
 
 .foldertabs-tab:hover {
@@ -714,11 +717,17 @@ body.is-resizing-foldertabs {
 }
 
 .foldertabs-tab-label {
-  /* No shrink, no ellipsis — the row (not the label) grows past the
-     viewport for long names, matching .tree-row/.tree-list's horizontal
-     scroll (user request, 2026-09-17). */
-  flex: 0 0 auto;
-  white-space: nowrap;
+  /* Shrinks to the row's remaining width (after the icon) and wraps within
+     that box — every wrapped line lands at THIS box's own left edge, which
+     is already to the right of the icon, not the row's left edge. That is
+     what naturally produces "wrapped lines align with each other, not with
+     the icon" without any extra indent math (user request, 2026-09-17). */
+  flex: 1 1 auto;
+  min-width: 0;
+  white-space: normal;
+  overflow-wrap: break-word;
+  word-break: break-word;
+  line-height: 1.4;
 }
 
 /* Hidden until hover/focus, like .sidebar-action-btn's app-actions (v0.3 D-4:
@@ -828,11 +837,13 @@ body.is-resizing-foldertabs {
 /* 3. Sidebar */
 .workbench-sidebar {
   width: var(--sidebar-width);
-  /* Lowered from 260px toward VS Code's narrower range (user request,
-     2026-09-12). A9's Critical finding was at 170px — the title + shell's
-     4 actions (~187px incl. header padding) did not fit. 200px keeps a
-     (tighter) margin above that floor. */
-  min-width: 200px;
+  /* Lowered to 160px (user request, 2026-09-17) — NOTE: A9's Critical
+     finding (2026-09-12) found the EXPLORER title + shell's 4 header
+     actions need ~187px including header padding, and clipped at 170px;
+     200px was chosen specifically to keep a margin above that floor. This
+     160px value is BELOW that measured floor and will very likely
+     reintroduce that same clipping at the resized minimum. */
+  min-width: 160px;
   background-color: var(--sidebar-bg);
   color: var(--sidebar-fg);
   display: flex;

@@ -703,11 +703,14 @@ export class WorkbenchApp {
     const sidebar = this.layout.sidebar;
     if (!handle || !sidebar) return;
 
-    // Wide enough for the full EXPLORER label + the 4 shell actions, at the
-    // header's padding (A13 Critical + R3 Major) — lowered from 260 toward
-    // VS Code's narrower range (user request, 2026-09-12); app actions clip
-    // first and soonest at this width, by design (.sidebar-app-actions).
-    const MIN = 200;
+    // Lowered to 160 (user request, 2026-09-17). NOTE: A13's Critical
+    // finding (2026-09-12) measured the full EXPLORER label + 4 shell
+    // actions needing ~187px including header padding, clipping at 170px;
+    // 200 was chosen specifically to sit above that floor. This 160 value
+    // is below that measured floor and will very likely reintroduce that
+    // same clipping when dragged to the minimum (see style.css's matching
+    // .workbench-sidebar min-width comment).
+    const MIN = 160;
     const clamp = (px: number) => {
       const max = Math.max(MIN, Math.round((window.innerWidth || 1280) * 0.6));
       return Math.min(max, Math.max(MIN, px));
@@ -781,7 +784,9 @@ export class WorkbenchApp {
     const rail = this.layout.folderTabsRail;
     if (!handle || !rail) return;
 
-    const MIN = 200;
+    // Lowered to 160 (user request, 2026-09-17) — same value as the
+    // Explorer's own MIN in setupSidebarResize() above.
+    const MIN = 160;
     const clamp = (px: number) => {
       const max = Math.max(MIN, Math.round((window.innerWidth || 1280) * 0.6));
       return Math.min(max, Math.max(MIN, px));
