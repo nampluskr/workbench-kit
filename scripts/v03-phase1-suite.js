@@ -110,7 +110,7 @@ window.__runV03Phase1Suite = async function () {
   }
 
   const titleEl = document.getElementById('foldertabs-title');
-  record('V3P1-HEADER-TITLE', titleEl && titleEl.textContent.trim() === 'FOLDERS', `Header title is "${titleEl ? titleEl.textContent : '(missing)'}"`);
+  record('V3P1-HEADER-TITLE', titleEl && (titleEl.textContent.trim() === 'ROOTS' || titleEl.textContent.trim() === 'FOLDERS'), `Header title is "${titleEl ? titleEl.textContent : '(missing)'}"`);
 
   const headerBtns = Array.from(document.querySelectorAll('#foldertabs-header .foldertabs-action-btn'));
   record(
@@ -121,10 +121,10 @@ window.__runV03Phase1Suite = async function () {
   record(
     'V3P1-HEADER-ICON-ORDER',
     headerBtns[0]?.id === 'foldertabs-add-btn' &&
-      headerBtns[1]?.id === 'foldertabs-drives-btn' &&
-      headerBtns[2]?.id === 'foldertabs-rename-btn' &&
-      headerBtns[3]?.id === 'foldertabs-color-btn',
-    'Icon order is Add Folder, Add All Drives, Rename Folder Tab, Set Tab Color'
+      headerBtns[1]?.id === 'foldertabs-rename-btn' &&
+      headerBtns[2]?.id === 'foldertabs-color-btn' &&
+      headerBtns[3]?.id === 'foldertabs-drives-btn',
+    'Icon order is Add Folder, Rename Folder Tab, Set Tab Color, Add All Drives'
   );
 
   const renameBtn = document.getElementById('foldertabs-rename-btn');

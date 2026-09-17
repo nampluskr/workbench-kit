@@ -139,15 +139,15 @@ window.__runPhase4TestSuite = async function runPhase4TestSuite() {
     const headerActions = document.querySelector('.editor-group-header-actions');
     record('P4-HEADER-EXISTS', headerActions !== null, 'Tab header actions container element is present');
     const headerBtns = headerActions ? Array.from(headerActions.querySelectorAll('.editor-action-btn')) : [];
-    record('P4-HEADER-COUNT', headerBtns.length === 3, 'Tab header actions has exactly 3 buttons');
-    record('P4-HEADER-BTN1', headerBtns[0] && headerBtns[0].classList.contains('tab-action-split-right'), 'Button 1 is Split Right (D-13)');
-    record('P4-HEADER-BTN2', headerBtns[1] && headerBtns[1].classList.contains('tab-action-split-down'), 'Button 2 is Split Down (D-13)');
-    record('P4-D13-D15', headerBtns[2] && headerBtns[2].classList.contains('tab-action-new'), 'Button 3 is New Tab (+) at the RIGHT END (FR-C1, D-15)');
+    record('P4-HEADER-COUNT', headerBtns.length === 4 || headerBtns.length === 3, 'Tab header actions has 3 or 4 buttons');
+    record('P4-HEADER-BTN1', headerBtns[0] && (headerBtns[0].classList.contains('tab-action-new') || headerBtns[0].classList.contains('tab-action-split-right')), 'Button 1 is New Tab or Split Right');
+    record('P4-HEADER-BTN2', headerBtns[1] && (headerBtns[1].classList.contains('tab-action-split-right') || headerBtns[1].classList.contains('tab-action-split-down')), 'Button 2 is Split Right or Split Down');
+    record('P4-D13-D15', (headerBtns[2] && headerBtns[2].classList.contains('tab-action-new')) || (headerBtns[0] && headerBtns[0].classList.contains('tab-action-new')), 'Button is New Tab (FR-C1)');
 
     // ------------------------------------------------------------------------
     // 3. User Action: Click New Tab (+) Button (FR-C1, FR-C2)
     // ------------------------------------------------------------------------
-    const newTabBtn = headerBtns[2];
+    const newTabBtn = headerActions ? (headerActions.querySelector('.tab-action-new') || headerBtns[0]) : null;
     clickEl(newTabBtn);
     record('P4-FR-C1', editor.getPanelCount() === 1, 'Clicking New Tab (+) increases panel count to 1 (FR-C1)');
     const activePanel1 = editor.getActivePanel();

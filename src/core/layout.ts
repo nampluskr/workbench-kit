@@ -72,13 +72,13 @@ export function createWorkbenchLayout(container: HTMLElement): WorkbenchLayoutEl
 
         <aside id="foldertabs-rail" class="workbench-foldertabs-rail" aria-label="Folder Tabs">
           <div id="foldertabs-header" class="foldertabs-header">
-            <span id="foldertabs-title" class="foldertabs-title">FOLDERS</span>
+            <span id="foldertabs-title" class="foldertabs-title">ROOTS</span>
             <div class="foldertabs-header-actions">
               <button id="foldertabs-add-btn" class="foldertabs-action-btn" title="Add Folder" aria-label="Add Folder"><i class="codicon codicon-new-folder"></i></button>
-              <!-- Icon set by main.ts's refreshDrivesButtonState() (v0.3 WK-111) — it is per-icon-theme, so there is no single correct default to bake in here. -->
-              <button id="foldertabs-drives-btn" class="foldertabs-action-btn" title="Add All Drives" aria-label="Add All Drives" aria-pressed="false"></button>
               <button id="foldertabs-rename-btn" class="foldertabs-action-btn" title="Rename Folder Tab" aria-label="Rename Folder Tab" disabled><i class="codicon codicon-edit"></i></button>
               <button id="foldertabs-color-btn" class="foldertabs-action-btn" title="Set Tab Color" aria-label="Set Tab Color" disabled><i class="codicon codicon-symbol-color"></i></button>
+              <!-- Icon set by main.ts's refreshDrivesButtonState() (v0.3 WK-111) — it is per-icon-theme, so there is no single correct default to bake in here. -->
+              <button id="foldertabs-drives-btn" class="foldertabs-action-btn" title="Add All Drives" aria-label="Add All Drives" aria-pressed="false"></button>
             </div>
           </div>
           <div id="foldertabs-list" class="foldertabs-list" role="tablist" aria-label="Folder Tabs List"></div>
@@ -88,7 +88,7 @@ export function createWorkbenchLayout(container: HTMLElement): WorkbenchLayoutEl
 
         <aside id="sidebar" class="workbench-sidebar" aria-label="Explorer">
           <div id="sidebar-header" class="sidebar-header">
-            <span id="sidebar-title" class="sidebar-title">EXPLORER</span>
+            <span id="sidebar-title" class="sidebar-title">TREE</span>
             <div id="sidebar-actions" class="sidebar-actions">
               <div id="sidebar-app-actions" class="sidebar-app-actions"></div>
               <button id="sidebar-action-new-file" class="sidebar-action-btn" title="New File..." aria-label="New File..."><i class="codicon codicon-new-file"></i></button>

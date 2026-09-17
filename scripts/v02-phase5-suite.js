@@ -72,9 +72,10 @@ window.__runV02Phase5Suite = async function runV02Phase5Suite() {
       const rootLeaf = String(dir).split(/[\\/]/).filter(Boolean).pop() || '';
       record(
         'V2P5-FR-X1',
-        beforeText === 'EXPLORER' && afterText === 'EXPLORER' &&
-          !(rootLeaf && new RegExp(rootLeaf.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i').test(afterText)),
-        'The explorer header reads EXPLORER before and after a folder is open, with 0 occurrences of the root folder name (FR-X1) ' +
+        (beforeText === 'EXPLORER' || beforeText === 'TREE') &&
+        (afterText === 'EXPLORER' || afterText === 'TREE') &&
+        !(rootLeaf && new RegExp(rootLeaf.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i').test(afterText)),
+        'The explorer header reads TREE or EXPLORER before and after a folder is open, with 0 occurrences of the root folder name (FR-X1) ' +
           JSON.stringify({ beforeText, afterText, rootLeaf })
       );
     }

@@ -20,6 +20,51 @@
   (`list`/`update --status`)만 갖춘 것을 만들었다. `docs/current/backlog.json`을
   직접 쓰지 않고 이 스크립트를 통해서만 바꿨다.
 
+- **Help > About 다이얼로그 개편 (VS Code 스타일 & 서드파티 라이선스 고지)** (2026-09-17)
+  - `src/core/about.ts`, `src/style.css`, `src/main.ts`: VS Code의 정보 대화상자 형식을
+    참조하여 버전·커밋·날짜·Electron/Node/Chromium/OS 시스템 정보 그리드와 클립보드 복사
+    버튼을 구현했다. `docs/refs/licenses.md`에 명시된 4대 핵심 서드파티 라이브러리
+    (`@vscode/codicons`, `@vscode/icon-theme-seti`, `vscode-icons`, `dockview-core`)의
+    라이선스 및 저작권 귀속 고지 카드를 추가했다. 키보드(Escape, Enter) 접근성을 연결했다.
+
+- **Activity Bar 및 패널 헤더 명칭·아이콘 재배치** (2026-09-17 ~ 2026-09-18)
+  - `src/core/activitybar.ts`, `src/main.ts`: Titlebar 및 Statusbar 접기/펴기 아이콘을
+    기존 chevron에서 접기 메타포에 부합하는 `codicon-fold-down`/`codicon-fold-up`으로 교체.
+  - Activity Bar 상단 아이콘 순서 및 글리프 교체: 폴더탭 레일(`ROOTS`)을 상위
+    (`codicon-list-unordered`), 탐색기(`TREE`)를 하위(`codicon-list-tree`)로 배치.
+  - `src/core/layout.ts`: 패널 헤더 명칭을 `FOLDERS` → `ROOTS`, `EXPLORER` → `TREE`로 변경.
+  - `src/core/layout.ts`: 폴더탭 레일 헤더의 4개 액션 버튼 순서를 작업 빈도 및 논리적 흐름에
+    맞춰 재배치 (1. `Add Folder` → 2. `Rename Folder Tab` → 3. `Set Tab Color` → 4. `Add All Drives`).
+  - 검증: `scripts/v03-phase1-suite.js`, `scripts/v03-phase3-suite.js`, `scripts/v02-phase5-suite.js` 동기화.
+
+- **에디터 헤더 액션 아이콘 재배치 및 그룹 일괄 닫기(Close All) 기능 추가** (2026-09-18)
+  - `src/core/editor.ts`: 에디터 그룹 헤더 액션 바의 버튼 구성을 4개로 확장하고 순서를
+    재배치했다 (1. `New Tab` (`codicon-diff-added`) → 2. `Split Right` (`codicon-split-horizontal`) →
+    3. `Split Down` (`codicon-split-vertical`) → 4. `Close All Tabs in Group` (`codicon-close-all`)).
+  - 새 탭 아이콘을 `codicon-diff-added`로 교체하여 분할/닫기 아이콘과 동일한 사각 창(Box)
+    프레임 형태를 유지하면서 6×6px의 컴팩트한 `+` 심볼을 제공했다.
+  - `Close All` 동작 시 `EditorController.closeAllTabsInGroup(this.group)`을 호출하여,
+    그룹 내 미저장(`isDirty: true`) 탭이 있는 경우 해당 탭을 순차적으로 화면에 활성화
+    (`panel.api.setActive()`)하며 저장/폐기/취소 확인 다이얼로그를 띄우도록 연동했다. 취소 시
+    아무 탭도 닫히지 않고 중단되며, 모든 확인이 끝난 뒤에만 그룹의 모든 탭이 닫히고 빈 칸이 자동 정리된다.
+  - 검증: `scripts/verify-phase4.mjs`, `scripts/phase4-suite.js`, `scripts/v02-phase4-suite.js` 갱신.
+
+- **패널 및 에디터 헤더 우측 여백 5px 통일** (2026-09-18)
+  - `src/style.css`: 폴더탭 헤더(`.foldertabs-header`)와 탐색기 헤더(`.sidebar-header`)의
+    우측 여백을 에디터 탭 헤더(`.editor-group-header-actions`)와 동일한 **5px**로 통일
+    (`padding: 0 5px 0 10px;`). 3개 헤더의 우측 끝 버튼 여백이 시각적으로 일치됨.
+
+- **메뉴 Recent Folders 닫기(x) 버튼 스타일 통일** (2026-09-18)
+  - `src/style.css`: `.menu-item-secondary`에 폴더탭 레일(`.foldertabs-tab-close`)과 동일한
+    스타일 규칙을 적용했다.
+  - 평소에는 숨김(`opacity: 0`), 메뉴 행 hover 시 또는 키보드 포커스 시 노출(`opacity: 0.8`),
+    버튼 자체 hover 시 강조(`opacity: 1`, `background-color: var(--button-hover-bg)`).
+  - 아이콘 크기를 기존 16px에서 폴더탭 레일과 동일한 `13px` (`width: 18px; height: 18px;`)로 축소·통일.
+
+- **스타일시트 내 금지 토큰(4px, 8px, 16px) 정비** (2026-09-18)
+  - `src/style.css`: 주석 및 프로퍼티에 남아있던 D-29 금지값(4px, 8px, 16px)을 3px/5px/7px 등
+    허용 규격으로 정리하여 `verify-phase2.mjs` 및 `verify-dist.mjs` 검증을 클린하게 통과하도록 수정.
+
 ---
 
 ## Phase 1 — Folder Tabs 레일과 폴더 추가 (WK-083 ~ WK-087) — done, 2026-09-16

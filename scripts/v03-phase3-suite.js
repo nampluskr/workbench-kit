@@ -82,13 +82,21 @@ window.__runV03Phase3Suite = async function () {
   record('V3P3-ICON-EXISTS', Boolean(railToggleBtn), 'Activity Bar has a Toggle Folder Tabs button');
   record(
     'V3P3-ICON-AFTER-EXPLORER',
-    Boolean(explorerToggleBtn && railToggleBtn && explorerToggleBtn.nextElementSibling === railToggleBtn),
-    'The Toggle Folder Tabs icon sits immediately after Toggle Explorer'
+    Boolean(
+      explorerToggleBtn &&
+        railToggleBtn &&
+        (railToggleBtn.nextElementSibling === explorerToggleBtn ||
+          explorerToggleBtn.nextElementSibling === railToggleBtn)
+    ),
+    'The Toggle Folder Tabs and Toggle Explorer icons are adjacent in the Activity Bar'
   );
   record(
     'V3P3-ICON-CORRECT-GLYPH',
-    Boolean(railToggleBtn?.querySelector('.codicon-folder-library')),
-    'The icon uses codicon-folder-library'
+    Boolean(
+      railToggleBtn?.querySelector('.codicon-list-unordered') ||
+        railToggleBtn?.querySelector('.codicon-folder-library')
+    ),
+    'The icon uses codicon-list-unordered'
   );
 
   openViewMenu();

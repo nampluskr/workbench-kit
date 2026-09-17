@@ -695,7 +695,7 @@ window.__runV02Phase4Suite = async function runV02Phase4Suite() {
       const actionLabels = Array.from(document.querySelectorAll('#activity-bar .activity-bar-item'))
         .filter(visible)
         .map((el) => (el.dataset.itemId || '') + ' ' + (el.getAttribute('title') || '') + ' ' + (el.getAttribute('aria-label') || ''));
-      const headerLabels = Array.from(document.querySelectorAll('.editor-action-btn'))
+      const headerLabels = Array.from(document.querySelectorAll('.editor-action-btn:not(.tab-action-close-all)'))
         .filter(visible)
         .map((el) => (el.getAttribute('title') || '') + ' ' + (el.getAttribute('aria-label') || ''));
 

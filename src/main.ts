@@ -170,7 +170,10 @@ export class WorkbenchApp {
 
     // Help > About (FR-Q5, D-23, WK-037): required attribution for the two
     // CC-licensed icon sets.
-    this.aboutDialog = new AboutDialogController(this.layout.root, appInfoBase());
+    this.aboutDialog = new AboutDialogController(this.layout.root, appInfoBase(), {
+      version: __WB_VERSION__,
+      commitDate: __WB_COMMIT_DATE__,
+    });
     this.menu.setAction('help:about', () => this.aboutDialog.show());
 
     // Initialize TreeController and Explorer view titlebar (FR-A, D-9, D-30)
@@ -322,10 +325,10 @@ export class WorkbenchApp {
       }
     });
 
-    // The explorer title is always EXPLORER — the open folder's name shows in
-    // the tree's root row, not the header (v0.2 FR-X1, UT-EXP-001, v0.1 impl fix).
+    // The sidebar title is always TREE — the open folder's name shows in
+    // the tree's root row, not the header (v0.2 FR-X1, UT-EXP-001, v0.3 user request).
     if (this.layout.sidebarTitle) {
-      this.layout.sidebarTitle.textContent = 'EXPLORER';
+      this.layout.sidebarTitle.textContent = 'TREE';
     }
     this.tree.onRootChange((root) => {
       if (!root && this.layout.statusbarPath) {
@@ -363,11 +366,11 @@ export class WorkbenchApp {
     // menu or the Activity Bar button itself.
     const toggleTitlebar = () => {
       const visible = this.viewState.toggleTitlebar();
-      this.activityBar.setItemIcon('activity:toggle-titlebar', visible ? 'codicon-chevron-down' : 'codicon-chevron-up');
+      this.activityBar.setItemIcon('activity:toggle-titlebar', visible ? 'codicon-fold-down' : 'codicon-fold-up');
     };
     const toggleStatusbar = () => {
       const visible = this.viewState.toggleStatusbar();
-      this.activityBar.setItemIcon('activity:toggle-statusbar', visible ? 'codicon-chevron-up' : 'codicon-chevron-down');
+      this.activityBar.setItemIcon('activity:toggle-statusbar', visible ? 'codicon-fold-up' : 'codicon-fold-down');
     };
     this.menu.setAction('view:toggle-sidebar', () => this.viewState.toggleSidebar());
     this.menu.setAction('view:toggle-titlebar', toggleTitlebar);

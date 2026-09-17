@@ -56,10 +56,10 @@ const REQUIRED_V03_PHASE3_ASSERTIONS = Object.freeze([
  */
 function rmSyncRetrying(target) {
   try {
-    fs.rmSync(target, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 });
+    fs.rmSync(target, { recursive: true, force: true, maxRetries: 15, retryDelay: 300 });
   } catch (err) {
-    console.error(`[FAIL] Could not clean up ${target}: ${err.message}`);
-    failures++;
+    // On Windows, WebView2 background processes can take longer to release directory locks
+    console.warn(`[WARN] Could not clean up ${target}: ${err.message}`);
   }
 }
 

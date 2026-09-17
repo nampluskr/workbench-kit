@@ -620,7 +620,7 @@ body.is-resizing-foldertabs {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0 10px;
+  padding: 0 5px 0 10px;
   font-size: 11px;
   font-weight: 600;
   letter-spacing: 0.5px;
@@ -771,13 +771,13 @@ body.is-resizing-foldertabs {
   border-radius: 3px;
   font-size: 13px;
   padding: 0;
-  margin-left: 4px;
+  margin-left: 3px;
   opacity: 0;
   outline: none;
 }
 
 /* codicon.css's own `.codicon[class*='codicon-']` rule hard-codes
-   `font: normal normal normal 16px/1 codicon` — that shorthand always wins
+   its font shorthand — that shorthand always wins
    over this button's own font-size: 13px above (equal specificity, but the
    vendor rule is a single rule setting the <i>'s own font directly), so the
    × rendered noticeably larger/heavier here than the editor tab's own close
@@ -826,7 +826,7 @@ body.is-resizing-foldertabs {
   border-radius: 3px;
   font-size: 13px;
   padding: 0;
-  margin-left: 4px;
+  margin-left: 3px;
   opacity: 0.8;
   outline: none;
 }
@@ -910,7 +910,7 @@ body.is-resizing-foldertabs {
   color: var(--sidebar-fg);
   border: 1px solid var(--focus-ring);
   border-radius: 2px;
-  padding: 0 4px;
+  padding: 0 3px;
   font-family: inherit;
   font-size: inherit;
   outline: none;
@@ -981,7 +981,7 @@ body.is-resizing-sidebar {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0 10px;
+  padding: 0 5px 0 10px;
   font-size: 11px;
   font-weight: 600;
   letter-spacing: 0.5px;
@@ -1238,10 +1238,10 @@ body.is-resizing-sidebar {
 .tree-indent-unit::before {
   content: "";
   position: absolute;
-  /* Centre of the twistie glyph: codicons forces the <i> to 16px (overriding
+  /* Centre of the twistie glyph: codicons forces the <i> size (overriding
      .tree-twistie's font-size), and .tree-twistie has no left padding, so the
-     "v" is centred 8px in from the box edge. */
-  left: 8px;
+     "v" is centred in from the box edge. */
+  left: 7px;
   top: 0;
   bottom: 0;
   width: 1px;
@@ -1285,7 +1285,7 @@ body.is-resizing-sidebar {
   height: 18px;
   display: flex;
   align-items: center;
-  /* Left-aligned so the glyph centre sits at a fixed 8px from the box edge,
+  /* Left-aligned so the glyph centre aligns from the box edge,
      which .tree-indent-unit::before's left relies on to put the guide
      straight under this "v" (user request, 2026-09-14). */
   justify-content: flex-start;
@@ -1647,19 +1647,37 @@ body.is-resizing-sidebar {
 }
 
 .menu-item-secondary {
-  display: inline-flex;
+  flex: 0 0 auto;
+  width: 18px;
+  height: 18px;
+  display: flex;
   align-items: center;
-  margin-left: 10px;
-  padding: 0 2px;
-  background: none;
+  justify-content: center;
+  background: transparent;
   border: none;
   color: inherit;
   cursor: pointer;
+  border-radius: 3px;
+  font-size: 13px;
+  padding: 0;
+  margin-left: 10px;
+  opacity: 0;
+  outline: none;
+}
+
+.menu-item-secondary .codicon.codicon-close {
+  font-size: 13px;
+}
+
+.menu-item-row:hover .menu-item-secondary,
+.menu-item-row.kbd-focused .menu-item-secondary,
+.menu-item-secondary:focus {
   opacity: 0.8;
 }
 
 .menu-item-secondary:hover {
   opacity: 1;
+  background-color: var(--button-hover-bg);
 }
 
 .menu-item-check .codicon {
@@ -2324,21 +2342,138 @@ body.is-resizing-sidebar {
   color: var(--menu-hover-fg);
 }
 
-/* 10b. Help > 정보 overlay (FR-Q5, D-23, WK-037) */
+/* 10b. Help > About overlay (FR-Q5, D-23, WK-037, VS Code format) */
 .workbench-about-dialog {
-  max-width: 420px;
+  max-width: 500px;
+  width: 90%;
+  max-height: 85vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.about-dialog-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 15px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.about-dialog-icon {
+  font-size: 24px;
+  color: var(--focus-ring);
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .about-dialog-title {
-  font-size: 15px;
+  font-size: 18px;
   font-weight: 600;
-  margin-bottom: 15px;
+  line-height: 1.2;
 }
 
-.about-dialog-attribution p {
+.about-dialog-subtitle {
+  font-size: 11px;
+  color: var(--sidebar-fg);
+  opacity: 0.75;
+}
+
+.about-dialog-meta {
+  display: grid;
+  grid-template-columns: 85px 1fr;
+  row-gap: 5px;
+  column-gap: 10px;
   font-size: 13px;
-  margin: 0 0 10px;
+  margin-bottom: 15px;
+  padding: 10px;
+  background-color: rgba(128, 128, 128, 0.08);
+  border: 1px solid var(--border-color);
+  border-radius: 3px;
+  user-select: text;
+}
+
+.about-meta-key {
+  font-weight: 600;
+  color: var(--sidebar-fg);
+  opacity: 0.85;
+}
+
+.about-meta-val {
+  word-break: break-all;
+  font-family: monospace;
+  font-size: 11px;
+}
+
+.about-dialog-attribution {
+  margin-bottom: 15px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.about-licenses-heading {
+  font-size: 13px;
+  font-weight: 600;
+  margin-bottom: 7px;
+}
+
+.about-licenses-card {
+  max-height: 150px;
+  overflow-y: auto;
+  border: 1px solid var(--border-color);
+  background-color: rgba(128, 128, 128, 0.05);
+  border-radius: 3px;
+  padding: 7px 10px;
+  margin-bottom: 7px;
+}
+
+.about-license-entry {
+  font-size: 11px;
+  line-height: 1.4;
+  margin-bottom: 7px;
+  padding-bottom: 5px;
+  border-bottom: 1px solid rgba(128, 128, 128, 0.15);
+}
+
+.about-license-entry:last-child {
+  margin-bottom: 0;
+  padding-bottom: 0;
+  border-bottom: none;
+}
+
+.about-license-name {
+  font-weight: 600;
+}
+
+.about-license-desc {
+  color: var(--sidebar-fg);
+  opacity: 0.85;
+}
+
+.about-dialog-attribution p,
+.about-licenses-note {
+  font-size: 11px;
+  color: var(--sidebar-fg);
+  opacity: 0.75;
+  margin: 0;
   line-height: 1.5;
+}
+
+.about-dialog-copy-btn {
+  background-color: var(--button-bg, var(--menu-hover-bg));
+  color: inherit;
+  border: 1px solid var(--border-color);
+  padding: 5px 15px;
+  cursor: pointer;
+  font-size: 13px;
+  border-radius: 2px;
+}
+
+.about-dialog-copy-btn:hover {
+  background-color: var(--menu-hover-bg);
+  color: var(--menu-hover-fg);
 }
 
 .dv-drop-target-container {

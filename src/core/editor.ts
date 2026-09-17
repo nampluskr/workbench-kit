@@ -234,34 +234,24 @@ export class EditorHeaderActionsRenderer implements IHeaderActionsRenderer {
 
   private render(): void {
     this.element.innerHTML = `
+      <button class="editor-action-btn tab-action-new" title="New Tab" aria-label="New Tab">
+        <i class="codicon codicon-diff-added"></i>
+      </button>
       <button class="editor-action-btn tab-action-split-right" title="Split Right (Ctrl+\\)" aria-label="Split Right">
         <i class="codicon codicon-split-horizontal"></i>
       </button>
       <button class="editor-action-btn tab-action-split-down" title="Split Down" aria-label="Split Down">
         <i class="codicon codicon-split-vertical"></i>
       </button>
-      <button class="editor-action-btn tab-action-new" title="New Tab" aria-label="New Tab">
-        <i class="codicon codicon-plus"></i>
+      <button class="editor-action-btn tab-action-close-all" title="Close All Tabs in Group" aria-label="Close All Tabs in Group">
+        <i class="codicon codicon-close-all"></i>
       </button>
     `;
 
+    const newBtn = this.element.querySelector('.tab-action-new') as HTMLButtonElement | null;
     const splitRightBtn = this.element.querySelector('.tab-action-split-right') as HTMLButtonElement | null;
     const splitDownBtn = this.element.querySelector('.tab-action-split-down') as HTMLButtonElement | null;
-    const newBtn = this.element.querySelector('.tab-action-new') as HTMLButtonElement | null;
-
-    splitRightBtn?.addEventListener('click', (e) => {
-      e.stopPropagation();
-      if (this.group) {
-        this.editorController.splitGroupForUser(this.group, 'right');
-      }
-    });
-
-    splitDownBtn?.addEventListener('click', (e) => {
-      e.stopPropagation();
-      if (this.group) {
-        this.editorController.splitGroupForUser(this.group, 'below');
-      }
-    });
+    const closeAllBtn = this.element.querySelector('.tab-action-close-all') as HTMLButtonElement | null;
 
     newBtn?.addEventListener('click', (e) => {
       e.stopPropagation();
@@ -280,6 +270,27 @@ export class EditorHeaderActionsRenderer implements IHeaderActionsRenderer {
         return;
       }
       this.editorController.addNewTab(group);
+    });
+
+    splitRightBtn?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (this.group) {
+        this.editorController.splitGroupForUser(this.group, 'right');
+      }
+    });
+
+    splitDownBtn?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (this.group) {
+        this.editorController.splitGroupForUser(this.group, 'below');
+      }
+    });
+
+    closeAllBtn?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (this.group) {
+        void this.editorController.closeAllTabsInGroup(this.group);
+      }
     });
   }
 
@@ -631,6 +642,7 @@ export class EditorController {
     if (!this.dialogController) return true;
     for (const panel of panels) {
       if (!panel.params?.isDirty) continue;
+      panel.api.setActive();
       const choice = await this.dialogController.show(
         `Do you want to save the changes you made to ${panel.title || panel.id}?`
       );
