@@ -193,7 +193,8 @@ export class WorkbenchApp {
       this.layout.folderTabsList,
       this.layout.folderTabsAddBtn,
       this.layout.folderTabsRenameBtn,
-      this.iconTheme
+      this.iconTheme,
+      this.layout.folderTabsColorBtn
     );
     this.folderTabs.onAddRequested = () => this.handleOpenFolderDialog();
     // "Add All Drives" toggle (v0.3 WK-111): adds every accessible drive at

@@ -113,7 +113,61 @@ export interface FolderTab {
    * `restoreTabs`).
    */
   origin: 'user' | 'drive-scan';
+  /**
+   * User-picked accent colour (v0.3 WK-112), or `null` for the theme's
+   * default row colours. One of `TAB_COLOR_PALETTE`'s hex values — set via
+   * the header's own palette button, never per-character-typed, so it is
+   * always a value that CSS variable lookup (`setTabColor`'s `--tab-
+   * custom-color` inline style) can use directly. Always visible on the
+   * row, active or not (like Windows Terminal/Tabby/Warp's own tab colour
+   * — a "which project is this" marker, not a during-selection highlight).
+   * Persisted the same way `alias` is (`t.color ?? null` on restore covers
+   * a tab saved before this field existed).
+   */
+  color: string | null;
 }
+
+/**
+ * Fixed accent-colour palette for `setTabColor()` — a 15-colour preset list,
+ * not a free RGB/hex picker (v0.3 WK-112, user request, 2026-09-17),
+ * modelled after Windows Terminal's own tab-colour flyout size (a 4x4 grid:
+ * these 15 plus "None" filling the 16th, last cell). Vivid, theme-
+ * independent hex values so a tab's colour reads the same in the
+ * dark/light/gray colour theme.
+ */
+export const TAB_COLOR_PALETTE: readonly string[] = Object.freeze([
+  '#DC143C', // Crimson
+  '#4682B4', // Steel Blue
+  '#3CB371', // Medium Sea Green
+  '#FF8C00', // Dark Orange
+  '#C71585', // Medium Violet Red
+  '#1E90FF', // Dodger Blue
+  '#FFFF00', // Yellow
+  '#8A2BE2', // Blue Violet
+  '#6A5ACD', // Slate Blue
+  '#00FF00', // Lime
+  '#D2B48C', // Tan
+  '#FF00FF', // Magenta
+  '#00FFFF', // Cyan
+  '#87CEEB', // Sky Blue
+  '#A9A9A9', // Dark Gray
+]);
+
+/**
+ * `#rrggbb` -> `rgba(r,g,b,alpha)` for the tab-label background (v0.3
+ * WK-112) — alpha (not CSS `opacity`) fades ONLY the colour fill; `opacity`
+ * would also fade the label text sitting on top of it, which the inactive-
+ * tab "same colour, just paler" request does not ask for.
+ */
+function hexToRgba(hex: string, alpha: number): string {
+  const r = parseInt(hex.slice(1, 3), 16);
+  const g = parseInt(hex.slice(3, 5), 16);
+  const b = parseInt(hex.slice(5, 7), 16);
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+}
+
+/** Inactive-tab colour fade factor (v0.3 WK-112, user request, 2026-09-17: "비활성화시에는 선택한 색이 연해져야 함"). */
+const INACTIVE_TAB_COLOR_ALPHA = 0.35;
 
 function normalizePath(p: string): string {
   let cleanPath = p.replace(/[/\\]+$/, '');
@@ -187,7 +241,14 @@ export class FolderTabsController {
   private listEl: HTMLElement;
   private addBtn: HTMLButtonElement;
   private renameBtn: HTMLButtonElement;
+  private colorBtn: HTMLButtonElement | null;
   private iconTheme: IconThemeManager;
+  /** The floating palette popup (v0.3 WK-112), or none while closed. */
+  private colorPopupEl: HTMLElement | null = null;
+  /** Which tab the open popup targets — closed automatically if that tab stops being active (v0.3 WK-112). */
+  private colorPopupTargetId: string | null = null;
+  private colorPopupOutsideClickHandler: ((e: MouseEvent) => void) | null = null;
+  private colorPopupKeydownHandler: ((e: KeyboardEvent) => void) | null = null;
 
   private activateCallbacks: Array<(tab: FolderTab) => void> = [];
   private selectCallbacks: Array<(tab: FolderTab) => void> = [];
@@ -204,17 +265,20 @@ export class FolderTabsController {
     listEl: HTMLElement,
     addBtn: HTMLButtonElement,
     renameBtn: HTMLButtonElement,
-    iconTheme: IconThemeManager
+    iconTheme: IconThemeManager,
+    colorBtn?: HTMLButtonElement
   ) {
     this.listEl = listEl;
     this.addBtn = addBtn;
     this.renameBtn = renameBtn;
+    this.colorBtn = colorBtn ?? null;
     this.iconTheme = iconTheme;
 
     this.addBtn?.addEventListener('click', () => this.onAddRequested?.());
     // F2 is deliberately NOT bound here (D-4) — it stays reserved for the
     // app view, so Rename only ever starts from this header icon.
     this.renameBtn?.addEventListener('click', () => this.beginRename());
+    this.colorBtn?.addEventListener('click', () => this.toggleColorPicker());
     this.render();
   }
 
@@ -281,6 +345,7 @@ export class FolderTabsController {
       alias: null,
       error: null,
       origin: 'user',
+      color: null,
     };
     this.tabs.push(tab);
     this.activateTab(tab.id);
@@ -312,6 +377,7 @@ export class FolderTabsController {
       alias: driveDisplayAlias(path, label),
       error: null,
       origin: 'drive-scan',
+      color: null,
     }));
     this.tabs = [...newTabs, ...this.tabs];
     this.render();
@@ -440,7 +506,9 @@ export class FolderTabsController {
     // (A5 R1 Major finding: comment claimed "starts cleared", code did not).
     // `origin ?? 'user'` covers a tab persisted before this field existed
     // (v0.3 WK-111) — it was always a regular user-opened tab.
-    this.tabs = tabs.map((t) => ({ ...t, error: null, origin: t.origin ?? 'user' }));
+    // `color ?? null` covers a tab persisted before this field existed
+    // (v0.3 WK-112) — it never had a custom colour.
+    this.tabs = tabs.map((t) => ({ ...t, error: null, origin: t.origin ?? 'user', color: t.color ?? null }));
     const usedSeqs = this.tabs
       .map((t) => /^ft-(\d+)$/.exec(t.id))
       .filter((m): m is RegExpExecArray => Boolean(m))
@@ -518,6 +586,116 @@ export class FolderTabsController {
     if (!tab || tab.error === message) return;
     tab.error = message;
     this.render();
+  }
+
+  /**
+   * Sets or clears (`color: null`) a tab's accent colour (v0.3 WK-112).
+   * Any tab may be coloured, including a `'drive-scan'` one (user request,
+   * 2026-09-17) — unlike rename/relocate/close, colour is not restricted
+   * to `'user'` tabs.
+   */
+  public setTabColor(id: string, color: string | null): void {
+    const tab = this.tabs.find((t) => t.id === id);
+    if (!tab || tab.color === color) return;
+    tab.color = color;
+    this.render();
+  }
+
+  /**
+   * Opens/closes the header's palette popup for the active tab (v0.3
+   * WK-112). Always targets the CURRENTLY active tab, whichever it is when
+   * the popup is opened — the button only ever affects the active tab
+   * (user request, 2026-09-17: header-icon trigger, active tab only, not
+   * a per-row right-click).
+   */
+  private toggleColorPicker(): void {
+    if (this.colorPopupEl) {
+      this.closeColorPicker();
+      return;
+    }
+    const active = this.getActiveTab();
+    if (!active || !this.colorBtn) return;
+    this.showColorPicker(active.id);
+  }
+
+  private closeColorPicker(): void {
+    if (!this.colorPopupEl) return;
+    this.colorPopupEl.remove();
+    this.colorPopupEl = null;
+    this.colorPopupTargetId = null;
+    if (this.colorPopupOutsideClickHandler) {
+      document.removeEventListener('pointerdown', this.colorPopupOutsideClickHandler, true);
+      this.colorPopupOutsideClickHandler = null;
+    }
+    if (this.colorPopupKeydownHandler) {
+      document.removeEventListener('keydown', this.colorPopupKeydownHandler, true);
+      this.colorPopupKeydownHandler = null;
+    }
+  }
+
+  private showColorPicker(tabId: string): void {
+    if (!this.colorBtn) return;
+    const popup = document.createElement('div');
+    popup.className = 'foldertabs-color-popup';
+    popup.setAttribute('role', 'menu');
+
+    for (const color of TAB_COLOR_PALETTE) {
+      const swatch = document.createElement('button');
+      swatch.type = 'button';
+      swatch.className = 'foldertabs-color-swatch';
+      swatch.style.backgroundColor = color;
+      swatch.title = color;
+      swatch.setAttribute('aria-label', `Set tab colour ${color}`);
+      swatch.addEventListener('click', () => {
+        this.setTabColor(tabId, color);
+        this.closeColorPicker();
+      });
+      popup.appendChild(swatch);
+    }
+
+    // "None" — clears back to the theme's default row colours (v0.3
+    // WK-112, user request, 2026-09-17: same idea as Warp's `none`).
+    const noneBtn = document.createElement('button');
+    noneBtn.type = 'button';
+    noneBtn.className = 'foldertabs-color-swatch foldertabs-color-none';
+    noneBtn.title = 'None';
+    noneBtn.setAttribute('aria-label', 'Clear tab colour');
+    noneBtn.innerHTML = '<i class="codicon codicon-close"></i>';
+    noneBtn.addEventListener('click', () => {
+      this.setTabColor(tabId, null);
+      this.closeColorPicker();
+    });
+    popup.appendChild(noneBtn);
+
+    document.body.appendChild(popup);
+    const btnRect = this.colorBtn.getBoundingClientRect();
+    const popupRect = popup.getBoundingClientRect();
+    popup.style.top = `${Math.round(btnRect.bottom + 4)}px`;
+    // Right-aligned to the button, but never off the left edge of the
+    // window (the rail can sit close to it when narrow).
+    const left = Math.max(4, Math.round(btnRect.right - popupRect.width));
+    popup.style.left = `${left}px`;
+    this.colorPopupEl = popup;
+    this.colorPopupTargetId = tabId;
+
+    // Closes on the next outside pointerdown — deferred so the SAME click
+    // that opened the popup (button's own pointerdown, ahead of its click)
+    // does not immediately close it again.
+    setTimeout(() => {
+      this.colorPopupOutsideClickHandler = (e: MouseEvent) => {
+        if (this.colorPopupEl && !this.colorPopupEl.contains(e.target as Node)) {
+          this.closeColorPicker();
+        }
+      };
+      document.addEventListener('pointerdown', this.colorPopupOutsideClickHandler, true);
+    }, 0);
+    this.colorPopupKeydownHandler = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        this.closeColorPicker();
+      }
+    };
+    document.addEventListener('keydown', this.colorPopupKeydownHandler, true);
   }
 
   /**
@@ -858,6 +1036,20 @@ export class FolderTabsController {
         relocateButtonHtml +
         closeButtonHtml;
 
+      // The colour fill lives on the label span itself, not the row (user
+      // correction, 2026-09-17) — full strength while active, faded via
+      // alpha (not `opacity`, which would also dim the label text) while
+      // inactive.
+      const labelEl = row.querySelector<HTMLElement>('.foldertabs-tab-label');
+      if (labelEl) {
+        if (tab.color) {
+          const alpha = tab.id === this.activeId ? 1 : INACTIVE_TAB_COLOR_ALPHA;
+          labelEl.style.backgroundColor = hexToRgba(tab.color, alpha);
+        } else {
+          labelEl.style.removeProperty('background-color');
+        }
+      }
+
       row.addEventListener('click', () => {
         // A click on a different tab while another is mid-rename cancels
         // that rename first (D-4 only defines Enter/Escape as outcomes —
@@ -901,6 +1093,17 @@ export class FolderTabsController {
     if (this.renameBtn) {
       const active = this.getActiveTab();
       this.renameBtn.disabled = !active || active.origin === 'drive-scan';
+    }
+    if (this.colorBtn) {
+      // No origin restriction (v0.3 WK-112, user request, 2026-09-17) — a
+      // drive tab may be coloured too, unlike rename.
+      this.colorBtn.disabled = !this.getActiveTab();
+    }
+    // The popup always targets whichever tab was active when it opened —
+    // if that tab stopped being active (or was removed) since, it is now
+    // showing swatches for the wrong tab, so close it (v0.3 WK-112).
+    if (this.colorPopupTargetId !== null && this.colorPopupTargetId !== this.activeId) {
+      this.closeColorPicker();
     }
 
     this.applyIconColors();

@@ -115,15 +115,16 @@ window.__runV03Phase1Suite = async function () {
   const headerBtns = Array.from(document.querySelectorAll('#foldertabs-header .foldertabs-action-btn'));
   record(
     'V3P1-HEADER-ICON-COUNT',
-    headerBtns.length === 3,
-    `Header has exactly 3 action icons (found ${headerBtns.length}) — Add Folder, Add All Drives (v0.3 WK-111), Rename Folder Tab`
+    headerBtns.length === 4,
+    `Header has exactly 4 action icons (found ${headerBtns.length}) — Add Folder, Add All Drives (v0.3 WK-111), Rename Folder Tab, Set Tab Color (v0.3 WK-112)`
   );
   record(
     'V3P1-HEADER-ICON-ORDER',
     headerBtns[0]?.id === 'foldertabs-add-btn' &&
       headerBtns[1]?.id === 'foldertabs-drives-btn' &&
-      headerBtns[2]?.id === 'foldertabs-rename-btn',
-    'Icon order is Add Folder, Add All Drives, Rename Folder Tab'
+      headerBtns[2]?.id === 'foldertabs-rename-btn' &&
+      headerBtns[3]?.id === 'foldertabs-color-btn',
+    'Icon order is Add Folder, Add All Drives, Rename Folder Tab, Set Tab Color'
   );
 
   const renameBtn = document.getElementById('foldertabs-rename-btn');

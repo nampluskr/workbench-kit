@@ -738,6 +738,15 @@ body.is-resizing-foldertabs {
   overflow-wrap: break-word;
   word-break: break-word;
   line-height: 1.4;
+  /* A tab's own accent colour (v0.3 WK-112, user correction, 2026-09-17)
+     fills THIS box, not the row's left border — the padding/radius give the
+     fill a visible margin instead of touching the label text's edges, and
+     the negative margin cancels that padding out again when no colour is
+     set (`background-color` unset), so an uncoloured tab's text position is
+     unaffected. */
+  padding: 2px 5px;
+  margin: -2px -5px;
+  border-radius: 3px;
 }
 
 /* Hidden until hover/focus, like .sidebar-action-btn's app-actions (v0.3 D-4:
@@ -829,6 +838,58 @@ body.is-resizing-foldertabs {
   height: 1px;
   background-color: var(--border-color);
   margin: 3px 0;
+}
+
+/* "Set Tab Color" palette popup (v0.3 WK-112) — same floating-panel
+   convention as .workbench-context-menu (D-22). 4x4 grid: 15 preset colours
+   plus "None" in the 16th (last) cell (user request, 2026-09-17 — modelled
+   after Windows Terminal's own tab-colour flyout size). */
+.foldertabs-color-popup {
+  position: fixed;
+  z-index: 1200;
+  display: grid;
+  grid-template-columns: repeat(4, 18px);
+  gap: 5px;
+  padding: 5px;
+  background-color: var(--menu-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 3px;
+  box-shadow: 0 5px 15px rgba(0, 0, 0, 0.35);
+}
+
+.foldertabs-color-swatch {
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 50%;
+  cursor: pointer;
+  outline: none;
+}
+
+.foldertabs-color-swatch:hover,
+.foldertabs-color-swatch:focus {
+  transform: scale(1.15);
+}
+
+/* "None" — clears the tab's colour (v0.3 WK-112, Warp's own "none" idea).
+   Square, not round, and shows a plain × instead of a colour fill, so it
+   reads as "remove" rather than as one more colour choice. */
+.foldertabs-color-none {
+  border-radius: 3px;
+  background-color: transparent;
+  border-color: var(--border-color);
+  color: var(--sidebar-fg);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+}
+
+.foldertabs-color-none:hover,
+.foldertabs-color-none:focus {
+  background-color: var(--button-hover-bg);
+  transform: none;
 }
 
 /* Inline rename row (v0.3 D-4): Enter saves, Escape cancels. */
