@@ -1,6 +1,6 @@
 {
   "name": "workbench-kit",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "private": true,
   "description": "여러 데스크톱 앱이 공유하는 공통 껍데기 한 벌",
   "type": "module",

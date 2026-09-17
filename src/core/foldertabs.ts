@@ -1,4 +1,4 @@
-import { IconThemeManager, IconDescriptor, FileIconThemeId } from './icontheme';
+import { IconThemeManager, IconDescriptor, FileIconThemeId, ColorThemeId } from './icontheme';
 import { renderIconMarkup, escapeHtml } from './tree';
 
 /**
@@ -168,6 +168,40 @@ function hexToRgba(hex: string, alpha: number): string {
 
 /** Inactive-tab colour fade factor (v0.3 WK-112, user request, 2026-09-17: "비활성화시에는 선택한 색이 연해져야 함"). */
 const INACTIVE_TAB_COLOR_ALPHA = 0.35;
+
+/**
+ * Calculates a high-contrast foreground colour (#ffffff or #1e1e1e) for text
+ * and icons against the tab's background, matching Windows Terminal's
+ * automatic contrast adjustment (v0.3 WK-112).
+ */
+export function getTabContrastColor(hex: string, isActive: boolean, colorTheme: ColorThemeId = 'dark'): string {
+  if (!hex || hex.length < 7) return '#ffffff';
+  const r = parseInt(hex.slice(1, 3), 16);
+  const g = parseInt(hex.slice(3, 5), 16);
+  const b = parseInt(hex.slice(5, 7), 16);
+
+  if (isActive) {
+    // Solid background: standard YIQ perceived luminance
+    const luminance = (r * 299 + g * 587 + b * 114) / 1000;
+    return luminance >= 128 ? '#1e1e1e' : '#ffffff';
+  }
+
+  // Inactive tab: background is faded via alpha over the theme's sidebar ground
+  const alpha = INACTIVE_TAB_COLOR_ALPHA;
+  const bg =
+    colorTheme === 'light'
+      ? { r: 243, g: 243, b: 243 }
+      : colorTheme === 'gray'
+        ? { r: 45, g: 45, b: 45 }
+        : { r: 37, g: 37, b: 38 };
+
+  const effR = r * alpha + bg.r * (1 - alpha);
+  const effG = g * alpha + bg.g * (1 - alpha);
+  const effB = b * alpha + bg.b * (1 - alpha);
+  const effLuminance = (effR * 299 + effG * 587 + effB * 114) / 1000;
+
+  return effLuminance >= 128 ? '#1e1e1e' : '#ffffff';
+}
 
 function normalizePath(p: string): string {
   let cleanPath = p.replace(/[/\\]+$/, '');
@@ -1036,18 +1070,25 @@ export class FolderTabsController {
         relocateButtonHtml +
         closeButtonHtml;
 
-      // The colour fill lives on the label span itself, not the row (user
-      // correction, 2026-09-17) — full strength while active, faded via
-      // alpha (not `opacity`, which would also dim the label text) while
-      // inactive.
-      const labelEl = row.querySelector<HTMLElement>('.foldertabs-tab-label');
-      if (labelEl) {
-        if (tab.color) {
-          const alpha = tab.id === this.activeId ? 1 : INACTIVE_TAB_COLOR_ALPHA;
-          labelEl.style.backgroundColor = hexToRgba(tab.color, alpha);
-        } else {
-          labelEl.style.removeProperty('background-color');
-        }
+      // Tab accent colour (v0.3 WK-112) — fills the entire tab item container
+      // (row), exactly like Windows Terminal's TabViewItem (user request,
+      // 2026-09-17). Active tab gets the solid colour; inactive tab gets faded
+      // via alpha. Text and icons automatically adapt contrast (white vs dark).
+      if (tab.color) {
+        row.classList.add('has-custom-color');
+        const isActive = tab.id === this.activeId;
+        const alpha = isActive ? 1 : INACTIVE_TAB_COLOR_ALPHA;
+        row.style.backgroundColor = hexToRgba(tab.color, alpha);
+
+        const colorTheme = this.iconTheme.getColorTheme();
+        const fgColor = getTabContrastColor(tab.color, isActive, colorTheme);
+        row.style.color = fgColor;
+        row.dataset.tabFg = fgColor;
+      } else {
+        row.classList.remove('has-custom-color');
+        row.style.removeProperty('background-color');
+        row.style.removeProperty('color');
+        delete row.dataset.tabFg;
       }
 
       row.addEventListener('click', () => {
@@ -1113,6 +1154,11 @@ export class FolderTabsController {
   private applyIconColors(): void {
     const icons = this.listEl.querySelectorAll<HTMLElement>('.tree-icon [data-fg], .tree-icon[data-fg]');
     icons.forEach((el) => {
+      const row = el.closest<HTMLElement>('.foldertabs-tab');
+      if (row?.dataset.tabFg) {
+        el.style.color = row.dataset.tabFg;
+        return;
+      }
       const fg = el.getAttribute('data-fg');
       if (fg) el.style.color = fg;
     });

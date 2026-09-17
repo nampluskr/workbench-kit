@@ -726,6 +726,20 @@ body.is-resizing-foldertabs {
   border-left-color: var(--focus-ring);
 }
 
+/* When a custom colour is set on a tab (v0.3 WK-112, Windows Terminal model):
+   hover provides a subtle brightness lift without overriding the tab's colour. */
+.foldertabs-tab.has-custom-color:hover {
+  filter: brightness(1.12);
+}
+
+[data-theme="light"] .foldertabs-tab.has-custom-color:hover {
+  filter: brightness(0.95);
+}
+
+.foldertabs-tab.has-custom-color .foldertabs-tab-close:hover {
+  background-color: rgba(128, 128, 128, 0.25);
+}
+
 .foldertabs-tab-label {
   /* Shrinks to the row's remaining width (after the icon) and wraps within
      that box — every wrapped line lands at THIS box's own left edge, which
@@ -738,15 +752,6 @@ body.is-resizing-foldertabs {
   overflow-wrap: break-word;
   word-break: break-word;
   line-height: 1.4;
-  /* A tab's own accent colour (v0.3 WK-112, user correction, 2026-09-17)
-     fills THIS box, not the row's left border — the padding/radius give the
-     fill a visible margin instead of touching the label text's edges, and
-     the negative margin cancels that padding out again when no colour is
-     set (`background-color` unset), so an uncoloured tab's text position is
-     unaffected. */
-  padding: 2px 5px;
-  margin: -2px -5px;
-  border-radius: 3px;
 }
 
 /* Hidden until hover/focus, like .sidebar-action-btn's app-actions (v0.3 D-4:
