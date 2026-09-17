@@ -1206,27 +1206,23 @@ export class EditorController {
   }
 
   /**
-   * Sets tab dirty indicator (●) (FR-L1).
+   * Sets the tab dirty indicator (FR-L1). VS Code-style (user request,
+   * 2026-09-17): no icon or character is ever prepended to the title — the
+   * indicator instead replaces the tab's own close (×) button with a filled
+   * dot at rest; hovering that button still reveals the real × so it stays
+   * clickable (see .workbench-dirty-tab's CSS in style.css).
    */
   public setTabDirty(panelId: string, dirty: boolean): void {
     const panel = this.api.getPanel(panelId);
     if (!panel) return;
 
-    const baseTitle = (panel.title || '').replace(/^●\s*/, '');
-    const newTitle = dirty ? `● ${baseTitle}` : baseTitle;
-    panel.setTitle(newTitle);
     panel.update({ params: { isDirty: dirty } });
     this.applyDirtyClass(panel);
   }
 
   /**
-   * Mirrors a panel's dirty state onto its rendered tab (user request,
-   * 2026-09-15): the ● is the title's own first character (dockview's
-   * default tab only takes plain text, so there is no separate DOM node for
-   * it), and a preview tab's title is italic (`workbench-preview-tab`
-   * above). Without this class, `::first-letter` in style.css would have no
-   * dirty-only hook to keep the ● upright while the rest of the title stays
-   * italic.
+   * Mirrors a panel's dirty state onto its rendered tab as a CSS class —
+   * style.css does the rest (swapping the close button for a dot at rest).
    */
   private applyDirtyClass(panel: IDockviewPanel): void {
     const el = document.querySelector(`.dv-tab[data-tab-panel-id="${panel.id}"]`);

@@ -19,6 +19,8 @@ export interface WorkbenchLayoutElements {
   folderTabsAddBtn: HTMLButtonElement;
   folderTabsRenameBtn: HTMLButtonElement;
   folderTabsList: HTMLElement;
+  /** Drag handle between the Folder Tabs rail and the Explorer (user request, 2026-09-17). */
+  folderTabsResizeHandle: HTMLElement;
   sidebar: HTMLElement;
   sidebarHeader: HTMLElement;
   sidebarTitle: HTMLElement;
@@ -74,6 +76,8 @@ export function createWorkbenchLayout(container: HTMLElement): WorkbenchLayoutEl
           </div>
           <div id="foldertabs-list" class="foldertabs-list" role="tablist" aria-label="Folder Tabs List"></div>
         </aside>
+
+        <div id="foldertabs-resize-handle" class="foldertabs-resize-handle" role="separator" aria-orientation="vertical" aria-label="Resize Folder Tabs"></div>
 
         <aside id="sidebar" class="workbench-sidebar" aria-label="Explorer">
           <div id="sidebar-header" class="sidebar-header">
@@ -137,6 +141,7 @@ export function createWorkbenchLayout(container: HTMLElement): WorkbenchLayoutEl
     folderTabsAddBtn: container.querySelector('#foldertabs-add-btn') as HTMLButtonElement,
     folderTabsRenameBtn: container.querySelector('#foldertabs-rename-btn') as HTMLButtonElement,
     folderTabsList: container.querySelector('#foldertabs-list') as HTMLElement,
+    folderTabsResizeHandle: container.querySelector('#foldertabs-resize-handle') as HTMLElement,
     sidebar: container.querySelector('#sidebar') as HTMLElement,
     sidebarHeader: container.querySelector('#sidebar-header') as HTMLElement,
     sidebarTitle: container.querySelector('#sidebar-title') as HTMLElement,

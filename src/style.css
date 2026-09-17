@@ -42,6 +42,10 @@
   --statusbar-height: var(--area-size);
   --activitybar-width: var(--area-size);
   --sidebar-width: 240px;
+  /* Same default/min/max as the Explorer's own --sidebar-width, and resizable
+     the same way (user request, 2026-09-17: apply the Explorer's width
+     values to the Folder Tabs rail too). */
+  --foldertabs-width: 240px;
   --close-hover-bg: #e81123;
 }
 
@@ -347,9 +351,15 @@
   color: var(--vscode-editor-background);
 }
 
-.monaco-editor .view-overlays .current-line,
-.monaco-editor .margin-view-overlays .current-line {
+/* VS Code draws this border only on the content side of the current line,
+   never around the line-number margin (user request, 2026-09-17) — the
+   margin-side box below is left with no border on purpose. */
+.monaco-editor .view-overlays .current-line {
   border: 1px solid var(--vscode-editor-lineHighlightBorder);
+}
+
+.monaco-editor .margin-view-overlays .current-line {
+  border: none;
 }
 
 * {
@@ -562,14 +572,45 @@ html, body, #app {
  * shows, while this rail lists the sidebar's own dataset (v0.3 INTENT 3).
  */
 .workbench-foldertabs-rail {
-  width: 180px;
-  min-width: 120px;
+  /* Matches the Explorer's own default/min/max width behavior (user
+     request, 2026-09-17) — see .foldertabs-resize-handle and
+     setupFolderTabsResize() for the same clamp (min 200, max ~60% of the
+     window) the Explorer's own resize handle uses. */
+  width: var(--foldertabs-width);
+  min-width: 200px;
   background-color: var(--sidebar-bg);
   color: var(--sidebar-fg);
   display: flex;
   flex-direction: column;
   flex-shrink: 0;
   border-right: 1px solid var(--border-color);
+}
+
+/* Drag handle between the Folder Tabs rail and the Explorer (user request,
+   2026-09-17) — same shape/behavior as .sidebar-resize-handle. */
+.foldertabs-resize-handle {
+  flex: 0 0 5px;
+  width: 5px;
+  margin-left: -3px;
+  margin-right: -2px;
+  z-index: 5;
+  cursor: ew-resize;
+  background-color: transparent;
+}
+
+.foldertabs-resize-handle:hover,
+body.is-resizing-foldertabs .foldertabs-resize-handle {
+  background-color: var(--menu-hover-bg);
+}
+
+body.is-resizing-foldertabs {
+  cursor: ew-resize;
+  user-select: none;
+}
+
+.workbench-root.zen-mode .foldertabs-resize-handle,
+.workbench-foldertabs-rail.hidden + .foldertabs-resize-handle {
+  display: none;
 }
 
 .foldertabs-header {
@@ -631,14 +672,20 @@ html, body, #app {
 
 .foldertabs-list {
   flex: 1;
-  overflow-y: auto;
-  overflow-x: hidden;
+  /* Both axes scroll when content overflows, matching .tree-list — a long
+     folder name grows a real horizontal scrollbar instead of being cut off
+     (user request, 2026-09-17). */
+  overflow: auto;
+  /* Matches the Explorer's .tree-list font-size, so the two areas read at
+     the same scale (user request, 2026-09-17). */
+  font-size: 13px;
 }
 
 .foldertabs-tab {
   display: flex;
   align-items: center;
-  height: 28px;
+  /* Matches the Explorer's .tree-row height (user request, 2026-09-17). */
+  height: 22px;
   padding: 0 10px;
   cursor: pointer;
   white-space: nowrap;
@@ -646,6 +693,12 @@ html, body, #app {
   box-sizing: border-box;
   color: var(--sidebar-fg);
   border-left: 2px solid transparent;
+  /* Grows with content past the viewport, like .tree-row, so a long folder
+     name produces a real (themed) horizontal scrollbar instead of an
+     ellipsis, while short rows still fill the width so their selection/
+     hover background spans it (user request, 2026-09-17). */
+  min-width: 100%;
+  width: max-content;
 }
 
 .foldertabs-tab:hover {
@@ -661,10 +714,11 @@ html, body, #app {
 }
 
 .foldertabs-tab-label {
-  flex: 1 1 auto;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  min-width: 0;
+  /* No shrink, no ellipsis — the row (not the label) grows past the
+     viewport for long names, matching .tree-row/.tree-list's horizontal
+     scroll (user request, 2026-09-17). */
+  flex: 0 0 auto;
+  white-space: nowrap;
 }
 
 /* Hidden until hover/focus, like .sidebar-action-btn's app-actions (v0.3 D-4:
@@ -917,8 +971,10 @@ body.is-resizing-sidebar {
 }
 
 /* Same thickness as the tab row's bar (user request, 2026-09-14); the monaco
-   editor's own bars are sized to match in texteditor.ts. */
+   editor's own bars are sized to match in texteditor.ts. The Folder Tabs
+   rail's own list matches .tree-list here too (user request, 2026-09-17). */
 .tree-list::-webkit-scrollbar,
+.foldertabs-list::-webkit-scrollbar,
 .sidebar-content::-webkit-scrollbar,
 .dv-content-container::-webkit-scrollbar {
   width: 5px;
@@ -926,6 +982,7 @@ body.is-resizing-sidebar {
 }
 
 .tree-list::-webkit-scrollbar-track,
+.foldertabs-list::-webkit-scrollbar-track,
 .sidebar-content::-webkit-scrollbar-track,
 .dv-content-container::-webkit-scrollbar-track,
 .workbench-menu-dropdown::-webkit-scrollbar-track,
@@ -934,6 +991,7 @@ body.is-resizing-sidebar {
 }
 
 .tree-list::-webkit-scrollbar-thumb,
+.foldertabs-list::-webkit-scrollbar-thumb,
 .sidebar-content::-webkit-scrollbar-thumb,
 .dv-content-container::-webkit-scrollbar-thumb,
 .workbench-menu-dropdown::-webkit-scrollbar-thumb,
@@ -943,6 +1001,7 @@ body.is-resizing-sidebar {
 }
 
 .tree-list::-webkit-scrollbar-thumb:hover,
+.foldertabs-list::-webkit-scrollbar-thumb:hover,
 .sidebar-content::-webkit-scrollbar-thumb:hover,
 .dv-content-container::-webkit-scrollbar-thumb:hover,
 .workbench-menu-dropdown::-webkit-scrollbar-thumb:hover,
@@ -951,6 +1010,7 @@ body.is-resizing-sidebar {
 }
 
 .tree-list::-webkit-scrollbar-thumb:active,
+.foldertabs-list::-webkit-scrollbar-thumb:active,
 .sidebar-content::-webkit-scrollbar-thumb:active,
 .dv-content-container::-webkit-scrollbar-thumb:active,
 .workbench-menu-dropdown::-webkit-scrollbar-thumb:active,
@@ -959,6 +1019,7 @@ body.is-resizing-sidebar {
 }
 
 .tree-list::-webkit-scrollbar-corner,
+.foldertabs-list::-webkit-scrollbar-corner,
 .sidebar-content::-webkit-scrollbar-corner {
   background-color: var(--scrollbar-track);
 }
@@ -1300,6 +1361,35 @@ body.is-resizing-sidebar {
 .statusbar-left {
   flex: 1;
   justify-content: flex-start;
+  /* Lets #statusbar-path actually shrink below its own content width inside
+     this flex row — without it, a flex item's default min-width: auto
+     keeps it at its full natural width, so nothing here ever clips (user
+     request, 2026-09-17: a long path was being hard-clipped by
+     .statusbar-item's overflow: hidden with no "…" at all, since
+     text-overflow on a flex CONTAINER never reaches into a flex-item
+     child's own text — .statusbar-path needs, and now has, its own
+     overflow handling below). */
+  min-width: 0;
+}
+
+/*
+ * Elides a long path from the START, not the end (user request,
+ * 2026-09-17) — the final folder/file segment is the part worth reading,
+ * and .statusbar-left's flex-container ellipsis above never actually
+ * reached this child span to begin with (it was being silently hard-
+ * clipped, no "…" shown). direction: rtl + text-align: left moves the CSS
+ * "which end truncates" anchor to the front while the text itself renders
+ * in normal left-to-right order — bidi only reorders runs that contain an
+ * actual RTL character, and a Windows path has none.
+ */
+.statusbar-path {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  direction: rtl;
+  text-align: left;
 }
 
 .statusbar-center {
@@ -1803,20 +1893,6 @@ body.is-resizing-sidebar {
   font-style: italic;
 }
 
-/*
- * The dirty dot (●) is plain text prepended to the panel title — dockview's
- * default tab only accepts a title string, no separate DOM node per
- * character (node_modules/dockview-core DefaultTab.render() sets
- * textContent). ::first-letter is the only way to style just that leading
- * character apart from the rest, so it stays upright even when the title
- * around it is italic (a dirty preview tab) — user request, 2026-09-15.
- * Scoped to .workbench-dirty-tab (editor.ts applyDirtyClass) so a clean
- * tab's own first title letter is never touched.
- */
-.dv-tab.workbench-dirty-tab .dv-default-tab-content::first-letter {
-  font-style: normal;
-}
-
 .dv-tab .dv-default-tab-action {
   display: flex;
   align-items: center;
@@ -1828,21 +1904,42 @@ body.is-resizing-sidebar {
   color: var(--focus-ring);
   font: inherit;
   cursor: pointer;
-  /* Trimmed from 2px so the icon's own box hugs it tighter (user request,
-     2026-09-15). */
-  padding: 1px;
+  padding: 0;
   border-radius: 3px;
+  /* Same footprint as the Folder Tabs rail's own close button,
+     .foldertabs-tab-close (user request, 2026-09-17). */
+  width: 18px;
+  height: 18px;
+}
+
+.dv-tab .dv-default-tab-action:hover {
+  background-color: var(--button-hover-bg);
 }
 
 /* Hand copy of dockview's .dv-svg rule, which the CSP blocks
-   (.claude/rules/dockview-css.md): without it the close "X" path falls back
-   to the SVG default black fill and vanishes on the dark theme. */
+   (.claude/rules/dockview-css.md): without it any OTHER .dv-svg dockview
+   renders elsewhere (not just the tab close button below) falls back to the
+   SVG default black fill and vanishes on the dark theme. */
 .dv-svg {
   display: inline-block;
   fill: currentcolor;
   line-height: 1;
   stroke: currentcolor;
   stroke-width: 0;
+}
+
+/* dockview renders its own close glyph as an inline SVG here — replaced
+   with the same codicon-close glyph the Folder Tabs rail's close button
+   uses (.foldertabs-tab-close), via ::before, so both areas' × icons
+   actually match (user request, 2026-09-17). The vendor SVG is hidden
+   rather than removed — it is dockview's own DOM, not ours to delete. */
+.dv-tab .dv-default-tab-action .dv-svg {
+  display: none;
+}
+
+.dv-tab .dv-default-tab-action::before {
+  font: normal normal normal 13px/1 codicon;
+  content: '\ea76'; /* codicon-close */
 }
 
 .dv-tab.dv-active-tab .dv-default-tab-action {
@@ -1855,6 +1952,37 @@ body.is-resizing-sidebar {
 
 .dv-tab.dv-inactive-tab:hover .dv-default-tab-action {
   visibility: visible;
+}
+
+/*
+ * Dirty indicator (FR-L1) — VS Code-style (user request, 2026-09-17): no
+ * icon or character is ever added before the filename. Instead the tab's
+ * own close (×) button doubles as the indicator: a filled dot at rest,
+ * swapped back to the real × the moment the pointer is over that button, so
+ * it is always clickable to close. Forced visible here (overriding
+ * .dv-inactive-tab's hover-only default above) because an inactive dirty
+ * tab's dot has to be seen without hovering — only the SWAP to × still
+ * needs a hover.
+ */
+.dv-tab.workbench-dirty-tab .dv-default-tab-action {
+  visibility: visible;
+}
+
+.dv-tab.workbench-dirty-tab .dv-default-tab-action::before {
+  content: '';
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background-color: currentColor;
+}
+
+.dv-tab.workbench-dirty-tab .dv-default-tab-action:hover::before {
+  font: normal normal normal 13px/1 codicon;
+  content: '\ea76'; /* codicon-close */
+  width: auto;
+  height: auto;
+  border-radius: 0;
+  background-color: transparent;
 }
 
 .dv-groupview.dv-active-group > .dv-tabs-and-actions-container .dv-tabs-container > .dv-tab.dv-active-tab {
@@ -2008,6 +2136,15 @@ body.is-resizing-sidebar {
 .text-editor-view {
   width: 100%;
   height: 100%;
+}
+
+/* Rounded ends on monaco's own scrollbar slider, matching the Explorer's
+   .tree-list::-webkit-scrollbar-thumb (user request, 2026-09-17) — monaco
+   draws its slider as a plain DOM div with square corners by default; the
+   thickness already matches via texteditor.ts's verticalScrollbarSize/
+   horizontalScrollbarSize: 5. */
+.text-editor-view .slider {
+  border-radius: 10px;
 }
 
 /* 9. Statusbar error state (FR-G2 ~ FR-G4) */

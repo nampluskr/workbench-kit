@@ -114,7 +114,7 @@ export class ResourceKindRegistry {
    * kind dispatch to `init()`, since dockview only supplies panel params at
    * that point, not at component-creation time. `controller` is used only
    * to forward the dirty flag to the shell's own `setTabDirty` (the single
-   * canonical place that owns the ● title mutation) — it is not otherwise
+   * canonical place that owns the ● indicator) — it is not otherwise
    * reachable from the rendered view.
    */
   public createComponentFactory(controller: EditorController): EditorComponentFactory {

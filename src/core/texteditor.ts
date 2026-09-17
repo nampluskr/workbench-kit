@@ -47,12 +47,38 @@ export function setEditorColorTheme(theme: ColorThemeId): void {
 }
 
 /**
+ * Line numbers, as a single shell-wide setting (View > Show Line Numbers,
+ * user request, 2026-09-17) — off by default. Unlike the colour theme
+ * above, monaco has no global switch for this; it is a per-editor
+ * construction option. `liveTextViews` is this module's own registry of
+ * every currently open `TextEditorView` (kind-agnostic — just "every text
+ * view on screen", no resource-kind knowledge, so this stays in `src/core/`
+ * per D-4) so `setLineNumbersVisible()` can apply the new value to all of
+ * them at once, the same instant a NEW view picks it up as its own initial
+ * option.
+ */
+let lineNumbersVisible = false;
+const liveTextViews = new Set<TextEditorView>();
+
+export function getLineNumbersVisible(): boolean {
+  return lineNumbersVisible;
+}
+
+export function setLineNumbersVisible(visible: boolean): void {
+  lineNumbersVisible = visible;
+  for (const view of liveTextViews) {
+    view.applyLineNumbersOption(visible);
+  }
+}
+
+/**
  * Reusable monaco-backed text/code view (D-18, FR-P1 ~ FR-P6). The shell
  * carries monaco as a default part; any preset may use this instead of
- * importing monaco itself (FR-P6). Turned on: syntax colorization, line
- * numbers, find/replace, undo/redo, read-only mode. Turned off: quick
- * suggestions, hover/definition (language service), minimap, multi-cursor
- * (X-12, FR-P5).
+ * importing monaco itself (FR-P6). Turned on: syntax colorization, find/
+ * replace, undo/redo, read-only mode. Turned off: quick suggestions, hover/
+ * definition (language service), minimap, multi-cursor (X-12, FR-P5), and —
+ * unless View > Show Line Numbers is checked — line numbers themselves
+ * (off by default, user request, 2026-09-17).
  */
 export class TextEditorView {
   public readonly element: HTMLElement;
@@ -74,7 +100,12 @@ export class TextEditorView {
       model: this.model,
       readOnly: Boolean(options.readOnly),
       automaticLayout: true,
-      lineNumbers: 'on',
+      lineNumbers: lineNumbersVisible ? 'on' : 'off',
+      // Reserves width for 3 digits by default (monaco's own default is 5)
+      // instead of growing/shrinking the gutter as the line count crosses
+      // each power of ten (user request, 2026-09-17). Monaco still widens
+      // it automatically past 999 lines — this only sets the floor.
+      lineNumbersMinChars: 3,
       // Autocomplete / language service off (X-12, FR-P5)
       quickSuggestions: false,
       suggestOnTriggerCharacters: false,
@@ -105,6 +136,13 @@ export class TextEditorView {
       this.dirtyChangeCallbacks.forEach((cb) => cb(isDirty));
       this.contentChangeCallbacks.forEach((cb) => cb());
     });
+
+    liveTextViews.add(this);
+  }
+
+  /** Module-internal: applies a new global line-numbers setting to this one live view. */
+  public applyLineNumbersOption(visible: boolean): void {
+    this.editor.updateOptions({ lineNumbers: visible ? 'on' : 'off' });
   }
 
   public getValue(): string {
@@ -198,6 +236,7 @@ export class TextEditorView {
   }
 
   public dispose(): void {
+    liveTextViews.delete(this);
     this.editor.dispose();
     this.model.dispose();
   }

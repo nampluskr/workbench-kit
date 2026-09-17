@@ -3,7 +3,7 @@ import { setupWindowControls, setupResizeGrips, closeWindow } from './core/windo
 import { ConfirmDialogController } from './core/dialog';
 import { AboutDialogController } from './core/about';
 import { StatusMessageController } from './core/statusmessage';
-import { TextEditorView, setEditorColorTheme } from './core/texteditor';
+import { TextEditorView, setEditorColorTheme, getLineNumbersVisible, setLineNumbersVisible } from './core/texteditor';
 import { MenuController } from './core/menu';
 import { ActivityBarController } from './core/activitybar';
 import { ViewStateManager } from './core/viewstate';
@@ -339,6 +339,11 @@ export class WorkbenchApp {
     // starts at the initial value baked into --sidebar-width.
     this.setupSidebarResize();
 
+    // Folder Tabs rail width: same default/min/max and drag behavior as the
+    // Explorer's own resize handle above (user request, 2026-09-17). Also
+    // not persisted, for the same reason.
+    this.setupFolderTabsResize();
+
     // Bind sidebar, titlebar, statusbar, and zen toggles
     // Titlebar/statusbar toggles also flip their Activity Bar chevron to
     // point the opposite way once hidden (user request, 2026-09-12) —
@@ -356,6 +361,7 @@ export class WorkbenchApp {
     this.menu.setAction('view:toggle-titlebar', toggleTitlebar);
     this.menu.setAction('view:toggle-statusbar', toggleStatusbar);
     this.menu.setAction('view:toggle-foldertabs', () => this.viewState.toggleFolderTabs());
+    this.menu.setAction('view:toggle-line-numbers', () => setLineNumbersVisible(!getLineNumbersVisible()));
     this.menu.setAction('view:zen-mode', () => this.viewState.toggleZenMode());
     // Each row's check mark is read from the live state whenever the menu is
     // drawn, so a change made by key, title bar or Activity Bar shows the next
@@ -366,6 +372,7 @@ export class WorkbenchApp {
     this.menu.setCheckedProvider('view:toggle-statusbar', () => this.viewState.getState().statusbarVisible);
     // The Activity Bar icon and this row watch the same state (v0.3 D-2).
     this.menu.setCheckedProvider('view:toggle-foldertabs', () => this.viewState.getState().folderTabsVisible);
+    this.menu.setCheckedProvider('view:toggle-line-numbers', () => getLineNumbersVisible());
 
     // Shared Editor / Folder Workspace mutually exclusive radio (v0.3 D-7).
     this.menu.setAction('view:editor-mode-shared', () => this.setEditorMode('shared'));
@@ -752,6 +759,80 @@ export class WorkbenchApp {
     handle.addEventListener('keydown', (e) => {
       if (this.viewState.isZenMode || !this.viewState.getState().sidebarVisible) return;
       const current = sidebar.getBoundingClientRect().width;
+      if (e.key === 'ArrowLeft') setWidth(current - 16);
+      else if (e.key === 'ArrowRight') setWidth(current + 16);
+      else if (e.key === 'Home') setWidth(MIN);
+      else if (e.key === 'End') setWidth(Math.round((window.innerWidth || 1280) * 0.4));
+      else return;
+      e.preventDefault();
+    });
+  }
+
+  /**
+   * Drag — or arrow-key nudge — the handle between the Folder Tabs rail and
+   * the Explorer to resize the rail. Mirrors `setupSidebarResize()` above:
+   * same 200px minimum, same ~60% of window cap, same "lives only in a CSS
+   * variable, never persisted" rule (user request, 2026-09-17: apply the
+   * Explorer's width values — default/min/max, and resizability — to the
+   * Folder Tabs rail too).
+   */
+  private setupFolderTabsResize(): void {
+    const handle = this.layout.folderTabsResizeHandle;
+    const rail = this.layout.folderTabsRail;
+    if (!handle || !rail) return;
+
+    const MIN = 200;
+    const clamp = (px: number) => {
+      const max = Math.max(MIN, Math.round((window.innerWidth || 1280) * 0.6));
+      return Math.min(max, Math.max(MIN, px));
+    };
+    const setWidth = (px: number) => {
+      this.layout.root.style.setProperty('--foldertabs-width', `${clamp(px)}px`);
+    };
+
+    let dragging = false;
+    const onMove = (e: PointerEvent) => {
+      if (!dragging) return;
+      setWidth(e.clientX - rail.getBoundingClientRect().left);
+    };
+    const stop = () => {
+      if (!dragging) return;
+      dragging = false;
+      document.body.classList.remove('is-resizing-foldertabs');
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', stop);
+      window.removeEventListener('pointercancel', stop);
+      window.removeEventListener('blur', stop);
+      try {
+        handle.releasePointerCapture?.(activePointerId);
+      } catch {
+        // no capture held
+      }
+    };
+    let activePointerId = -1;
+    handle.addEventListener('pointerdown', (e) => {
+      if (this.viewState.isZenMode || !this.viewState.getState().folderTabsVisible) return;
+      dragging = true;
+      activePointerId = e.pointerId;
+      try {
+        handle.setPointerCapture?.(e.pointerId);
+      } catch {
+        // capture unavailable — window listeners below still track the drag
+      }
+      document.body.classList.add('is-resizing-foldertabs');
+      window.addEventListener('pointermove', onMove);
+      window.addEventListener('pointerup', stop);
+      window.addEventListener('pointercancel', stop);
+      window.addEventListener('blur', stop);
+      e.preventDefault();
+    });
+
+    // Keyboard path (NFR-8, reserved-keys.md §3b): focus the handle, then
+    // Left/Right nudges the width; Home/End jump to the min/a comfortable max.
+    handle.setAttribute('tabindex', '0');
+    handle.addEventListener('keydown', (e) => {
+      if (this.viewState.isZenMode || !this.viewState.getState().folderTabsVisible) return;
+      const current = rail.getBoundingClientRect().width;
       if (e.key === 'ArrowLeft') setWidth(current - 16);
       else if (e.key === 'ArrowRight') setWidth(current + 16);
       else if (e.key === 'Home') setWidth(MIN);

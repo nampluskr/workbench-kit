@@ -59,6 +59,9 @@ export const DEFAULT_VIEW_ITEMS: readonly MenuItem[] = Object.freeze([
   Object.freeze({ id: 'view:toggle-foldertabs', label: 'Show Folder Tabs' }),
   Object.freeze({ id: 'view:toggle-titlebar', label: 'Show Title Bar' }),
   Object.freeze({ id: 'view:toggle-statusbar', label: 'Show Status Bar' }),
+  // No shortcut (user request, 2026-09-17). Unchecked by default — line
+  // numbers start OFF, unlike VS Code's own default.
+  Object.freeze({ id: 'view:toggle-line-numbers', label: 'Show Line Numbers' }),
   separator('view:separator-layout'),
   // Mutually exclusive radio pair (v0.3 D-7) — each row's checked provider
   // reflects the SAME underlying mode, so picking one always unchecks the

@@ -571,9 +571,12 @@ export class FolderTabsController {
       // An error tab shows a warning glyph instead of the (possibly
       // misleading) resolved folder icon — the path may no longer exist,
       // so nothing about "what kind of folder is this" is knowable (v0.3 D-6).
+      // The active tab's icon renders open, every other tab's closed — the
+      // same open/closed distinction the Explorer's own root row already
+      // draws for the folder it has expanded (user request, 2026-09-17).
       const iconMarkup = tab.error
         ? '<span class="tree-icon"><i class="codicon codicon-warning"></i></span>'
-        : renderIconMarkup(this.iconTheme.resolveIcon(folderNameOf(tab.path), true));
+        : renderIconMarkup(this.iconTheme.resolveIcon(folderNameOf(tab.path), true, tab.id === this.activeId));
 
       if (tab.id === this.renamingId) {
         row.classList.add('renaming');
