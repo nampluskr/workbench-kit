@@ -4,9 +4,7 @@ import { renderIconMarkup, escapeHtml } from './tree';
 /**
  * "Simple" theme's drive glyph (v0.3 WK-111, user request, 2026-09-17) — a
  * plain rectangle with a ":" mark near its inner right edge, echoing a
- * drive letter's own "C:" notation. Not routed through IconThemeManager's
- * resolver (none of the three themes model a "drive" kind) — `driveIcon
- * Markup()` below picks per-theme markup directly instead.
+ * drive letter's own "C:" notation.
  */
 const DRIVE_SVG_SIMPLE =
   '<svg viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg" width="16" height="16">' +
@@ -16,29 +14,68 @@ const DRIVE_SVG_SIMPLE =
   '</svg>';
 
 /**
+ * "VS Code Icons" theme's drive glyph (v0.3 WK-111, user request,
+ * 2026-09-17) — a flat hard-drive body, loosely echoing the drive glyph
+ * Windows Explorer's own "This PC" tree shows. C: and every other drive
+ * share this EXACT same body; only C: additionally gets `WINDOWS_BADGE`
+ * (below) overlaid in the corner — Explorer distinguishes the system
+ * drive with a small Windows-logo badge on the same icon shape, not with a
+ * differently-shaped icon (user correction, 2026-09-17: an earlier version
+ * of this used `folder_type_windows.svg`, a FOLDER-shaped icon, for C: —
+ * shape mismatch against every other drive's icon).
+ */
+const DRIVE_BODY_VSCODE_ICONS =
+  '<rect x="3" y="10" width="26" height="14" rx="2" fill="#8098a7"/>' +
+  '<rect x="6" y="14" width="10" height="2" rx="1" fill="#c9d3d8"/>' +
+  '<circle cx="24" cy="20" r="1.6" fill="#4a5a63"/>';
+
+/**
+ * The system-drive badge — the same 4-pane Windows flag `folder_type_
+ * windows.svg` draws (colour `#0078d6` unchanged), scaled down and moved
+ * into this icon's own bottom-right corner instead of filling a folder
+ * shape.
+ */
+const WINDOWS_BADGE = '<g transform="translate(18,16) scale(0.35)"><path d="M10,12.974l8.582-1.166v8.253L10,20.109Zm8.577,8.037.008,8.261L10.006,28.1V20.96Zm1.041-9.355L31,10v9.956l-11.379.089ZM31,21.089V31L19.618,29.4,19.6,21.07Z" fill="#0078d6"/></g>';
+
+function driveSvgVscodeIcons(isSystemDrive: boolean): string {
+  return (
+    '<svg viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg" width="16" height="16">' +
+    DRIVE_BODY_VSCODE_ICONS +
+    (isSystemDrive ? WINDOWS_BADGE : '') +
+    '</svg>'
+  );
+}
+
+/** C: is treated as the system drive (user request, 2026-09-17 — a literal drive-letter check, not an OS `SystemDrive` lookup). */
+function isSystemDrivePath(path: string): boolean {
+  return /^c:[\\/]?$/i.test(path.trim());
+}
+
+/**
  * Per-icon-theme drive glyph, as just the icon element itself (no row
  * wrapper) — reusable both inside a tab row and inside the header's own
  * "Add All Drives" button, which needs the bare glyph, not `.tree-icon`'s
- * row-specific sizing/margin (v0.3 WK-111, user request, 2026-09-17):
- * "VS Code Built-in" (id `seti`) uses codicon-server, "VS Code Icons" (id
- * `vscode-icons`) uses codicon-device-desktop, "Simple" uses its own
- * rectangle+":" SVG above. Deliberately a plain per-theme switch here
- * rather than a 4th `FileIconResolver.resolve()` kind, since a "drive" is
- * not a file/folder distinction any of the three resolvers otherwise make.
+ * row-specific sizing/margin (v0.3 WK-111, user request, 2026-09-17). Not
+ * routed through IconThemeManager's resolver — none of the three themes
+ * model a "drive" kind, so this picks per-theme markup directly instead.
+ * The header button always passes `path: ''` (never the system drive) —
+ * it is deliberately theme-*fixed* to `driveIconInnerMarkup('seti', '')`
+ * regardless of the active icon theme (user request, 2026-09-17: unlike
+ * the tab rows, the toggle button itself never changes).
  */
-export function driveIconInnerMarkup(theme: FileIconThemeId): string {
+export function driveIconInnerMarkup(theme: FileIconThemeId, path: string): string {
   if (theme === 'seti') return '<i class="codicon codicon-server"></i>';
-  if (theme === 'vscode-icons') return '<i class="codicon codicon-device-desktop"></i>';
+  if (theme === 'vscode-icons') return driveSvgVscodeIcons(isSystemDrivePath(path));
   return DRIVE_SVG_SIMPLE;
 }
 
 /** Same glyph as `driveIconInnerMarkup()`, wrapped in a tab row's own `.tree-icon`/`.tree-icon.svg-icon` span. */
-function driveIconMarkup(theme: FileIconThemeId): string {
-  if (theme === 'simple') {
-    const descriptor: IconDescriptor = { theme: 'simple', kind: 'svg', svgData: DRIVE_SVG_SIMPLE };
-    return renderIconMarkup(descriptor);
+function driveIconMarkup(theme: FileIconThemeId, path: string): string {
+  if (theme === 'seti') {
+    return `<span class="tree-icon">${driveIconInnerMarkup(theme, path)}</span>`;
   }
-  return `<span class="tree-icon">${driveIconInnerMarkup(theme)}</span>`;
+  const descriptor: IconDescriptor = { theme, kind: 'svg', svgData: driveIconInnerMarkup(theme, path) };
+  return renderIconMarkup(descriptor);
 }
 
 /**
@@ -91,6 +128,20 @@ function normalizePath(p: string): string {
 function folderNameOf(path: string): string {
   const parts = normalizePath(path).split(/[/\\]/).filter(Boolean);
   return parts[parts.length - 1] || path;
+}
+
+/**
+ * "System (C:)"/"Local Disk (D:)" — Explorer's own drive display
+ * convention (v0.3 WK-111 follow-up, user request, 2026-09-17). Used as a
+ * drive tab's `alias` at creation time, not computed at display time, since
+ * `label` is only known once, from the host bridge's `listDrives()` call
+ * that created the tab.
+ */
+function driveDisplayAlias(path: string, label: string): string {
+  const letterMatch = /^([A-Za-z]):/.exec(path.trim());
+  const letter = letterMatch ? letterMatch[1].toUpperCase() : '?';
+  const name = label.trim() || 'Local Disk';
+  return `${name} (${letter}:)`;
 }
 
 /**
@@ -244,14 +295,21 @@ export class FolderTabsController {
    * existing tabs. Does not change which tab is active; this only changes
    * what is LISTED, not what is showing. Unlike `addTab`, this fires
    * `onChange` exactly once for the whole batch, not once per drive.
+   *
+   * `label` is the volume label (v0.3 WK-111 follow-up, user request,
+   * 2026-09-17: "System (C:)"/"Data (D:)", Explorer's own display
+   * convention) — set as the tab's `alias`, the existing display-name
+   * override `displayName()` already reads, rather than a new field. An
+   * empty label (the drive has none) falls back to "Local Disk", same as
+   * Explorer's own unlabeled-drive text.
    */
-  public addDriveTabs(paths: readonly string[]): void {
-    if (paths.length === 0) return;
-    const newTabs: FolderTab[] = paths.map((path) => ({
+  public addDriveTabs(drives: readonly { path: string; label: string }[]): void {
+    if (drives.length === 0) return;
+    const newTabs: FolderTab[] = drives.map(({ path, label }) => ({
       id: `ft-${this.nextSeq++}`,
       path: normalizePath(path),
       numberSlot: 1,
-      alias: null,
+      alias: driveDisplayAlias(path, label),
       error: null,
       origin: 'drive-scan',
     }));
@@ -714,7 +772,7 @@ export class FolderTabsController {
       const iconMarkup = tab.error
         ? '<span class="tree-icon"><i class="codicon codicon-warning"></i></span>'
         : isDrive
-          ? driveIconMarkup(this.iconTheme.getTheme())
+          ? driveIconMarkup(this.iconTheme.getTheme(), tab.path)
           : renderIconMarkup(this.iconTheme.resolveIcon(folderNameOf(tab.path), true, tab.id === this.activeId));
 
       if (tab.id === this.renamingId) {

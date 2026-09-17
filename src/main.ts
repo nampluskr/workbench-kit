@@ -1341,12 +1341,13 @@ export class WorkbenchApp {
     const pressed = this.folderTabs.hasDriveTabs();
     btn.setAttribute('aria-pressed', pressed ? 'true' : 'false');
     btn.classList.toggle('active', pressed);
-    // Matches the same per-icon-theme glyph the drive tab rows themselves
-    // show (v0.3 WK-111, user request, 2026-09-17) — re-set here (not just
-    // once at startup) because this runs on every folderTabs.onChange,
-    // which fires after an icon-theme switch too (View > Icon Theme calls
-    // folderTabs.refresh(), and refresh()'s render() always fires onChange).
-    btn.innerHTML = driveIconInnerMarkup(this.iconTheme.getTheme());
+    // Fixed to the 'seti' glyph (codicon-server) regardless of the active
+    // icon theme (user request, 2026-09-17) — unlike the drive tab rows
+    // themselves, which DO follow the icon theme, the header toggle button
+    // never changes appearance. Still re-set on every call (not just once
+    // at startup) purely so it survives a render() that clears the DOM —
+    // not because the theme argument ever varies.
+    btn.innerHTML = driveIconInnerMarkup('seti', '');
   }
 
   /**

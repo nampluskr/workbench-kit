@@ -200,19 +200,36 @@ class WindowApi:
             raise RuntimeError(f"Failed to read directory {dir_path}: {e}")
 
     def list_drives(self):
-        """Every accessible drive root (v0.3 WK-111) — a drive letter that
-        exists but has no media (an empty CD-ROM drive) or is otherwise
-        unreachable is skipped: os.path.exists() on its root simply returns
-        False, same as any other dead path, so this never returns a drive
-        the app would immediately show as an error tab."""
+        """Every accessible drive root, with its volume label (v0.3
+        WK-111) — a drive letter that exists but has no media (an empty
+        CD-ROM drive) or is otherwise unreachable is skipped:
+        os.path.exists() on its root simply returns False, same as any
+        other dead path, so this never returns a drive the app would
+        immediately show as an error tab. The label comes from the
+        standard win32 GetVolumeInformationW API (via ctypes, no new
+        dependency) rather than shelling out to a locale-dependent command
+        — its own error path (a non-zero return) just means "no label",
+        not a failure worth surfacing."""
         if os.name != "nt":
             return []
         import string
+        import ctypes
         drives = []
         for letter in string.ascii_uppercase:
             root = f"{letter}:\\"
-            if os.path.exists(root):
-                drives.append(root)
+            if not os.path.exists(root):
+                continue
+            label = ""
+            try:
+                buf = ctypes.create_unicode_buffer(261)
+                ok = ctypes.windll.kernel32.GetVolumeInformationW(
+                    ctypes.c_wchar_p(root), buf, ctypes.sizeof(buf), None, None, None, None, 0
+                )
+                if ok:
+                    label = buf.value
+            except Exception:
+                label = ""
+            drives.append({"path": root, "label": label})
         return drives
 
 

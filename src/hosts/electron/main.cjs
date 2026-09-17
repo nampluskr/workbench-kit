@@ -2,6 +2,7 @@ const { app, BrowserWindow, ipcMain, dialog } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
+const { execFile } = require('child_process');
 
 const isSmokeTest = process.argv.includes('--smoke-test');
 
@@ -59,24 +60,53 @@ ipcMain.handle('fs:read-dir', async (_e, dirPath) => {
   }
 });
 
-// Every accessible drive root (v0.3 WK-111) — a drive letter that exists
-// but has no media (an empty CD-ROM drive) or is otherwise unreachable is
-// skipped: fs.promises.access() on its root simply rejects, same as any
-// other dead path, so this never returns a drive the app would immediately
-// show as an error tab.
+/**
+ * Every accessible drive root, with its volume label (v0.3 WK-111 /
+ * WK-111 follow-up, user request, 2026-09-17: show it Explorer-style, e.g.
+ * "System (C:)") in one PowerShell call —
+ * `[System.IO.DriveInfo]::GetDrives()`, .NET's own API, not the `Get-
+ * Volume` cmdlet: `Get-Volume` reads the newer Storage Management API,
+ * which silently OMITS a virtual/cloud-mounted drive letter (e.g. Google
+ * Drive's own drive) entirely — found empirically (2026-09-17) as a real
+ * dual-host inconsistency: pywebview's `GetVolumeInformationW` (the
+ * classic win32 API `DriveInfo` itself calls under the hood) correctly
+ * reported a Google Drive mount's label while `Get-Volume` did not list it
+ * at all. `DriveInfo`'s `IsReady` filter also replaces the previous
+ * per-letter `fs.promises.access()` loop — both ask the same underlying
+ * question ("is this drive actually reachable right now"), so one
+ * PowerShell call now does the whole job. Not the `vol` command's free-
+ * text output either, since that text is in the OS's OWN display language
+ * and would silently fail to parse on a Korean/other non-English system —
+ * `DriveInfo`'s property NAMES stay `Name`/`VolumeLabel` regardless.
+ */
 ipcMain.handle('fs:list-drives', async () => {
   if (process.platform !== 'win32') return [];
-  const drives = [];
-  for (let i = 65; i <= 90; i++) {
-    const root = `${String.fromCharCode(i)}:\\`;
-    try {
-      await fs.promises.access(root, fs.constants.R_OK);
-      drives.push(root);
-    } catch {
-      // not present/not accessible — skip
-    }
-  }
-  return drives;
+  return new Promise((resolve) => {
+    execFile(
+      'powershell.exe',
+      [
+        '-NoProfile',
+        '-NonInteractive',
+        '-Command',
+        '[System.IO.DriveInfo]::GetDrives() | Where-Object { $_.IsReady } | Select-Object Name,VolumeLabel | ConvertTo-Json -Compress',
+      ],
+      { timeout: 5000, windowsHide: true },
+      (err, stdout) => {
+        if (err || !stdout) return resolve([]);
+        try {
+          const parsed = JSON.parse(stdout);
+          const rows = Array.isArray(parsed) ? parsed : [parsed];
+          resolve(
+            rows
+              .filter((row) => row && row.Name)
+              .map((row) => ({ path: row.Name, label: row.VolumeLabel || '' }))
+          );
+        } catch {
+          resolve([]);
+        }
+      }
+    );
+  });
 });
 
 const INSPECTION_EXPRESSION = `
