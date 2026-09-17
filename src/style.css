@@ -696,7 +696,10 @@ body.is-resizing-foldertabs {
      Explorer's single-line .tree-row height (plus this row's own vertical
      padding) when the title fits on one line. */
   min-height: 22px;
-  padding: 3px 10px;
+  /* Right side narrowed to 2px, matching the editor tab's own right padding
+     (.dv-tab's `padding: 0 2px 0 5px`) — the space after its × icon (user
+     request, 2026-09-17). Left/top/bottom unchanged (unrelated to the ×). */
+  padding: 3px 2px 3px 10px;
   cursor: pointer;
   outline: none;
   box-sizing: border-box;
@@ -750,6 +753,19 @@ body.is-resizing-foldertabs {
   margin-left: 4px;
   opacity: 0;
   outline: none;
+}
+
+/* codicon.css's own `.codicon[class*='codicon-']` rule hard-codes
+   `font: normal normal normal 16px/1 codicon` — that shorthand always wins
+   over this button's own font-size: 13px above (equal specificity, but the
+   vendor rule is a single rule setting the <i>'s own font directly), so the
+   × rendered noticeably larger/heavier here than the editor tab's own close
+   glyph, which sets font-size: 13px explicitly on its own ::before (user
+   report, 2026-09-17: this one looked bold, the editor tab's looked thin).
+   Selector specificity intentionally higher (3 classes vs the vendor
+   rule's 2) so this wins regardless of import order. */
+.foldertabs-tab-close .codicon.codicon-close {
+  font-size: 13px;
 }
 
 .foldertabs-tab:hover .foldertabs-tab-close,
@@ -1902,6 +1918,25 @@ body.is-resizing-sidebar {
  */
 .dv-tab.workbench-preview-tab .dv-default-tab-content {
   font-style: italic;
+  /* `overflow: hidden` above clips at this box's LAYOUT width, which the
+     browser computes from the title's upright (non-italic) glyph advance
+     widths — font-style: italic only slants glyphs at paint time, so it is
+     never factored into that width. The last glyph's ink can therefore
+     extend past this box's right edge and get hard-clipped (root-caused
+     2026-09-17: confirmed empirically that .dv-default-tab-content's own
+     scrollWidth === clientWidth even while the rendered "d" in "CLAUDE.md"
+     was visibly cut off — this is invisible to any overflow/ellipsis
+     check). The 2026-09-15 fix (widening the gap to the close button)
+     only ever helped "Untitled" by incidentally growing .dv-tab's own
+     width: max-content sum by a pixel or two — not a real fix, since it
+     never touched THIS box's own clip boundary, which is why "CLAUDE.md"
+     still clipped. This padding reserves the actual overshoot (tan of the
+     font's italic angle × its height, roughly 2-3px at this 13px size,
+     independent of which string is showing) directly on the box that does
+     the clipping, so it covers every title, not just the ones that
+     happened to get lucky. Scoped to preview (italic) tabs only — a
+     non-italic tab's glyphs have no slant overshoot to cover. */
+  padding-right: 3px;
 }
 
 .dv-tab .dv-default-tab-action {
