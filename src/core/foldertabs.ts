@@ -1,17 +1,45 @@
-import { IconThemeManager, IconDescriptor } from './icontheme';
+import { IconThemeManager, IconDescriptor, FileIconThemeId } from './icontheme';
 import { renderIconMarkup, escapeHtml } from './tree';
 
 /**
- * Fixed, theme-independent rectangle glyph for a drive tab (v0.3 WK-111,
- * user request, 2026-09-17: "폴더와 다른 아이콘" — visually distinct from the
- * folder icon, deliberately NOT routed through IconThemeManager's resolver
- * (seti/vscode-icons/simple all only model file/folder, never "drive") so
- * adding this one shape didn't require extending that three-theme contract.
+ * "Simple" theme's drive glyph (v0.3 WK-111, user request, 2026-09-17) — a
+ * plain rectangle with a ":" mark near its inner right edge, echoing a
+ * drive letter's own "C:" notation. Not routed through IconThemeManager's
+ * resolver (none of the three themes model a "drive" kind) — `driveIcon
+ * Markup()` below picks per-theme markup directly instead.
  */
-const DRIVE_SVG =
+const DRIVE_SVG_SIMPLE =
   '<svg viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg" width="16" height="16">' +
   '<rect x="1.5" y="3.5" width="13" height="9" rx="1" fill="none" stroke="currentColor"/>' +
+  '<circle cx="11.5" cy="6.3" r="0.8" fill="currentColor"/>' +
+  '<circle cx="11.5" cy="9.7" r="0.8" fill="currentColor"/>' +
   '</svg>';
+
+/**
+ * Per-icon-theme drive glyph, as just the icon element itself (no row
+ * wrapper) — reusable both inside a tab row and inside the header's own
+ * "Add All Drives" button, which needs the bare glyph, not `.tree-icon`'s
+ * row-specific sizing/margin (v0.3 WK-111, user request, 2026-09-17):
+ * "VS Code Built-in" (id `seti`) uses codicon-server, "VS Code Icons" (id
+ * `vscode-icons`) uses codicon-device-desktop, "Simple" uses its own
+ * rectangle+":" SVG above. Deliberately a plain per-theme switch here
+ * rather than a 4th `FileIconResolver.resolve()` kind, since a "drive" is
+ * not a file/folder distinction any of the three resolvers otherwise make.
+ */
+export function driveIconInnerMarkup(theme: FileIconThemeId): string {
+  if (theme === 'seti') return '<i class="codicon codicon-server"></i>';
+  if (theme === 'vscode-icons') return '<i class="codicon codicon-device-desktop"></i>';
+  return DRIVE_SVG_SIMPLE;
+}
+
+/** Same glyph as `driveIconInnerMarkup()`, wrapped in a tab row's own `.tree-icon`/`.tree-icon.svg-icon` span. */
+function driveIconMarkup(theme: FileIconThemeId): string {
+  if (theme === 'simple') {
+    const descriptor: IconDescriptor = { theme: 'simple', kind: 'svg', svgData: DRIVE_SVG_SIMPLE };
+    return renderIconMarkup(descriptor);
+  }
+  return `<span class="tree-icon">${driveIconInnerMarkup(theme)}</span>`;
+}
 
 /**
  * One registered working folder (v0.3 D-1, D-3). The shell never replaces the
@@ -677,17 +705,16 @@ export class FolderTabsController {
       // An error tab shows a warning glyph instead of the (possibly
       // misleading) resolved folder icon — the path may no longer exist,
       // so nothing about "what kind of folder is this" is knowable (v0.3 D-6).
-      // A drive tab always shows the fixed rectangle glyph (v0.3 WK-111,
+      // A drive tab shows its own per-icon-theme glyph (v0.3 WK-111,
       // outside the open/closed distinction below — a drive has no
       // "collapsed" concept). The active tab's icon renders open, every
       // other (non-drive) tab's closed — the same open/closed distinction
       // the Explorer's own root row already draws for the folder it has
       // expanded (user request, 2026-09-17).
-      const driveIconDescriptor: IconDescriptor = { theme: 'simple', kind: 'svg', svgData: DRIVE_SVG };
       const iconMarkup = tab.error
         ? '<span class="tree-icon"><i class="codicon codicon-warning"></i></span>'
         : isDrive
-          ? renderIconMarkup(driveIconDescriptor)
+          ? driveIconMarkup(this.iconTheme.getTheme())
           : renderIconMarkup(this.iconTheme.resolveIcon(folderNameOf(tab.path), true, tab.id === this.activeId));
 
       if (tab.id === this.renamingId) {

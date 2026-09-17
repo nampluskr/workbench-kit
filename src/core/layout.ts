@@ -73,7 +73,8 @@ export function createWorkbenchLayout(container: HTMLElement): WorkbenchLayoutEl
             <span id="foldertabs-title" class="foldertabs-title">FOLDERS</span>
             <div class="foldertabs-header-actions">
               <button id="foldertabs-add-btn" class="foldertabs-action-btn" title="Add Folder" aria-label="Add Folder"><i class="codicon codicon-new-folder"></i></button>
-              <button id="foldertabs-drives-btn" class="foldertabs-action-btn" title="Add All Drives" aria-label="Add All Drives" aria-pressed="false"><svg viewBox="0 0 16 16" width="16" height="16"><rect x="1.5" y="3.5" width="13" height="9" rx="1" fill="none" stroke="currentColor"/></svg></button>
+              <!-- Icon set by main.ts's refreshDrivesButtonState() (v0.3 WK-111) — it is per-icon-theme, so there is no single correct default to bake in here. -->
+              <button id="foldertabs-drives-btn" class="foldertabs-action-btn" title="Add All Drives" aria-label="Add All Drives" aria-pressed="false"></button>
               <button id="foldertabs-rename-btn" class="foldertabs-action-btn" title="Rename Folder Tab" aria-label="Rename Folder Tab" disabled><i class="codicon codicon-edit"></i></button>
             </div>
           </div>

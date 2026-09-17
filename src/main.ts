@@ -12,7 +12,7 @@ import { ThemeManager, ColorTheme } from './core/theme';
 import { IconThemeManager, FileIconThemeId } from './core/icontheme';
 import { SetiResolver, VscodeIconsResolver, SimpleResolver } from './icons';
 import { TreeController, TreeNode } from './core/tree';
-import { FolderTabsController, FolderTab } from './core/foldertabs';
+import { FolderTabsController, FolderTab, driveIconInnerMarkup } from './core/foldertabs';
 import { ExplorerTitlebarController } from './core/sidebar';
 import { FileSystemTreeProvider, promptOpenFolderDialog, listDrives } from './providers/filesystem';
 import { EditorController, EditorOpenMode, snapshotHasDirtyPanels } from './core/editor';
@@ -1341,6 +1341,12 @@ export class WorkbenchApp {
     const pressed = this.folderTabs.hasDriveTabs();
     btn.setAttribute('aria-pressed', pressed ? 'true' : 'false');
     btn.classList.toggle('active', pressed);
+    // Matches the same per-icon-theme glyph the drive tab rows themselves
+    // show (v0.3 WK-111, user request, 2026-09-17) — re-set here (not just
+    // once at startup) because this runs on every folderTabs.onChange,
+    // which fires after an icon-theme switch too (View > Icon Theme calls
+    // folderTabs.refresh(), and refresh()'s render() always fires onChange).
+    btn.innerHTML = driveIconInnerMarkup(this.iconTheme.getTheme());
   }
 
   /**
