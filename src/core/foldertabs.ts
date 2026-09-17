@@ -1,5 +1,17 @@
-import { IconThemeManager } from './icontheme';
+import { IconThemeManager, IconDescriptor } from './icontheme';
 import { renderIconMarkup, escapeHtml } from './tree';
+
+/**
+ * Fixed, theme-independent rectangle glyph for a drive tab (v0.3 WK-111,
+ * user request, 2026-09-17: "폴더와 다른 아이콘" — visually distinct from the
+ * folder icon, deliberately NOT routed through IconThemeManager's resolver
+ * (seti/vscode-icons/simple all only model file/folder, never "drive") so
+ * adding this one shape didn't require extending that three-theme contract.
+ */
+const DRIVE_SVG =
+  '<svg viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg" width="16" height="16">' +
+  '<rect x="1.5" y="3.5" width="13" height="9" rx="1" fill="none" stroke="currentColor"/>' +
+  '</svg>';
 
 /**
  * One registered working folder (v0.3 D-1, D-3). The shell never replaces the
@@ -26,6 +38,16 @@ export interface FolderTab {
    * filesystem itself (D-9's "껍데기는 리소스 종류를 모른다").
    */
   error: string | null;
+  /**
+   * 'drive-scan' marks a tab the "add all drives" toggle created (v0.3
+   * WK-111) — rendered with a distinct rectangle icon, pinned above every
+   * 'user' tab, with no individual close/rename/relocate affordance of its
+   * own (the toggle button is the only way to remove one, in bulk, by
+   * design — user request, 2026-09-17). Defaults to 'user' when restoring
+   * tabs persisted before this field existed (`t.origin ?? 'user'` in
+   * `restoreTabs`).
+   */
+  origin: 'user' | 'drive-scan';
 }
 
 function normalizePath(p: string): string {
@@ -179,10 +201,61 @@ export class FolderTabsController {
       numberSlot: slot,
       alias: null,
       error: null,
+      origin: 'user',
     };
     this.tabs.push(tab);
     this.activateTab(tab.id);
     return tab;
+  }
+
+  /**
+   * Bulk-adds every given drive root as its own tab, pinned above every
+   * existing tab (v0.3 WK-111). Always adds fresh entries, even for a drive
+   * already open as a regular tab (D-3's "always adds" policy, user
+   * request, 2026-09-17) — this method does not check for or dedupe against
+   * existing tabs. Does not change which tab is active; this only changes
+   * what is LISTED, not what is showing. Unlike `addTab`, this fires
+   * `onChange` exactly once for the whole batch, not once per drive.
+   */
+  public addDriveTabs(paths: readonly string[]): void {
+    if (paths.length === 0) return;
+    const newTabs: FolderTab[] = paths.map((path) => ({
+      id: `ft-${this.nextSeq++}`,
+      path: normalizePath(path),
+      numberSlot: 1,
+      alias: null,
+      error: null,
+      origin: 'drive-scan',
+    }));
+    this.tabs = [...newTabs, ...this.tabs];
+    this.render();
+  }
+
+  /**
+   * Removes every 'drive-scan' tab at once — the toggle button's "off"
+   * side (v0.3 WK-111). If the active tab was one of them, the active mark
+   * is simply dropped (mirrors `clearActive()`) rather than guessing which
+   * remaining tab should take over; the Explorer just goes back to its
+   * empty state, the same as any other "0 tabs left active" case.
+   */
+  public removeDriveTabs(): void {
+    const removedIds = this.tabs.filter((t) => t.origin === 'drive-scan').map((t) => t.id);
+    if (removedIds.length === 0) return;
+    const activeWasRemoved = this.activeId !== null && removedIds.includes(this.activeId);
+    this.tabs = this.tabs.filter((t) => t.origin !== 'drive-scan');
+    if (activeWasRemoved) this.activeId = null;
+    for (const id of removedIds) {
+      for (const cb of this.removeCallbacks) cb(id);
+    }
+    this.render();
+    if (activeWasRemoved) {
+      for (const cb of this.emptyCallbacks) cb();
+    }
+  }
+
+  /** Whether the "add all drives" toggle is currently showing its drives (v0.3 WK-111) — drives the header button's own pressed state. */
+  public hasDriveTabs(): boolean {
+    return this.tabs.some((t) => t.origin === 'drive-scan');
   }
 
   /**
@@ -279,7 +352,9 @@ export class FolderTabsController {
     // marked broken even after the path came back, and conversely a tab
     // that broke while the app was closed showed no error until clicked
     // (A5 R1 Major finding: comment claimed "starts cleared", code did not).
-    this.tabs = tabs.map((t) => ({ ...t, error: null }));
+    // `origin ?? 'user'` covers a tab persisted before this field existed
+    // (v0.3 WK-111) — it was always a regular user-opened tab.
+    this.tabs = tabs.map((t) => ({ ...t, error: null, origin: t.origin ?? 'user' }));
     const usedSeqs = this.tabs
       .map((t) => /^ft-(\d+)$/.exec(t.id))
       .filter((m): m is RegExpExecArray => Boolean(m))
@@ -385,10 +460,16 @@ export class FolderTabsController {
     return tab;
   }
 
-  /** Opens the inline rename row for a tab (default: the active one). Disabled with 0 active tab (D-4). */
+  /**
+   * Opens the inline rename row for a tab (default: the active one).
+   * Disabled with 0 active tab (D-4), and for a 'drive-scan' tab (v0.3
+   * WK-111) — a drive tab has no individual actions of its own besides
+   * activation; only the bulk toggle changes what drive tabs exist.
+   */
   public beginRename(id?: string): void {
     const targetId = id ?? this.getActiveTab()?.id ?? null;
-    if (!targetId || !this.tabs.some((t) => t.id === targetId)) return;
+    const targetTab = targetId ? this.tabs.find((t) => t.id === targetId) : undefined;
+    if (!targetTab || targetTab.origin === 'drive-scan') return;
     this.renamingId = targetId;
     this.renamingInitialValue = this.displayName(this.tabs.find((t) => t.id === targetId)!);
     this.renamingDraftValue = null;
@@ -535,6 +616,12 @@ export class FolderTabsController {
     const rows = Array.from(this.listEl.children) as HTMLElement[];
     for (const row of rows) {
       if (row.getAttribute('data-id') === draggedId) continue;
+      // Neither the pinned drive-tab block nor its separator is a valid drop
+      // target (v0.3 WK-111) — only a drive tab can ever be dragged is not
+      // true (drive rows never get beginDrag wiring in the first place), but
+      // a 'user' tab being dragged must never land ABOVE the drive block,
+      // which this row-scan would otherwise allow.
+      if (row.classList.contains('drive') || row.classList.contains('foldertabs-drive-separator')) continue;
       const rect = row.getBoundingClientRect();
       if (clientY < rect.top + rect.height / 2) {
         row.classList.add('drop-before');
@@ -555,10 +642,29 @@ export class FolderTabsController {
     if (!this.listEl) return;
     this.listEl.innerHTML = '';
 
+    // A separator marks the end of the pinned drive-tab block (v0.3 WK-111)
+    // — only drawn once, right before the first 'user' tab, and only when
+    // there is at least one of each (nothing to separate a lone group from).
+    const hasDriveTab = this.tabs.some((t) => t.origin === 'drive-scan');
+    const hasUserTab = this.tabs.some((t) => t.origin === 'user');
+    let separatorDrawn = false;
+
     for (const tab of this.tabs) {
+      if (hasDriveTab && hasUserTab && !separatorDrawn && tab.origin === 'user') {
+        const separator = document.createElement('div');
+        separator.className = 'foldertabs-drive-separator';
+        separator.setAttribute('role', 'separator');
+        this.listEl.appendChild(separator);
+        separatorDrawn = true;
+      }
+
+      const isDrive = tab.origin === 'drive-scan';
       const row = document.createElement('div');
       row.className =
-        'foldertabs-tab' + (tab.id === this.activeId ? ' active' : '') + (tab.error ? ' error' : '');
+        'foldertabs-tab' +
+        (tab.id === this.activeId ? ' active' : '') +
+        (tab.error ? ' error' : '') +
+        (isDrive ? ' drive' : '');
       row.setAttribute('role', 'tab');
       row.setAttribute('data-id', tab.id);
       // The error message replaces the path in the tooltip — it already
@@ -571,12 +677,18 @@ export class FolderTabsController {
       // An error tab shows a warning glyph instead of the (possibly
       // misleading) resolved folder icon — the path may no longer exist,
       // so nothing about "what kind of folder is this" is knowable (v0.3 D-6).
-      // The active tab's icon renders open, every other tab's closed — the
-      // same open/closed distinction the Explorer's own root row already
-      // draws for the folder it has expanded (user request, 2026-09-17).
+      // A drive tab always shows the fixed rectangle glyph (v0.3 WK-111,
+      // outside the open/closed distinction below — a drive has no
+      // "collapsed" concept). The active tab's icon renders open, every
+      // other (non-drive) tab's closed — the same open/closed distinction
+      // the Explorer's own root row already draws for the folder it has
+      // expanded (user request, 2026-09-17).
+      const driveIconDescriptor: IconDescriptor = { theme: 'simple', kind: 'svg', svgData: DRIVE_SVG };
       const iconMarkup = tab.error
         ? '<span class="tree-icon"><i class="codicon codicon-warning"></i></span>'
-        : renderIconMarkup(this.iconTheme.resolveIcon(folderNameOf(tab.path), true, tab.id === this.activeId));
+        : isDrive
+          ? renderIconMarkup(driveIconDescriptor)
+          : renderIconMarkup(this.iconTheme.resolveIcon(folderNameOf(tab.path), true, tab.id === this.activeId));
 
       if (tab.id === this.renamingId) {
         row.classList.add('renaming');
@@ -646,14 +758,20 @@ export class FolderTabsController {
       // An error tab gets a "locate…" control to re-point it at a new path
       // (v0.3 D-6, WK-103) — always visible on that row, not just on hover
       // like ×, since it is the tab's whole reason for needing attention.
-      const relocateButtonHtml = tab.error
-        ? `<button type="button" class="foldertabs-tab-relocate" title="Locate Folder…" aria-label="Locate Folder for ${escapeHtml(this.displayName(tab))}"><i class="codicon codicon-search"></i></button>`
-        : '';
+      // Neither this nor the close button exists on a drive tab (v0.3
+      // WK-111) — it has no individual actions, only the bulk toggle.
+      const relocateButtonHtml =
+        tab.error && !isDrive
+          ? `<button type="button" class="foldertabs-tab-relocate" title="Locate Folder…" aria-label="Locate Folder for ${escapeHtml(this.displayName(tab))}"><i class="codicon codicon-search"></i></button>`
+          : '';
+      const closeButtonHtml = isDrive
+        ? ''
+        : `<button type="button" class="foldertabs-tab-close" title="Close" aria-label="Close ${escapeHtml(this.displayName(tab))}"><i class="codicon codicon-close"></i></button>`;
       row.innerHTML =
         iconMarkup +
         `<span class="foldertabs-tab-label">${escapeHtml(this.displayName(tab))}</span>` +
         relocateButtonHtml +
-        `<button type="button" class="foldertabs-tab-close" title="Close" aria-label="Close ${escapeHtml(this.displayName(tab))}"><i class="codicon codicon-close"></i></button>`;
+        closeButtonHtml;
 
       row.addEventListener('click', () => {
         // A click on a different tab while another is mid-rename cancels
@@ -686,13 +804,18 @@ export class FolderTabsController {
       // Same fix as the renaming-row close button above (A2 R2 Major finding).
       closeBtn?.addEventListener('keydown', (e) => e.stopPropagation());
 
-      row.addEventListener('pointerdown', (e) => this.beginDrag(tab, e, row));
+      // No drag reorder for a drive tab (v0.3 WK-111) — it stays pinned in
+      // the block the toggle built, never mixed in among 'user' tabs.
+      if (!isDrive) {
+        row.addEventListener('pointerdown', (e) => this.beginDrag(tab, e, row));
+      }
 
       this.listEl.appendChild(row);
     }
 
     if (this.renameBtn) {
-      this.renameBtn.disabled = !this.getActiveTab();
+      const active = this.getActiveTab();
+      this.renameBtn.disabled = !active || active.origin === 'drive-scan';
     }
 
     this.applyIconColors();

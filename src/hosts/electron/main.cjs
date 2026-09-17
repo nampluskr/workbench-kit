@@ -59,6 +59,26 @@ ipcMain.handle('fs:read-dir', async (_e, dirPath) => {
   }
 });
 
+// Every accessible drive root (v0.3 WK-111) — a drive letter that exists
+// but has no media (an empty CD-ROM drive) or is otherwise unreachable is
+// skipped: fs.promises.access() on its root simply rejects, same as any
+// other dead path, so this never returns a drive the app would immediately
+// show as an error tab.
+ipcMain.handle('fs:list-drives', async () => {
+  if (process.platform !== 'win32') return [];
+  const drives = [];
+  for (let i = 65; i <= 90; i++) {
+    const root = `${String.fromCharCode(i)}:\\`;
+    try {
+      await fs.promises.access(root, fs.constants.R_OK);
+      drives.push(root);
+    } catch {
+      // not present/not accessible — skip
+    }
+  }
+  return drives;
+});
+
 const INSPECTION_EXPRESSION = `
 JSON.stringify({
   href: window.location.href,

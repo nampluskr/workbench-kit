@@ -17,6 +17,8 @@ export interface WorkbenchLayoutElements {
   /** Folder Tabs rail, between the Activity Bar and Explorer (v0.3 D-1). */
   folderTabsRail: HTMLElement;
   folderTabsAddBtn: HTMLButtonElement;
+  /** "Add All Drives" toggle (v0.3 WK-111) — see FolderTabsController.addDriveTabs/removeDriveTabs. */
+  folderTabsDrivesBtn: HTMLButtonElement;
   folderTabsRenameBtn: HTMLButtonElement;
   folderTabsList: HTMLElement;
   /** Drag handle between the Folder Tabs rail and the Explorer (user request, 2026-09-17). */
@@ -71,6 +73,7 @@ export function createWorkbenchLayout(container: HTMLElement): WorkbenchLayoutEl
             <span id="foldertabs-title" class="foldertabs-title">FOLDERS</span>
             <div class="foldertabs-header-actions">
               <button id="foldertabs-add-btn" class="foldertabs-action-btn" title="Add Folder" aria-label="Add Folder"><i class="codicon codicon-new-folder"></i></button>
+              <button id="foldertabs-drives-btn" class="foldertabs-action-btn" title="Add All Drives" aria-label="Add All Drives" aria-pressed="false"><svg viewBox="0 0 16 16" width="16" height="16"><rect x="1.5" y="3.5" width="13" height="9" rx="1" fill="none" stroke="currentColor"/></svg></button>
               <button id="foldertabs-rename-btn" class="foldertabs-action-btn" title="Rename Folder Tab" aria-label="Rename Folder Tab" disabled><i class="codicon codicon-edit"></i></button>
             </div>
           </div>
@@ -139,6 +142,7 @@ export function createWorkbenchLayout(container: HTMLElement): WorkbenchLayoutEl
     activityBarBottom: container.querySelector('#activity-bar-bottom') as HTMLElement,
     folderTabsRail: container.querySelector('#foldertabs-rail') as HTMLElement,
     folderTabsAddBtn: container.querySelector('#foldertabs-add-btn') as HTMLButtonElement,
+    folderTabsDrivesBtn: container.querySelector('#foldertabs-drives-btn') as HTMLButtonElement,
     folderTabsRenameBtn: container.querySelector('#foldertabs-rename-btn') as HTMLButtonElement,
     folderTabsList: container.querySelector('#foldertabs-list') as HTMLElement,
     folderTabsResizeHandle: container.querySelector('#foldertabs-resize-handle') as HTMLElement,

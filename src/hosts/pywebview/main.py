@@ -199,6 +199,22 @@ class WindowApi:
         except Exception as e:
             raise RuntimeError(f"Failed to read directory {dir_path}: {e}")
 
+    def list_drives(self):
+        """Every accessible drive root (v0.3 WK-111) — a drive letter that
+        exists but has no media (an empty CD-ROM drive) or is otherwise
+        unreachable is skipped: os.path.exists() on its root simply returns
+        False, same as any other dead path, so this never returns a drive
+        the app would immediately show as an error tab."""
+        if os.name != "nt":
+            return []
+        import string
+        drives = []
+        for letter in string.ascii_uppercase:
+            root = f"{letter}:\\"
+            if os.path.exists(root):
+                drives.append(root)
+        return drives
+
 
 WINDOW_WIDTH = 1280
 WINDOW_HEIGHT = 800

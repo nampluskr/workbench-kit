@@ -14,7 +14,7 @@ import { SetiResolver, VscodeIconsResolver, SimpleResolver } from './icons';
 import { TreeController, TreeNode } from './core/tree';
 import { FolderTabsController, FolderTab } from './core/foldertabs';
 import { ExplorerTitlebarController } from './core/sidebar';
-import { FileSystemTreeProvider, promptOpenFolderDialog } from './providers/filesystem';
+import { FileSystemTreeProvider, promptOpenFolderDialog, listDrives } from './providers/filesystem';
 import { EditorController, EditorOpenMode, snapshotHasDirtyPanels } from './core/editor';
 import type { SerializedDockview } from 'dockview-core';
 import { ContextMenuController, ContextMenuItem } from './core/contextmenu';
@@ -196,6 +196,17 @@ export class WorkbenchApp {
       this.iconTheme
     );
     this.folderTabs.onAddRequested = () => this.handleOpenFolderDialog();
+    // "Add All Drives" toggle (v0.3 WK-111): adds every accessible drive at
+    // once, or removes all of them if any are currently showing. The
+    // button's own pressed state always reflects `hasDriveTabs()` after
+    // every render, so it stays correct if drives are ever removed some
+    // other way (e.g. `restoreTabs()` on a fresh restart never restoring
+    // hardware that is no longer physically present).
+    this.layout.folderTabsDrivesBtn?.addEventListener('click', () => {
+      void this.handleToggleDriveTabs();
+    });
+    this.folderTabs.onChange(() => this.refreshDrivesButtonState());
+    this.refreshDrivesButtonState();
     // "Locate Folder…" on an error tab (v0.3 D-6, WK-103).
     this.folderTabs.onRelocateRequested = (id) => {
       void this.handleRelocateFolderTab(id);
@@ -1306,6 +1317,30 @@ export class WorkbenchApp {
     if (selected) {
       this.folderTabs.addTab(selected);
     }
+  }
+
+  /**
+   * "Add All Drives" toggle (v0.3 WK-111): a bare toggle, not a re-scan —
+   * pressing it again while drives are showing always removes them, even
+   * if the real drive set changed since (a USB stick unplugged, say). It
+   * never dedupes against an already-open regular tab for the same drive
+   * (D-3's "Open Folder always adds" policy applies here too).
+   */
+  private async handleToggleDriveTabs(): Promise<void> {
+    if (this.folderTabs.hasDriveTabs()) {
+      this.folderTabs.removeDriveTabs();
+      return;
+    }
+    const drives = await listDrives();
+    this.folderTabs.addDriveTabs(drives);
+  }
+
+  private refreshDrivesButtonState(): void {
+    const btn = this.layout.folderTabsDrivesBtn;
+    if (!btn) return;
+    const pressed = this.folderTabs.hasDriveTabs();
+    btn.setAttribute('aria-pressed', pressed ? 'true' : 'false');
+    btn.classList.toggle('active', pressed);
   }
 
   /**

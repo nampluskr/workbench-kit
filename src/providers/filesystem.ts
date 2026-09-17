@@ -11,6 +11,8 @@ export interface HostFileSystemBridge {
   readDir?: (dirPath: string) => Promise<HostDirectoryEntry[]>;
   open_folder_dialog?: () => Promise<string | null>;
   read_dir?: (dirPath: string) => Promise<HostDirectoryEntry[]>;
+  listDrives?: () => Promise<string[]>;
+  list_drives?: () => Promise<string[]>;
 }
 
 function getHostFsBridge(): HostFileSystemBridge | null {
@@ -34,6 +36,24 @@ export async function promptOpenFolderDialog(): Promise<string | null> {
     return await host.open_folder_dialog();
   }
   return null;
+}
+
+/**
+ * Every accessible drive root on the host (v0.3 WK-111, D-1 extension) —
+ * e.g. `["C:\\", "D:\\"]` on Windows, `[]` on any host/OS that doesn't
+ * expose this bridge method (both hosts' implementations already filter
+ * out a drive letter that exists but isn't actually reachable, like an
+ * empty CD-ROM drive).
+ */
+export async function listDrives(): Promise<string[]> {
+  const host = getHostFsBridge();
+  if (host?.listDrives) {
+    return await host.listDrives();
+  }
+  if (host?.list_drives) {
+    return await host.list_drives();
+  }
+  return [];
 }
 
 /**

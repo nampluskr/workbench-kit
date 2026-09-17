@@ -662,6 +662,13 @@ body.is-resizing-foldertabs {
   background-color: var(--button-hover-bg);
 }
 
+/* "Add All Drives" toggle's pressed state (v0.3 WK-111), same convention
+   as .activity-bar-item.active. */
+.foldertabs-action-btn.active {
+  opacity: 1;
+  background-color: var(--button-hover-bg);
+}
+
 .foldertabs-action-btn:disabled {
   opacity: 0.35;
   cursor: default;
@@ -814,6 +821,14 @@ body.is-resizing-foldertabs {
 .foldertabs-tab-relocate:focus {
   opacity: 1;
   background-color: var(--button-hover-bg);
+}
+
+/* Divider between the pinned drive-tab block and regular tabs below it
+   (v0.3 WK-111) — same look as the View menu's own separator. */
+.foldertabs-drive-separator {
+  height: 1px;
+  background-color: var(--border-color);
+  margin: 3px 0;
 }
 
 /* Inline rename row (v0.3 D-4): Enter saves, Escape cancels. */
