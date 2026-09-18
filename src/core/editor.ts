@@ -234,16 +234,16 @@ export class EditorHeaderActionsRenderer implements IHeaderActionsRenderer {
 
   private render(): void {
     this.element.innerHTML = `
-      <button class="editor-action-btn tab-action-new" title="New Tab" aria-label="New Tab">
+      <button class="editor-action-btn tab-action-new" title="New Tab (Ctrl+N)" aria-label="New Tab">
         <i class="codicon codicon-diff-added"></i>
       </button>
       <button class="editor-action-btn tab-action-split-right" title="Split Right (Ctrl+\\)" aria-label="Split Right">
         <i class="codicon codicon-split-horizontal"></i>
       </button>
-      <button class="editor-action-btn tab-action-split-down" title="Split Down" aria-label="Split Down">
+      <button class="editor-action-btn tab-action-split-down" title="Split Down (Ctrl+K Ctrl+\\)" aria-label="Split Down">
         <i class="codicon codicon-split-vertical"></i>
       </button>
-      <button class="editor-action-btn tab-action-close-all" title="Close All Tabs in Group" aria-label="Close All Tabs in Group">
+      <button class="editor-action-btn tab-action-close-all" title="Close All Tabs in Group (Ctrl+K W)" aria-label="Close All Tabs in Group">
         <i class="codicon codicon-close-all"></i>
       </button>
     `;

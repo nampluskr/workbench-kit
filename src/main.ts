@@ -16,7 +16,7 @@ import { FolderTabsController, FolderTab, driveIconInnerMarkup } from './core/fo
 import { ExplorerTitlebarController } from './core/sidebar';
 import { FileSystemTreeProvider, promptOpenFolderDialog, listDrives } from './providers/filesystem';
 import { EditorController, EditorOpenMode, snapshotHasDirtyPanels } from './core/editor';
-import type { SerializedDockview } from 'dockview-core';
+import type { SerializedDockview, DockviewGroupPanel } from 'dockview-core';
 import { ContextMenuController, ContextMenuItem } from './core/contextmenu';
 import { ResourceKindRegistry } from './registry/kind-registry';
 import { registerFilePreset, FILE_KIND } from './presets/file-preset';
@@ -661,6 +661,16 @@ export class WorkbenchApp {
     // keydown must not be able to swallow them, so the listener runs before the
     // event reaches the view. Non-reserved keys fall through untouched.
     if (typeof window !== 'undefined') {
+      let pendingChord: 'ctrl-k' | null = null;
+      let chordTimer: any = null;
+      const resetChord = () => {
+        pendingChord = null;
+        if (chordTimer) {
+          clearTimeout(chordTimer);
+          chordTimer = null;
+        }
+      };
+
       window.addEventListener('keydown', (e) => {
         const ctrlOnly = e.ctrlKey && !e.shiftKey && !e.altKey && !e.metaKey;
         const altOnly = e.altKey && !e.ctrlKey && !e.shiftKey && !e.metaKey;
@@ -669,18 +679,60 @@ export class WorkbenchApp {
         // the command with the menu already closed.
         const run = (fn: () => void) => {
           e.preventDefault();
+          e.stopPropagation();
           if (this.menu.isOpen) this.menu.closeMenu();
           fn();
         };
+
+        // Handle active chord (e.g. Ctrl+K)
+        if (pendingChord === 'ctrl-k') {
+          if (e.key === 'Escape') {
+            resetChord();
+            return;
+          }
+          if ((ctrlOnly || (e.ctrlKey && !e.altKey && !e.metaKey)) && e.key === '\\') {
+            resetChord();
+            run(() => this.editor.splitActiveGroup('below'));
+            return;
+          }
+          if ((e.key === 'w' || e.key === 'W') && !e.altKey && !e.metaKey) {
+            resetChord();
+            run(() => void this.editor.closeAllTabsInGroup());
+            return;
+          }
+          resetChord();
+        }
+
+        if (ctrlOnly && (e.key === 'k' || e.key === 'K')) {
+          e.preventDefault();
+          e.stopPropagation();
+          pendingChord = 'ctrl-k';
+          chordTimer = setTimeout(resetChord, 2000);
+          return;
+        }
+
         if (ctrlOnly && (e.key === 'o' || e.key === 'O')) {
           run(() => this.handleOpenFolderDialog());
         } else if (ctrlOnly && (e.key === 'w' || e.key === 'W')) {
           run(() => this.editor.closeActiveTab());
+        } else if (ctrlOnly && (e.key === 'n' || e.key === 'N')) {
+          run(() => this.handleNewTab());
         } else if (ctrlOnly && e.key === '\\') {
           run(() => this.editor.splitActiveGroup('right'));
+        } else if (ctrlOnly && (e.key === 'PageDown' || e.code === 'PageDown' || e.key === 'pagedown')) {
+          run(() => this.editor.cycleActivePanel(1));
+        } else if (ctrlOnly && (e.key === 'PageUp' || e.code === 'PageUp' || e.key === 'pageup')) {
+          run(() => this.editor.cycleActivePanel(-1));
+        } else if (ctrlOnly && e.key === '0') {
+          run(() => this.focusExplorerTree());
+        } else if (ctrlOnly && e.key === '1') {
+          run(() => this.focusEditorGroupByIndex(0));
+        } else if (ctrlOnly && e.key === '2') {
+          run(() => this.focusEditorGroupByIndex(1));
         } else if (ctrlOnly && (e.key === 'b' || e.key === 'B')) {
-          // The key View > Show Sidebar displays (v0.2 FR-M4, FR-M5).
-          run(() => this.viewState.toggleSidebar());
+          // Ctrl+B hides the visible navigation areas, then restores that
+          // exact Folder Tabs / Explorer combination on the next press.
+          run(() => this.viewState.toggleNavigationAreas());
         } else if (altOnly && e.key === 'F4') {
           // The key File > Exit displays (FR-M4, FR-M5). It takes the same
           // path as the menu row, so a dirty tab is asked about through the
@@ -860,6 +912,65 @@ export class WorkbenchApp {
       else return;
       e.preventDefault();
     });
+  }
+
+  /**
+   * Adds a new tab in the active group (Ctrl+N). Asks first if the replaced
+   * preview tab is dirty (FR-P14/D-14, D-18).
+   */
+  private handleNewTab(): void {
+    const group = this.editor.getActiveGroup();
+    if (!group) return;
+    const doomed = this.editor.getPreviewPanel(group);
+    if (doomed?.params?.isDirty) {
+      void (async () => {
+        if (!(await this.editor.confirmReplaceIfDirty(doomed))) return;
+        this.editor.addNewTab(group);
+      })();
+      return;
+    }
+    this.editor.addNewTab(group);
+  }
+
+  /**
+   * Returns editor groups sorted in visual screen order (top-to-bottom,
+   * then left-to-right), consistent with FocusAreaController (A10 finding).
+   */
+  private getOrderedEditorGroups(): DockviewGroupPanel[] {
+    return this.editor
+      .getGroups()
+      .map((group) => ({ group, rect: group.element.getBoundingClientRect() }))
+      .sort((a, b) => Math.round(a.rect.top) - Math.round(b.rect.top) || Math.round(a.rect.left) - Math.round(b.rect.left))
+      .map((entry) => entry.group);
+  }
+
+  /**
+   * Focuses the editor group by 0-based visual index (Ctrl+1, Ctrl+2).
+   * If group 1 (Ctrl+2) is requested and only 1 group exists, splits right.
+   */
+  private focusEditorGroupByIndex(index: number): void {
+    const groups = this.getOrderedEditorGroups();
+    if (index < groups.length) {
+      const group = groups[index];
+      this.editor.focusGroup(group);
+      group.activePanel?.api.setActive();
+    } else if (index === 1 && groups.length === 1) {
+      const newGroup = this.editor.splitGroupForUser(groups[0], 'right');
+      if (newGroup) {
+        this.editor.focusGroup(newGroup);
+      }
+    }
+  }
+
+  /**
+   * Focuses the file explorer tree (Ctrl+0). Reveals the sidebar if hidden.
+   */
+  private focusExplorerTree(): void {
+    if (!this.viewState.getState().sidebarVisible) {
+      this.viewState.setSidebarVisible(true);
+    }
+    this.tree.ensureCursor();
+    this.tree.focusTree();
   }
 
   private currentFolderRequestId = 0;

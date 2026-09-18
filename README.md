@@ -86,7 +86,9 @@ npm run dev
 | 기능 | workbench-kit | VS Code | 비고 |
 | --- | --- | --- | --- |
 | 폴더 열기 | `Ctrl+O` | `Ctrl+K Ctrl+O` (`Ctrl+O`는 *파일* 열기) | **다름** — 껍데기는 파일 열기가 없어 `Ctrl+O`를 폴더 열기에 쓴다 |
+| 새 탭 열기 | `Ctrl+N` | `Ctrl+N` | 같음 — 현재 칸에 빈 탭(`Untitled`)을 추가한다 |
 | 활성 탭 닫기 | `Ctrl+W` | `Ctrl+W` | 같음 |
+| 활성 그룹 모든 탭 닫기 | `Ctrl+K W` | `Ctrl+K W` | 같음 — 현재 칸의 탭들을 일괄 닫는다 (미저장 순차 확인) |
 | 끝내기 | `Alt+F4` | `Alt+F4` | 같음 (OS 수준) |
 
 ### 2. 화면과 레이아웃
@@ -94,7 +96,8 @@ npm run dev
 | 기능 | workbench-kit | VS Code | 비고 |
 | --- | --- | --- | --- |
 | 좌우 분할 | `Ctrl+\` | `Ctrl+\` | 같음 |
-| 탐색기 보이기/감추기 | `Ctrl+B` | `Ctrl+B` | 같음 |
+| 상하 분할 | `Ctrl+K Ctrl+\` | `Ctrl+K Ctrl+\` | 같음 |
+| 폴더탭·탐색기 보이기/감추기 | `Ctrl+B` | `Ctrl+B` | 다름 — 현재 보이는 왼쪽 탐색 영역을 함께 감추고 직전 조합으로 복원한다 |
 | Zen 모드 | `F11` | `Ctrl+K Z` (`F11`은 전체화면) | **의도적 다름** — 창 크기는 그대로 두고 크롬만 감춘다 (D-12) |
 | Zen 모드 나가기 | `F11` 또는 `Escape` | `Escape Escape` | 다름 — 한 번으로 나온다 |
 
@@ -102,8 +105,13 @@ npm run dev
 
 | 기능 | workbench-kit | VS Code | 비고 |
 | --- | --- | --- | --- |
+| 탐색기로 포커스 | `Ctrl+0` | `Ctrl+0` (사이드바 포커스) | 같음 — 사이드바가 숨겨져 있으면 열고 트리에 포커스한다 |
+| 1번 에디터 창으로 포커스 | `Ctrl+1` | `Ctrl+1` | 같음 — 첫 번째 분할 칸으로 이동한다 |
+| 2번 에디터 창으로 포커스 | `Ctrl+2` | `Ctrl+2` | 같음 — 두 번째 분할 칸으로 이동한다 (1개뿐이면 우측 분할 생성) |
+| 다음 탭으로 이동 | `Ctrl+PageDown` | `Ctrl+PageDown` | 같음 — 활성 칸 안에서 오른쪽 탭으로 이동한다 |
+| 이전 탭으로 이동 | `Ctrl+PageUp` | `Ctrl+PageUp` | 같음 — 활성 칸 안에서 왼쪽 탭으로 이동한다 |
+| 다음 / 이전 탭 (호환) | `Ctrl+Tab` / `Ctrl+Shift+Tab` | `Ctrl+Tab` / `Ctrl+Shift+Tab` | 유사 — 팝업 없이 곧바로 옆 탭으로 이동한다 |
 | 다음 / 이전 영역으로 포커스 | `F6` / `Shift+F6` | `F6` / `Shift+F6` | 같음. 단 탭 안 보기에 포커스가 있으면 껍데기가 가로채지 않는다 |
-| 활성 칸의 다음 / 이전 탭 | `Ctrl+Tab` / `Ctrl+Shift+Tab` | `Ctrl+PageDown` / `Ctrl+PageUp` (`Ctrl+Tab`은 최근 사용 순 목록) | **다름** — 목록을 띄우지 않고 곧바로 옆 탭으로 간다 |
 | 버튼 사이 이동 | `Tab` / `Shift+Tab` | `Tab` / `Shift+Tab` | 같음 — 예약하지 않고 브라우저 기본에 맡긴다 |
 
 ### 4. 메뉴

@@ -38,10 +38,10 @@ export const DEFAULT_FILE_ITEMS: readonly MenuItem[] = Object.freeze([
   separator('file:separator-open'),
   Object.freeze({ id: 'file:open-recent', label: 'Recent Folders', type: 'submenu' as const }),
   separator('file:separator-recent'),
-  Object.freeze({ id: 'file:split-right', label: 'Split Right' }),
-  Object.freeze({ id: 'file:split-down', label: 'Split Down' }),
+  Object.freeze({ id: 'file:split-right', label: 'Split Right', shortcut: 'Ctrl+\\' }),
+  Object.freeze({ id: 'file:split-down', label: 'Split Down', shortcut: 'Ctrl+K Ctrl+\\' }),
   Object.freeze({ id: 'file:close-tab', label: 'Close Active Tab', shortcut: 'Ctrl+W' }),
-  Object.freeze({ id: 'file:close-editor-group', label: 'Close Editor Group' }),
+  Object.freeze({ id: 'file:close-editor-group', label: 'Close Editor Group', shortcut: 'Ctrl+K W' }),
   Object.freeze({ id: 'file:close-all-tabs', label: 'Close All Tabs' }),
   separator('file:separator-close'),
   Object.freeze({ id: 'file:exit', label: 'Exit', shortcut: 'Alt+F4', action: () => closeWindow() }),
@@ -54,7 +54,9 @@ export const DEFAULT_VIEW_ITEMS: readonly MenuItem[] = Object.freeze([
   Object.freeze({ id: 'view:icon-theme', label: 'Icon Theme', type: 'submenu' as const }),
   separator('view:separator-icon'),
   Object.freeze({ id: 'view:zen-mode', label: 'Zen Mode', shortcut: 'F11' }),
-  Object.freeze({ id: 'view:toggle-sidebar', label: 'Show Sidebar', shortcut: 'Ctrl+B' }),
+  // Explorer itself stays independently controllable. Ctrl+B is the separate
+  // combined Folder Tabs / Explorer toggle handled by the global shortcut.
+  Object.freeze({ id: 'view:toggle-sidebar', label: 'Show Sidebar' }),
   // No shortcut, by design (v0.3 D-2 — this version needs no new global key).
   Object.freeze({ id: 'view:toggle-foldertabs', label: 'Show Folder Tabs' }),
   Object.freeze({ id: 'view:toggle-titlebar', label: 'Show Title Bar' }),

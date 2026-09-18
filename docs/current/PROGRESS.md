@@ -66,6 +66,16 @@
   - `src/style.css`: 주석 및 프로퍼티에 남아있던 D-29 금지값(4px, 8px, 16px)을 3px/5px/7px 등
     허용 규격으로 정리하여 `verify-phase2.mjs` 및 `verify-dist.mjs` 검증을 클린하게 통과하도록 수정.
 
+- **에디터 탭 및 분할·포커스 단축키 VS Code 표준화 개편** (2026-09-18)
+  - `src/main.ts`, `src/core/editor.ts`, `src/core/focusareas.ts`, `src/core/menu.ts`:
+    - 포커스 이동: `Ctrl+0`(탐색기 포커스/열기), `Ctrl+1`(1번 에디터 창 포커스), `Ctrl+2`(2번 에디터 창 포커스, 1개일 시 우측 분할 생성).
+    - 탭 조작: `Ctrl+N`(새 빈 탭 추가), `Ctrl+PageDown`/`Ctrl+PageUp`(다음/이전 탭 이동), `Ctrl+Tab`/`Ctrl+Shift+Tab`(호환 유지).
+    - 분할 및 일괄 닫기: `Ctrl+\`(좌우 분할), `Ctrl+K Ctrl+\`(상하 분할), `Ctrl+K W`(그룹 내 모든 탭 일괄 닫기).
+    - 에디터 헤더 액션 버튼 툴팁 및 메뉴 항목(`DEFAULT_FILE_ITEMS`)에 단축키 힌트 반영.
+  - 문서화: `README.md` 단축키 표 갱신, `docs/reserved-keys.md` 전역 예약 키 목록 정본 반영.
+  - 검증: `npm run typecheck` 통과, `npm run build` 산출물 검증.
+  - 버그 수정 (2026-09-18): `Ctrl+PageDown`/`PageUp` 시 `main.ts`(capture 단계)와 `focusareas.ts`(bubble 단계) 양쪽에서 중복 발화되어 탭이 2회 연속 순환(제자리 복귀)하던 문제를 수정. `main.ts`의 `run()`에 `e.stopPropagation()`을 추가하고 `focusareas.ts`의 중복 핸들러를 제거하여 단일 실행 보장. Electron 런타임에서 `PageDown`/`PageUp`/`Ctrl+Tab` 전환 정상 작동 확인.
+
 ---
 
 ## Phase 1 — Folder Tabs 레일과 폴더 추가 (WK-083 ~ WK-087) — done, 2026-09-16
