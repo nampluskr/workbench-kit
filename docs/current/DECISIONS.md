@@ -321,3 +321,29 @@ INTENT 7절의 검증 앱이 이 구분을 요구한다. 파일 커맨더는 "�
   하고, 두 갈래와 여러 앱에서 같은 동작을 보장할 수 없으므로 배제한다.
 
 ---
+
+## D-10. 메뉴는 Layout·Appearance로 묶고 폴더별 작업공간을 기본으로 한다
+
+**선택**
+
+`View` 메뉴는 `Layout`과 `Appearance` 두 하위 그룹만 노출한다. `Layout`에는
+`Show Sidebar`·`Show Roots`·`Show Tree`, 두 분할 명령과 단일 체크 항목
+`Workspace per Folder`를 둔다. `Show Sidebar`는 Activity Bar를 제외한 Roots+Tree
+영역을 뜻하며, `Ctrl+B`와 같은 조합 감추기·복원 명령이다. `Appearance`에는 색·아이콘
+테마와 Title Bar·Status Bar·Line Numbers·Zen Mode를 둔다.
+
+D-7의 `Shared Editor`/`Folder Workspace` 라디오 두 행은 `Workspace per Folder` 하나로
+대체한다. 이 항목은 매 실행 시작 시 체크가 기본이며, 해제했을 때만 모든 Roots가 하나의
+에디터 레이아웃을 공유한다. D-8의 실행 중 상태 보존과 비영속 규칙은 그대로 유지한다.
+
+`File`은 실제 동작에 맞춰 `Add Folder...`, `Close All Tabs in Group`을 사용하고,
+`New Tab`을 노출한다. 분할 명령은 `View > Layout`으로 옮기며 사용자 명령이 아닌
+`Preset Info`는 제거한다.
+
+**근거**
+
+공간 배치와 시각 설정을 분리하면 View의 평면 목록이 짧아지고 명령 위치를 예측할 수
+있다. 모드는 서로 배타적인 두 이름보다 하나의 긍정형 설정이 현재 상태를 더 직접적으로
+보여 준다. 폴더별 작업공간이 이 버전의 핵심이므로 이를 기본으로 삼는다.
+
+---

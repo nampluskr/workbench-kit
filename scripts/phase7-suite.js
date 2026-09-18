@@ -144,43 +144,38 @@ window.__runPhase7TestSuite = async function runPhase7TestSuite() {
       // they are — check the actual visible labels.
       `Opening the hamburger reveals exactly the 3 top-level groups with correct labels, in order: ${JSON.stringify(categoryLabels)} (FR-N5)`
     );
-    // v0.1 FR-N6 is replaced by v0.2 FR-M1 (SPEC 0.1): the shell's File list
-    // is now eight items. The ID is kept so the v0.1 matrix still resolves.
+    // v0.1 FR-N6 is replaced by the current File contract. The ID is kept so
+    // the historical matrix still resolves.
     // App items below a separator are v0.1 FR-I9's, proven in the Phase 5
     // suite through the app surface; this build adds none, so the rendered
-    // list must be exactly the eight, with their visible labels.
+    // list must match the current shell actions and visible labels.
     const shellFileExpected = [
-      { id: 'file:open-folder', label: 'Open Folder...' },
+      { id: 'file:new-tab', label: 'New Tab' },
+      { id: 'file:open-folder', label: 'Add Folder...' },
       { id: 'file:open-recent', label: 'Recent Folders' },
-      { id: 'file:split-right', label: 'Split Right' },
-      { id: 'file:split-down', label: 'Split Down' },
       { id: 'file:close-tab', label: 'Close Active Tab' },
-      { id: 'file:close-editor-group', label: 'Close Editor Group' },
+      { id: 'file:close-editor-group', label: 'Close All Tabs in Group' },
       { id: 'file:close-all-tabs', label: 'Close All Tabs' },
       { id: 'file:exit', label: 'Exit' },
     ];
     record(
       'P7-FR-N6',
       JSON.stringify(fileRows) === JSON.stringify(shellFileExpected),
-      `File menu renders exactly the 8 shell items with their visible labels, in order (v0.1 FR-N6 → v0.2 FR-M1): ${JSON.stringify(fileRows.map((r) => r.label))}`
+      `File menu matches the current shell actions and visible labels, in order: ${JSON.stringify(fileRows.map((r) => r.label))}`
     );
     closeMenuIfOpen();
 
     const viewRows = openMenuCategory('view');
-    // v0.1 FR-N7 is replaced by v0.2 FR-M2 (SPEC 0.1).
+    // View exposes two stable groups; their children are checked separately
+    // by the focused menu suites.
     const viewExpected = [
-      { id: 'view:color-theme', label: 'Color Theme' },
-      { id: 'view:icon-theme', label: 'Icon Theme' },
-      { id: 'view:zen-mode', label: 'Zen Mode' },
-      { id: 'view:toggle-sidebar', label: 'Show Sidebar' },
-      { id: 'view:toggle-titlebar', label: 'Show Title Bar' },
-      { id: 'view:toggle-statusbar', label: 'Show Status Bar' },
-      { id: 'view:preset-info', label: 'Preset Info' },
+      { id: 'view:layout', label: 'Layout' },
+      { id: 'view:appearance', label: 'Appearance' },
     ];
     record(
       'P7-FR-N7',
       JSON.stringify(viewRows) === JSON.stringify(viewExpected),
-      `View menu has exactly the 7 shell items with their visible labels, in order (v0.1 FR-N7 → v0.2 FR-M2): ${JSON.stringify(viewRows.map((r) => r.label))}`
+      `View menu has exactly the Layout and Appearance groups, in order: ${JSON.stringify(viewRows.map((r) => r.label))}`
     );
     // v0.1's "우클릭 메뉴 사용" switch is gone from View (SPEC 0.1, v0.1 FR-G6 → v0.2
     // FR-M2). What stays is the right-click device being off by default (D-22).

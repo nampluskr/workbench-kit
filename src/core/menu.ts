@@ -17,6 +17,9 @@ export interface MenuItem {
 export interface MenuSubItem {
   id: string;
   label: string;
+  shortcut?: string;
+  /** Nested rows and separators use the same provider mechanism as top-level items. */
+  type?: 'normal' | 'separator' | 'submenu';
   checked?: boolean;
   disabled?: boolean;
   action?: () => void;
@@ -34,14 +37,12 @@ const separator = (id: string): MenuItem => Object.freeze({ id, label: '', type:
 
 // v0.2 FR-M1 · FR-M6 (UT-MNU-002): list, order and separator positions.
 export const DEFAULT_FILE_ITEMS: readonly MenuItem[] = Object.freeze([
-  Object.freeze({ id: 'file:open-folder', label: 'Open Folder...', shortcut: 'Ctrl+O' }),
-  separator('file:separator-open'),
+  Object.freeze({ id: 'file:new-tab', label: 'New Tab', shortcut: 'Ctrl+N' }),
+  Object.freeze({ id: 'file:open-folder', label: 'Add Folder...', shortcut: 'Ctrl+O' }),
   Object.freeze({ id: 'file:open-recent', label: 'Recent Folders', type: 'submenu' as const }),
   separator('file:separator-recent'),
-  Object.freeze({ id: 'file:split-right', label: 'Split Right', shortcut: 'Ctrl+\\' }),
-  Object.freeze({ id: 'file:split-down', label: 'Split Down', shortcut: 'Ctrl+K Ctrl+\\' }),
   Object.freeze({ id: 'file:close-tab', label: 'Close Active Tab', shortcut: 'Ctrl+W' }),
-  Object.freeze({ id: 'file:close-editor-group', label: 'Close Editor Group', shortcut: 'Ctrl+K W' }),
+  Object.freeze({ id: 'file:close-editor-group', label: 'Close All Tabs in Group', shortcut: 'Ctrl+K W' }),
   Object.freeze({ id: 'file:close-all-tabs', label: 'Close All Tabs' }),
   separator('file:separator-close'),
   Object.freeze({ id: 'file:exit', label: 'Exit', shortcut: 'Alt+F4', action: () => closeWindow() }),
@@ -49,29 +50,8 @@ export const DEFAULT_FILE_ITEMS: readonly MenuItem[] = Object.freeze([
 
 // v0.2 FR-M2 · FR-M6.
 export const DEFAULT_VIEW_ITEMS: readonly MenuItem[] = Object.freeze([
-  Object.freeze({ id: 'view:color-theme', label: 'Color Theme', type: 'submenu' as const }),
-  separator('view:separator-color'),
-  Object.freeze({ id: 'view:icon-theme', label: 'Icon Theme', type: 'submenu' as const }),
-  separator('view:separator-icon'),
-  Object.freeze({ id: 'view:zen-mode', label: 'Zen Mode', shortcut: 'F11' }),
-  // Explorer itself stays independently controllable. Ctrl+B is the separate
-  // combined Folder Tabs / Explorer toggle handled by the global shortcut.
-  Object.freeze({ id: 'view:toggle-sidebar', label: 'Show Sidebar' }),
-  // No shortcut, by design (v0.3 D-2 — this version needs no new global key).
-  Object.freeze({ id: 'view:toggle-foldertabs', label: 'Show Folder Tabs' }),
-  Object.freeze({ id: 'view:toggle-titlebar', label: 'Show Title Bar' }),
-  Object.freeze({ id: 'view:toggle-statusbar', label: 'Show Status Bar' }),
-  // No shortcut (user request, 2026-09-17). Unchecked by default — line
-  // numbers start OFF, unlike VS Code's own default.
-  Object.freeze({ id: 'view:toggle-line-numbers', label: 'Show Line Numbers' }),
-  separator('view:separator-layout'),
-  // Mutually exclusive radio pair (v0.3 D-7) — each row's checked provider
-  // reflects the SAME underlying mode, so picking one always unchecks the
-  // other. No shortcut, matching D-2's "새 전역 단축키는 필요하지 않다" precedent.
-  Object.freeze({ id: 'view:editor-mode-shared', label: 'Shared Editor' }),
-  Object.freeze({ id: 'view:editor-mode-workspace', label: 'Folder Workspace' }),
-  separator('view:separator-editor-mode'),
-  Object.freeze({ id: 'view:preset-info', label: 'Preset Info' }),
+  Object.freeze({ id: 'view:layout', label: 'Layout', type: 'submenu' as const }),
+  Object.freeze({ id: 'view:appearance', label: 'Appearance', type: 'submenu' as const }),
 ]);
 
 // v0.2 FR-M3.
@@ -84,9 +64,10 @@ export class MenuController {
   private _isOpen = false;
   private activeCategoryId: string = 'file';
   private focusedItemIndex = 0;
-  /** The submenu row whose list is open, and the keyboard position inside it. */
-  private openSubmenuId: string | null = null;
-  private focusedSubIndex = 0;
+  /** Open submenu ids from the category's child to the deepest nested list. */
+  private openSubmenuPath: string[] = [];
+  /** Keyboard position for each corresponding submenu depth. */
+  private focusedSubIndices: number[] = [];
 
   private readonly coreFileItems: readonly MenuItem[] = Object.freeze(
     DEFAULT_FILE_ITEMS.map((it) => Object.freeze({ ...it }))
@@ -144,21 +125,28 @@ export class MenuController {
       if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
         e.preventDefault();
         const delta = e.key === 'ArrowDown' ? 1 : -1;
-        if (this.openSubmenuId) this.moveSubFocus(delta);
+        if (this.openSubmenuPath.length > 0) this.moveSubFocus(delta);
         else this.moveItemFocus(delta);
         return;
       }
       if (e.key === 'ArrowRight') {
         e.preventDefault();
-        const focused = this.getFocusedItem();
-        if (!this.openSubmenuId && focused?.type === 'submenu') this.openSubmenu(focused.id);
-        else this.moveCategoryFocus(1);
+        if (this.openSubmenuPath.length === 0) {
+          const focused = this.getFocusedItem();
+          if (focused?.type === 'submenu') this.openSubmenu(focused.id, 0);
+          else this.moveCategoryFocus(1);
+        } else {
+          const depth = this.openSubmenuPath.length - 1;
+          const row = this.getFocusedSubItem(depth);
+          if (row?.type === 'submenu') this.openSubmenu(row.id, depth + 1);
+        }
         return;
       }
       if (e.key === 'ArrowLeft') {
         e.preventDefault();
-        if (this.openSubmenuId) {
-          this.openSubmenuId = null;
+        if (this.openSubmenuPath.length > 0) {
+          this.openSubmenuPath.pop();
+          this.focusedSubIndices.length = this.openSubmenuPath.length;
           this.renderMenu();
         } else {
           this.moveCategoryFocus(-1);
@@ -173,12 +161,13 @@ export class MenuController {
       // The keyboard path to a row's remove button — only where a row actually
       // has one (Recent Folders). In a submenu with no removal (Color Theme,
       // Icon Theme) Delete is the app's (A12 R3 Major, reserved-keys.md §2).
-      if (e.key === 'Delete' && this.openSubmenuId) {
-        const row = this.getSubmenuItems(this.openSubmenuId)[this.focusedSubIndex];
+      if (e.key === 'Delete' && this.openSubmenuPath.length > 0) {
+        const depth = this.openSubmenuPath.length - 1;
+        const row = this.getFocusedSubItem(depth);
         if (row?.secondaryAction) {
           e.preventDefault();
           row.secondaryAction.action();
-          this.clampSubFocus();
+          this.clampSubFocus(depth);
           this.renderMenu();
         }
       }
@@ -224,7 +213,8 @@ export class MenuController {
     this._isOpen = true;
     this.activeCategoryId = 'file';
     this.focusedItemIndex = 0;
-    this.openSubmenuId = null;
+    this.openSubmenuPath = [];
+    this.focusedSubIndices = [];
     this.renderMenu();
     this.rootContainer.dispatchEvent(new CustomEvent('workbench:menu-open'));
     if (typeof window !== 'undefined') {
@@ -254,49 +244,73 @@ export class MenuController {
     const nextIndex = (currentIndex + delta + groups.length) % groups.length;
     this.activeCategoryId = groups[nextIndex].id;
     this.focusedItemIndex = 0;
-    this.openSubmenuId = null;
+    this.openSubmenuPath = [];
+    this.focusedSubIndices = [];
     this.renderMenu();
   }
 
-  private openSubmenu(id: string): void {
-    this.openSubmenuId = id;
-    const rows = this.getSubmenuItems(id);
+  private getSelectableSubItems(parentId: string): MenuSubItem[] {
+    return this.getSubmenuItems(parentId).filter((row) => row.type !== 'separator');
+  }
+
+  private getFocusedSubItem(depth: number): MenuSubItem | undefined {
+    const parentId = this.openSubmenuPath[depth];
+    if (!parentId) return undefined;
+    return this.getSelectableSubItems(parentId)[this.focusedSubIndices[depth] ?? 0];
+  }
+
+  private openSubmenu(id: string, depth: number): void {
+    this.openSubmenuPath = [...this.openSubmenuPath.slice(0, depth), id];
+    this.focusedSubIndices.length = depth;
+    const rows = this.getSelectableSubItems(id);
     const firstEnabled = rows.findIndex((r) => !r.disabled);
-    this.focusedSubIndex = firstEnabled >= 0 ? firstEnabled : 0;
+    this.focusedSubIndices[depth] = firstEnabled >= 0 ? firstEnabled : 0;
     this.renderMenu();
   }
 
   private moveSubFocus(delta: number): void {
-    if (!this.openSubmenuId) return;
-    const rows = this.getSubmenuItems(this.openSubmenuId);
+    const depth = this.openSubmenuPath.length - 1;
+    const parentId = this.openSubmenuPath[depth];
+    if (!parentId) return;
+    const rows = this.getSelectableSubItems(parentId);
     if (!rows.some((r) => !r.disabled)) return;
-    let next = this.focusedSubIndex;
+    let next = this.focusedSubIndices[depth] ?? 0;
     do {
       next = (next + delta + rows.length) % rows.length;
     } while (rows[next].disabled);
-    this.focusedSubIndex = next;
+    this.focusedSubIndices[depth] = next;
+    this.openSubmenuPath.length = depth + 1;
+    this.focusedSubIndices.length = depth + 1;
     this.renderMenu();
   }
 
   /** Keeps the keyboard position on a real row after the list got shorter. */
-  private clampSubFocus(): void {
-    if (!this.openSubmenuId) return;
-    const rows = this.getSubmenuItems(this.openSubmenuId);
-    if (this.focusedSubIndex >= rows.length) this.focusedSubIndex = Math.max(0, rows.length - 1);
+  private clampSubFocus(depth: number): void {
+    const parentId = this.openSubmenuPath[depth];
+    if (!parentId) return;
+    const rows = this.getSelectableSubItems(parentId);
+    if ((this.focusedSubIndices[depth] ?? 0) >= rows.length) {
+      this.focusedSubIndices[depth] = Math.max(0, rows.length - 1);
+    }
   }
 
   private triggerFocusedItem(): void {
-    if (this.openSubmenuId) {
-      const row = this.getSubmenuItems(this.openSubmenuId)[this.focusedSubIndex];
+    if (this.openSubmenuPath.length > 0) {
+      const depth = this.openSubmenuPath.length - 1;
+      const row = this.getFocusedSubItem(depth);
       if (!row || row.disabled) return;
+      if (row.type === 'submenu') {
+        this.openSubmenu(row.id, depth + 1);
+        return;
+      }
       this.closeMenu();
-      row.action?.();
+      (row.action || this.itemActions.get(row.id))?.();
       return;
     }
     const item = this.getFocusedItem();
     if (!item) return;
     if (item.type === 'submenu') {
-      this.openSubmenu(item.id);
+      this.openSubmenu(item.id, 0);
       return;
     }
     this.closeMenu();
@@ -309,7 +323,8 @@ export class MenuController {
   public closeMenu(): void {
     if (!this._isOpen) return;
     this._isOpen = false;
-    this.openSubmenuId = null;
+    this.openSubmenuPath = [];
+    this.focusedSubIndices = [];
     if (this.menuDropdownEl && this.menuDropdownEl.parentNode) {
       this.menuDropdownEl.parentNode.removeChild(this.menuDropdownEl);
     }
@@ -434,7 +449,7 @@ export class MenuController {
           'menu-item-row' +
           (isKeyboardFocused ? ' kbd-focused' : '') +
           (isSubmenu ? ' has-submenu' : '') +
-          (isSubmenu && isActiveGroup && this.openSubmenuId === item.id ? ' submenu-open' : '');
+          (isSubmenu && isActiveGroup && this.openSubmenuPath[0] === item.id ? ' submenu-open' : '');
         itemRow.dataset.itemId = item.id;
 
         itemRow.appendChild(this.createCheckCell(this.checkedProviders.get(item.id)?.() ?? false));
@@ -458,7 +473,7 @@ export class MenuController {
           chevron.className = 'codicon codicon-chevron-right menu-item-chevron';
           chevron.setAttribute('aria-hidden', 'true');
           itemRow.appendChild(chevron);
-          itemRow.appendChild(this.createChildSubmenu(item.id, isActiveGroup));
+          itemRow.appendChild(this.createChildSubmenu(item.id, isActiveGroup, 0));
         }
 
         itemRow.addEventListener('click', (e) => {
@@ -466,11 +481,12 @@ export class MenuController {
           if (isSubmenu) {
             this.activeCategoryId = group.id;
             this.focusedItemIndex = indexInGroup;
-            if (this.openSubmenuId === item.id) {
-              this.openSubmenuId = null;
+            if (this.openSubmenuPath[0] === item.id) {
+              this.openSubmenuPath = [];
+              this.focusedSubIndices = [];
               this.renderMenu();
             } else {
-              this.openSubmenu(item.id);
+              this.openSubmenu(item.id, 0);
             }
             return;
           }
@@ -486,8 +502,8 @@ export class MenuController {
         itemRow.addEventListener('mouseenter', () => {
           if (group.id !== this.activeCategoryId) return;
           this.focusedItemIndex = indexInGroup;
-          this.openSubmenuId = isSubmenu ? item.id : null;
-          if (isSubmenu) this.focusedSubIndex = 0;
+          this.openSubmenuPath = isSubmenu ? [item.id] : [];
+          this.focusedSubIndices = isSubmenu ? [0] : [];
           menuEl.querySelectorAll('.menu-item-row').forEach((r) => {
             r.classList.remove('kbd-focused');
             if (r.classList.contains('has-submenu')) r.classList.remove('submenu-open');
@@ -506,7 +522,8 @@ export class MenuController {
         if (this.activeCategoryId !== group.id) {
           this.activeCategoryId = group.id;
           this.focusedItemIndex = 0;
-          this.openSubmenuId = null;
+          this.openSubmenuPath = [];
+          this.focusedSubIndices = [];
           menuEl.querySelectorAll('.menu-category-row').forEach((r) => r.classList.remove('active'));
           menuEl.querySelectorAll('.menu-item-row').forEach((r) => r.classList.remove('submenu-open', 'kbd-focused'));
           groupRow.classList.add('active');
@@ -519,7 +536,8 @@ export class MenuController {
         if (this.activeCategoryId === group.id) return;
         this.activeCategoryId = group.id;
         this.focusedItemIndex = 0;
-        this.openSubmenuId = null;
+        this.openSubmenuPath = [];
+        this.focusedSubIndices = [];
         menuEl.querySelectorAll('.menu-category-row').forEach((r) => r.classList.remove('active'));
         menuEl.querySelectorAll('.menu-item-row').forEach((r) => r.classList.remove('submenu-open', 'kbd-focused'));
         groupRow.classList.add('active');
@@ -589,25 +607,56 @@ export class MenuController {
     return cell;
   }
 
-  private createChildSubmenu(parentId: string, isActiveGroup: boolean): HTMLElement {
+  private createChildSubmenu(parentId: string, isActiveGroup: boolean, depth: number): HTMLElement {
     const childEl = document.createElement('div');
     childEl.className = 'menu-submenu menu-child-submenu';
     childEl.dataset.parentItem = parentId;
 
-    this.getSubmenuItems(parentId).forEach((row, index) => {
+    let selectableIndex = -1;
+    this.getSubmenuItems(parentId).forEach((row) => {
+      if (row.type === 'separator') {
+        const separatorEl = document.createElement('div');
+        separatorEl.className = 'menu-separator';
+        childEl.appendChild(separatorEl);
+        return;
+      }
+      selectableIndex++;
+      const index = selectableIndex;
+      const isSubmenu = row.type === 'submenu';
       const rowEl = document.createElement('div');
-      const isFocused = isActiveGroup && this.openSubmenuId === parentId && index === this.focusedSubIndex;
+      const isFocused =
+        isActiveGroup && this.openSubmenuPath[depth] === parentId && index === (this.focusedSubIndices[depth] ?? 0);
       rowEl.className =
-        'menu-item-row menu-child-row' + (row.disabled ? ' disabled' : '') + (isFocused ? ' kbd-focused' : '');
+        'menu-item-row menu-child-row' +
+        (row.disabled ? ' disabled' : '') +
+        (isFocused ? ' kbd-focused' : '') +
+        (isSubmenu ? ' has-submenu' : '') +
+        (isSubmenu && this.openSubmenuPath[depth + 1] === row.id ? ' submenu-open' : '');
       rowEl.dataset.itemId = row.id;
 
-      rowEl.appendChild(this.createCheckCell(Boolean(row.checked)));
+      const checked = row.checked ?? this.checkedProviders.get(row.id)?.() ?? false;
+      rowEl.appendChild(this.createCheckCell(checked));
 
       const label = document.createElement('span');
       label.className = 'menu-item-label';
       label.textContent = row.label;
       label.title = row.label;
       rowEl.appendChild(label);
+
+      if (row.shortcut) {
+        const shortcut = document.createElement('span');
+        shortcut.className = 'menu-item-shortcut';
+        shortcut.textContent = row.shortcut;
+        rowEl.appendChild(shortcut);
+      }
+
+      if (isSubmenu) {
+        const chevron = document.createElement('i');
+        chevron.className = 'codicon codicon-chevron-right menu-item-chevron';
+        chevron.setAttribute('aria-hidden', 'true');
+        rowEl.appendChild(chevron);
+        rowEl.appendChild(this.createChildSubmenu(row.id, isActiveGroup, depth + 1));
+      }
 
       if (row.secondaryAction) {
         const secondary = row.secondaryAction;
@@ -624,9 +673,9 @@ export class MenuController {
           e.stopPropagation();
           secondary.action();
           // The list stays open on the row the user was working in.
-          this.openSubmenuId = parentId;
-          this.focusedSubIndex = index;
-          this.clampSubFocus();
+          this.openSubmenuPath = [...this.openSubmenuPath.slice(0, depth), parentId];
+          this.focusedSubIndices[depth] = index;
+          this.clampSubFocus(depth);
           this.renderMenu();
         });
         rowEl.appendChild(btn);
@@ -635,8 +684,36 @@ export class MenuController {
       rowEl.addEventListener('click', (e) => {
         e.stopPropagation();
         if (row.disabled) return;
+        if (isSubmenu) {
+          this.focusedSubIndices[depth] = index;
+          if (this.openSubmenuPath[depth + 1] === row.id) {
+            this.openSubmenuPath.length = depth + 1;
+            this.focusedSubIndices.length = depth + 1;
+            this.renderMenu();
+          } else {
+            this.openSubmenu(row.id, depth + 1);
+          }
+          return;
+        }
         this.closeMenu();
-        row.action?.();
+        (row.action || this.itemActions.get(row.id))?.();
+      });
+
+      rowEl.addEventListener('mouseenter', () => {
+        if (!isActiveGroup) return;
+        this.focusedSubIndices[depth] = index;
+        this.openSubmenuPath.length = depth + 1;
+        this.focusedSubIndices.length = depth + 1;
+        if (isSubmenu) {
+          this.openSubmenuPath[depth + 1] = row.id;
+          this.focusedSubIndices[depth + 1] = 0;
+        }
+        childEl.querySelectorAll(':scope > .menu-item-row').forEach((el) => {
+          el.classList.remove('kbd-focused', 'submenu-open');
+        });
+        rowEl.classList.add('kbd-focused');
+        if (isSubmenu) rowEl.classList.add('submenu-open');
+        this.flipClippedSubmenusSoon();
       });
 
       childEl.appendChild(rowEl);

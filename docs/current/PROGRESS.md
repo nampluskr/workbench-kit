@@ -15,6 +15,19 @@
 
 사람이 구현 중 요청한, backlog에 없는 작업을 요청 건마다 남긴다.
 
+- **File/View 메뉴 원점 재구성 및 폴더별 작업공간 기본화** (2026-09-19)
+  - `File`: `New Tab`을 메뉴에 노출하고 `Open Folder...`를 실제 동작에 맞는
+    `Add Folder...`로, `Close Editor Group`을 `Close All Tabs in Group`으로 바꿨다.
+    분할 명령은 파일 작업이 아니라 화면 배치이므로 `View > Layout`으로 이동했다.
+  - `View`: 최상위를 `Layout`과 `Appearance` 두 그룹으로 줄였다. `Layout`에는
+    `Show Sidebar`(Roots+Tree 조합 복원, `Ctrl+B`)·`Show Roots`·`Show Tree`·분할 명령과
+    단일 체크 항목 `Workspace per Folder`를 둔다. `Appearance`에는 Color/Icon Theme,
+    Title/Status Bar, Line Numbers, Zen Mode를 둔다. 사용자용 명령이 아닌 `Preset Info`는 제거했다.
+  - `Workspace per Folder`는 시작 시 체크된 기본값이며, 해제하면 모든 Roots가 하나의
+    에디터 레이아웃을 공유한다. 기존 `Shared Editor`/`Folder Workspace` 두 행은 제거했다.
+  - `src/core/menu.ts`: Appearance 안의 Theme 선택까지 키보드로 접근할 수 있도록 임의
+    깊이 하위 메뉴의 `ArrowRight`/`ArrowLeft`/`Enter` 탐색과 separator/shortcut 렌더링을 지원한다.
+
 - `scripts/backlog-cli.mjs`를 새로 만들었다. `CLAUDE.md`가 "backlog.json은 CLI로만
   바꾼다"고 하는데 그런 CLI가 프로젝트에 없어서, task를 닫기 전에 최소 기능
   (`list`/`update --status`)만 갖춘 것을 만들었다. `docs/current/backlog.json`을

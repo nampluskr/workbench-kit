@@ -77,7 +77,7 @@ window.__runV03Phase3Suite = async function () {
 
   // ------------------------------------------------------------------------
   // 1. The icon exists right after Toggle Explorer, uses codicon-folder-library,
-  //    and the View menu has a matching "Show Folder Tabs" row with no shortcut.
+  //    and View > Layout has a matching "Show Roots" row with no shortcut.
   // ------------------------------------------------------------------------
   record('V3P3-ICON-EXISTS', Boolean(railToggleBtn), 'Activity Bar has a Toggle Folder Tabs button');
   record(
@@ -102,11 +102,11 @@ window.__runV03Phase3Suite = async function () {
   openViewMenu();
   await wait(60);
   const menuRow = document.querySelector('.menu-item-row[data-item-id="view:toggle-foldertabs"]');
-  record('V3P3-MENU-ROW-EXISTS', Boolean(menuRow), 'View menu has a "Show Folder Tabs" row');
+  record('V3P3-MENU-ROW-EXISTS', Boolean(menuRow), 'View > Layout has a "Show Roots" row');
   record(
     'V3P3-MENU-ROW-LABEL',
-    menuRow?.querySelector('.menu-item-label')?.textContent === 'Show Folder Tabs',
-    'The row label reads exactly "Show Folder Tabs"'
+    menuRow?.querySelector('.menu-item-label')?.textContent === 'Show Roots',
+    'The row label reads exactly "Show Roots"'
   );
   record(
     'V3P3-NO-SHORTCUT',

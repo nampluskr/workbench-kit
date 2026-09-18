@@ -52,7 +52,7 @@ window.__runV06Phase6Suite = async function () {
     // ignore
   }
   editor.clear();
-  if (typeof app.setEditorMode === 'function') app.setEditorMode('shared');
+  if (typeof app.setEditorMode === 'function') app.setEditorMode('workspace');
 
   const dir1 = window.__testTmpDir;
   const dir2 = window.__testTmpDir2;
@@ -63,10 +63,10 @@ window.__runV06Phase6Suite = async function () {
   record('V6P6-FIXTURE', true, '2 real folders were provided');
 
   // ------------------------------------------------------------------------
-  // 1. The View menu has the mutually exclusive radio pair, checked state
-  //    reflects the live mode, no shortcut cell (v0.3 D-7).
+  // 1. View > Layout has one positive Workspace per Folder setting. It starts
+  //    enabled and has no dedicated shortcut.
   // ------------------------------------------------------------------------
-  record('V6P6-MODE-STARTS-SHARED', app.getEditorMode() === 'shared', 'The app starts in Shared Editor mode');
+  record('V6P6-MODE-STARTS-WORKSPACE', app.getEditorMode() === 'workspace', 'Workspace per Folder is enabled by default');
 
   const hamburger = document.getElementById('menu-hamburger-btn');
   clickEl(hamburger);
@@ -74,17 +74,18 @@ window.__runV06Phase6Suite = async function () {
   const viewCatRow = document.querySelector('.menu-category-row[data-category-id="view"]');
   if (viewCatRow) clickEl(viewCatRow);
   await wait(60);
-  const sharedRow = document.querySelector('.menu-item-row[data-item-id="view:editor-mode-shared"]');
   const workspaceRow = document.querySelector('.menu-item-row[data-item-id="view:editor-mode-workspace"]');
-  record('V6P6-MENU-ROWS-EXIST', Boolean(sharedRow) && Boolean(workspaceRow), 'Both "Shared Editor" and "Folder Workspace" rows exist in the View menu');
+  const sharedRow = document.querySelector('.menu-item-row[data-item-id="view:editor-mode-shared"]');
+  record('V6P6-MENU-ROWS-EXIST', !sharedRow && Boolean(workspaceRow), 'Only the "Workspace per Folder" mode row exists');
   record(
-    'V6P6-SHARED-CHECKED-INITIALLY',
-    Boolean(sharedRow?.querySelector('.menu-item-check .codicon-check')) && !workspaceRow?.querySelector('.menu-item-check .codicon-check'),
-    'Only "Shared Editor" is checked while in Shared Editor mode (mutually exclusive)'
+    'V6P6-WORKSPACE-CHECKED-INITIALLY',
+    Boolean(workspaceRow?.querySelector('.menu-item-check .codicon-check')),
+    '"Workspace per Folder" is checked while the per-folder mode is active'
   );
-  record('V6P6-NO-SHORTCUT', !sharedRow?.querySelector('.menu-item-shortcut') && !workspaceRow?.querySelector('.menu-item-shortcut'), 'Neither radio row has a keyboard shortcut cell (D-7: no dedicated shortcut)');
+  record('V6P6-NO-SHORTCUT', !workspaceRow?.querySelector('.menu-item-shortcut'), 'The mode setting has no dedicated shortcut');
   closeMenu();
   await wait(30);
+  app.setEditorMode('shared');
 
   // ------------------------------------------------------------------------
   // 2. Shared Editor: switching folder tabs leaves editor tabs/active/split

@@ -372,6 +372,7 @@ export class WorkbenchApp {
       const visible = this.viewState.toggleStatusbar();
       this.activityBar.setItemIcon('activity:toggle-statusbar', visible ? 'codicon-fold-up' : 'codicon-fold-down');
     };
+    this.menu.setAction('view:toggle-navigation', () => this.viewState.toggleNavigationAreas());
     this.menu.setAction('view:toggle-sidebar', () => this.viewState.toggleSidebar());
     this.menu.setAction('view:toggle-titlebar', toggleTitlebar);
     this.menu.setAction('view:toggle-statusbar', toggleStatusbar);
@@ -382,6 +383,10 @@ export class WorkbenchApp {
     // drawn, so a change made by key, title bar or Activity Bar shows the next
     // time the menu opens (UT-MNU-002).
     this.menu.setCheckedProvider('view:zen-mode', () => this.viewState.isZenMode);
+    this.menu.setCheckedProvider(
+      'view:toggle-navigation',
+      () => this.viewState.getState().sidebarVisible || this.viewState.getState().folderTabsVisible
+    );
     this.menu.setCheckedProvider('view:toggle-sidebar', () => this.viewState.getState().sidebarVisible);
     this.menu.setCheckedProvider('view:toggle-titlebar', () => this.viewState.getState().titlebarVisible);
     this.menu.setCheckedProvider('view:toggle-statusbar', () => this.viewState.getState().statusbarVisible);
@@ -389,11 +394,34 @@ export class WorkbenchApp {
     this.menu.setCheckedProvider('view:toggle-foldertabs', () => this.viewState.getState().folderTabsVisible);
     this.menu.setCheckedProvider('view:toggle-line-numbers', () => getLineNumbersVisible());
 
-    // Shared Editor / Folder Workspace mutually exclusive radio (v0.3 D-7).
-    this.menu.setAction('view:editor-mode-shared', () => this.setEditorMode('shared'));
-    this.menu.setAction('view:editor-mode-workspace', () => this.setEditorMode('workspace'));
-    this.menu.setCheckedProvider('view:editor-mode-shared', () => this.editorMode === 'shared');
+    // One positive setting replaces the former pair of mode rows. Checked is
+    // per-folder editor state; unchecked is one editor layout shared by roots.
+    this.menu.setAction('view:editor-mode-workspace', () =>
+      this.setEditorMode(this.editorMode === 'workspace' ? 'shared' : 'workspace')
+    );
     this.menu.setCheckedProvider('view:editor-mode-workspace', () => this.editorMode === 'workspace');
+
+    this.menu.setSubmenuProvider('view:layout', () => [
+      { id: 'view:toggle-navigation', label: 'Show Sidebar', shortcut: 'Ctrl+B' },
+      { id: 'view:toggle-foldertabs', label: 'Show Roots' },
+      { id: 'view:toggle-sidebar', label: 'Show Tree' },
+      { id: 'view:layout:separator-navigation', label: '', type: 'separator' },
+      { id: 'file:split-right', label: 'Split Right', shortcut: 'Ctrl+\\' },
+      { id: 'file:split-down', label: 'Split Down', shortcut: 'Ctrl+K Ctrl+\\' },
+      { id: 'view:layout:separator-workspace', label: '', type: 'separator' },
+      { id: 'view:editor-mode-workspace', label: 'Workspace per Folder' },
+    ]);
+
+    this.menu.setSubmenuProvider('view:appearance', () => [
+      { id: 'view:color-theme', label: 'Color Theme', type: 'submenu' },
+      { id: 'view:icon-theme', label: 'Icon Theme', type: 'submenu' },
+      { id: 'view:appearance:separator-theme', label: '', type: 'separator' },
+      { id: 'view:toggle-titlebar', label: 'Show Title Bar' },
+      { id: 'view:toggle-statusbar', label: 'Show Status Bar' },
+      { id: 'view:toggle-line-numbers', label: 'Show Line Numbers' },
+      { id: 'view:appearance:separator-zen', label: '', type: 'separator' },
+      { id: 'view:zen-mode', label: 'Zen Mode', shortcut: 'F11' },
+    ]);
 
     this.activityBar.setAction('activity:toggle-sidebar', () => this.viewState.toggleSidebar());
     this.activityBar.setAction('activity:toggle-titlebar', toggleTitlebar);
@@ -591,6 +619,7 @@ export class WorkbenchApp {
 
     // File menu close commands, each a different scope (v0.2 FR-M10, D-5):
     // the active tab, the active tab's whole group, every open tab.
+    this.menu.setAction('file:new-tab', () => this.handleNewTab());
     this.menu.setAction('file:close-tab', () => this.editor.closeActiveTab());
     this.menu.setAction('file:close-editor-group', () => void this.editor.closeAllTabsInGroup());
     this.menu.setAction('file:close-all-tabs', () => void this.editor.closeAllTabs());
@@ -627,22 +656,14 @@ export class WorkbenchApp {
       });
     });
 
-    // File menu split actions (v0.2 FR-M1; the menu path of v0.1 FR-D3 moved
-    // here from View).
+    // View > Layout split actions.
     this.menu.setAction('file:split-right', () => this.editor.splitActiveGroup('right'));
     this.menu.setAction('file:split-down', () => this.editor.splitActiveGroup('below'));
 
-    // View > Preset Info (v0.2 FR-M12, D-6): the presets are registered right
-    // here by this composition root, which is what lets it name them.
-    this.menu.setAction('view:preset-info', () => {
-      this.statusMessages.showMessage('Presets registered: file, folder');
-    });
-
     // Minimal example wiring proving one app-facing extension slot (WK-029):
-    // a status bar item beside the shell's slots (FR-N10). Preset Info is no
-    // longer a view-titlebar action (v0.2 FR-X3) — it lives in View > Preset
-    // Info (FR-M12). FR-I10's view-titlebar app-action slot stays open; a real
-    // app registers through addSidebarViewAction.
+    // a status bar item beside the shell's slots (FR-N10). Preset Info is not
+    // part of the current menu contract. FR-I10's view-titlebar app-action
+    // slot stays open; a real app registers through addSidebarViewAction.
     if (this.layout.statusbarAppItems) {
       const presetInfoEl = document.createElement('span');
       presetInfoEl.className = 'statusbar-app-item';
@@ -1006,12 +1027,12 @@ export class WorkbenchApp {
   private restoringReqId: number | null = null;
 
   /**
-   * `Shared Editor` (default) vs `Folder Workspace` (v0.3 D-7). Session-only
+   * `Workspace per Folder` (default) vs a shared editor layout (v0.3 D-7).
+   * Session-only
    * — never persisted, never restored across a restart (D-8, WK-109); every
-   * launch starts in Shared Editor with an empty editor, same as before this
-   * feature existed.
+   * launch starts with per-folder workspaces enabled.
    */
-  private editorMode: EditorMode = 'shared';
+  private editorMode: EditorMode = 'workspace';
   /** The editor layout Shared Editor mode uses — one shared layout, independent of which folder tab is active (D-7). */
   private sharedEditorSnapshot: SerializedDockview | null = null;
   /** Folder Workspace mode's per-tab editor layouts, keyed by folder-tab id (D-7). Session-only, like `explorerStateByTab`'s sibling but never even considered for persistence (D-8, WK-109). */
