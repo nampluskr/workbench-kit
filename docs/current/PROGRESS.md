@@ -99,6 +99,69 @@
   - 검증: `npm run typecheck` 통과, `npm run build` 산출물 검증.
   - 버그 수정 (2026-09-18): `Ctrl+PageDown`/`PageUp` 시 `main.ts`(capture 단계)와 `focusareas.ts`(bubble 단계) 양쪽에서 중복 발화되어 탭이 2회 연속 순환(제자리 복귀)하던 문제를 수정. `main.ts`의 `run()`에 `e.stopPropagation()`을 추가하고 `focusareas.ts`의 중복 핸들러를 제거하여 단일 실행 보장. Electron 런타임에서 `PageDown`/`PageUp`/`Ctrl+Tab` 전환 정상 작동 확인.
 
+- **파일/폴더 열기 모드 실제 구현 (Level 1 플레이스홀더 → 실동작)** (2026-09-19)
+  - `File`: `Open File...`이 실제 네이티브 다이얼로그로 UTF-8 텍스트 파일을 열어
+    Viewer 모드(읽기 전용)로 표시한다. 상태바 `File: Viewer` 클릭 또는 View > Tab
+    Mode로 Editor 모드 전환, `Ctrl+S`로 실제 디스크에 저장한다. 두 호스트 모두
+    `dialog:open-file`/`fs:read-text-file`/`fs:write-text-file` IPC(Electron)와
+    대응하는 `WindowApi` 메서드(pywebview)를 신설했다. 바이너리 파일은 null byte
+    검사로 거부한다.
+  - `src/presets/folder-preset.ts`: 플레이스홀더 텍스트 대신 `readDirectory()`로
+    실제 폴더 내용을 나열하는 File List UI로 교체했다(Refresh 버튼, 폴더 우선
+    정렬, 행 클릭 시 `openEntry` 콜백으로 파일/하위폴더 열기).
+  - `src/presets/terminal-preset.ts`(신규): `@xterm/xterm` 기반 첫 터미널 프리셋.
+    이 시점에는 `terminalHost.read()`를 짧은 간격으로 반복 호출하는 폴링 방식이었다
+    (뒤이은 a1c91e5가 이벤트 푸시로 교체).
+  - Electron(`main.cjs`/`preload.cjs`)·pywebview(`main.py`)에 `terminal:start/read/
+    write/resize/close` 대응 IPC·API를 각각 추가했다(`node-pty`/`pywinpty` 사용,
+    양쪽 requirements/package.json에 의존성 선언).
+  - Explorer 우클릭 메뉴가 실제 동작을 갖췄다: 파일은 `Open as Viewer`/`Open as
+    Editor`, 폴더는 `Open File List`/`Open Command Prompt`/`Open PowerShell` — 각각
+    별도 탭으로 열리며(모드가 다르면 같은 대상이라도 별 탭), 이미 같은 대상·같은
+    모드 탭이 있으면 그 탭을 활성화하고 깨끗한 활성 Untitled 탭은 재사용한다
+    (`src/core/editor.ts`의 `openItem()`이 `meta.mode`까지 비교하도록 확장).
+  - 터미널 탭은 File List 탭의 실시간 모드 전환이 아니라 독립된 세션이므로,
+    폴더 탭의 View > Tab Mode 순환 전환(`file-list → cmd → terminal → ...`) 기존
+    동작을 제거하고 각각 별도 탭을 여는 방식으로 바꿨다. 기본 파일 모드도
+    `editor` → `viewer`로 변경(D-18과 일관되게 새로 연 파일은 읽기 전용이 기본).
+  - `TextEditorView.markSaved()`가 인자로 저장 기준 값을 받을 수 있도록 확장하고,
+    `setValue()`의 baseline 갱신 순서를 모델 갱신보다 먼저 하도록 바로잡았다(D-7/D-8
+    라운드트립에서 쓰임 — Phase 6에서 더 다듬어짐).
+  - `README.md`에 File/Folder 열기 모드 사용법과 `node-pty`/`pywinpty` 필수 의존성을
+    문서화했다(브라우저 전용 `npm run dev`에서는 파일/터미널 접근 불가 명시).
+  - `검증`: `scripts/verify-open-modes-electron.cjs`(신규) 통과.
+
+- **터미널 100% 핏·비주얼 고도화, IPC 스트리밍 푸시 전환, 탭 모드 정비**
+  (2026-09-20)
+  - `src/presets/terminal-preset.ts`: `@xterm/addon-fit`으로 컨테이너 크기에 맞춰
+    실측 fit, `ResizeObserver`+`requestAnimationFrame` 디바운스로 리사이즈마다
+    `terminalHost.resize()`까지 동기화. `lineHeight: 1.25`(디센더 잘림 방지),
+    `cursorStyle`/`cursorInactiveStyle: 'bar'`, Windows Terminal Campbell 팔레트 적용.
+    마운트 시·컨테이너 클릭 시 `terminal.focus()`.
+  - IPC를 60ms 폴링(`terminalHost.read()` 반복 호출)에서 진짜 이벤트 푸시로
+    바꿨다: Electron은 `win.webContents.send('terminal:data', ...)` →
+    `ipcRenderer.on`(`preload.cjs`에 `onTerminalData`/`onTerminalExit` 추가),
+    pywebview는 PTY를 블로킹 read하는 백그라운드 스레드가
+    `window.evaluate_js('window.__wbTerminalPush(...)')`로 직접 호출
+    (`src/providers/filesystem.ts`에 `terminalHost.onData`/`onExit` 구독 인터페이스
+    신설). 유휴 상태에서 폴링 타이머가 없어 CPU 점유율이 0%로 떨어진다.
+  - 앱 종료 시 PTY 자식 프로세스 정리 안전망 추가: Electron은
+    `app.on('before-quit')`에서 살아있는 모든 터미널을 `kill()`, pywebview는
+    `confirmQuit()` 통과 후 `WindowApi.cleanup_terminals()`를 호출한다.
+  - 상태바 모드 버튼(`updateStatusbarMode()`)이 활성 탭이 `FILE_KIND`일 때만
+    보이도록 좁혔다(폴더/터미널 탭에서는 `display: none`). `View > Tab Mode`
+    메뉴의 폴더/터미널 항목에 `(New Tab)`을 명시해 클릭 시 새 탭이 열린다는
+    것을 드러냈다.
+  - `kind-registry.ts`에 범용 `focus` 훅(`registerFocusHandler`/`focusPanel`)을
+    추가했다 — 리소스 종류를 모르는 공통 코어에 있어야 하는 D-4 원칙을 지키며
+    "탭 전환 시 활성 패널에 포커스"를 가능하게 한다. `main.ts`의
+    `onActivePanelChange`가 이를 호출해 터미널 탭으로 전환할 때 자동 포커스된다.
+  - 버그 수정 (2026-09-20, e351f7e): `.preset-terminal-view`의 padding을
+    `4px 0 0 8px`(금지 토큰 4px/8px, D-29 위반)에서 `5px`(허용값)로 고쳐
+    `verify:dist`를 다시 통과시켰다.
+  - `검증`: `npx tsc --noEmit`, `npm run build`, `npm run verify:dist` 통과 확인(이
+    세션에서 재확인).
+
 - **Monaco 언어 문법 등록 확장** (2026-09-20)
   - `src/core/texteditor.ts`: 기존에 JavaScript 하나만 등록돼 있던 것을, TypeScript·
     Python·Markdown·HTML·CSS·Shell·Bat·PowerShell·YAML·XML·SQL·C++·C#·Java·Rust·Go로
@@ -110,6 +173,35 @@
   - `검증`: `npx tsc --noEmit` 통과. `npm run build` 성공(청크 400KB 초과 경고는 기존과
     동일, 이번 변경이 새로 만든 것 아님). `npm run verify:dist` 전체 통과(Electron·
     pywebview 두 갈래 파일 집합·SHA-256 해시·CSS 규칙 수·배경색 일치, 0 differences).
+
+- **터미널 재마운트 시 transcript 중복 기록 버그 수정** (2026-09-20)
+  - 문제: 이전 구현은 렌더러가 열릴 때 `session.transcript`를 한 번 쓰고,
+    `session.starting.then()` 안에서 세션이 이미 `exited` 상태면 같은 transcript를
+    또 한 번 써서 exited 세션을 재마운트할 때마다(레이아웃/워크스페이스 전환,
+    탭 전환 등 렌더러가 재생성되는 모든 경우) 출력이 중복·누적되었다(직전 세션의
+    분석 대화에서 발견해 보고한 회귀).
+  - `src/presets/terminal-preset.ts`를 세션 단위 `append()` 하나로 일원화하는
+    구조로 재작성했다: 데이터가 도착할 때마다 `session.transcript`에 정확히 한
+    번만 기록되고, 구독 중인 뷰(`session.views`, 렌더러당 `showData` 콜백)에
+    전달된다. 렌더러는 마운트 시 그 시점까지의 transcript를 한 번만 쓴 뒤
+    `session.views.add(showData)`로 이후 데이터만 구독한다 — exited 여부와
+    무관하게 재작성(re-write) 경로 자체가 없어졌다.
+  - 세션 시작 초기 경합도 함께 다듬었다: 호스트 리스너를 `terminalHost.start()`
+    호출 전에 먼저 구독해 두고, id 배정과 "1회성 초기 드레인" 완료 사이에 도착한
+    청크는 `pending` 큐에 쌓았다가 `ready` 전환 시 순서대로 append한다(초기
+    배너/프롬프트 유실·중복 가능성을 줄임).
+  - `kind-registry.ts`에 `getContentForTest` 지원 추가(터미널 프리셋에도),
+    `main.ts`/`file-preset.ts`/`editor.ts`/`texteditor.ts`에 관련 배선 보강.
+  - `scripts/verify-terminal-host-electron.cjs`·`verify-terminal-host-py.py`(신규)
+    를 추가해 이 버그를 정확히 겨냥한 회귀 단언(`noBufferedDuplicate`)을 남겼다.
+  - `검증`(이 세션에서 재확인): `npx tsc --noEmit` 통과. `npm run build` 성공.
+    `npm run verify:terminal-host`(Electron) 실행 결과
+    `{"started":true,"pushed":true,"noBufferedDuplicate":true,"initialReadWorked":
+    true,"remainingForQuit":true}` — 전 항목 true로 수정 확인. pywebview 쪽
+    스크립트는 이 환경에 Python 실행기가 없어 직접 실행하지 못했으나, 중복 제거
+    로직 자체가 호스트에 무관한 `terminal-preset.ts` 공통 경로에 있어 Electron
+    검증으로 로직 수정이 실증됐다고 판단. `npm run verify:dist` 전체 통과(0
+    differences), 다른 회귀 없음.
 
 ---
 
