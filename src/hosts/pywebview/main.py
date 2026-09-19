@@ -218,8 +218,39 @@ class WindowApi:
         with self._terminal_lock:
             self._terminal_counter += 1
             terminal_id = 'terminal-' + str(self._terminal_counter)
-            state = {'process': proc, 'output': '', 'exited': False}
+            state = {
+                'process': proc, 'output': '', 'pending_push': '',
+                'streaming': False, 'exited': False, 'closed': False,
+                'push_event': threading.Event(),
+            }
             self._terminals[terminal_id] = state
+
+        def push_pending():
+            # Wait without a timer while idle; coalesce only an active burst.
+            while True:
+                state['push_event'].wait()
+                time.sleep(0.016)
+                with self._terminal_lock:
+                    state['push_event'].clear()
+                    if state['closed']:
+                        return
+                    data = state['pending_push']
+                    state['pending_push'] = ''
+                    exited = state['exited']
+                if self._window and data:
+                    try:
+                        js = f"window.__wbTerminalPush && window.__wbTerminalPush({json.dumps(terminal_id)}, {json.dumps(data)});"
+                        self._window.evaluate_js(js)
+                    except Exception:
+                        pass
+                if exited:
+                    if self._window:
+                        try:
+                            js = f"window.__wbTerminalExit && window.__wbTerminalExit({json.dumps(terminal_id)});"
+                            self._window.evaluate_js(js)
+                        except Exception:
+                            pass
+                    return
 
         def collect():
             try:
@@ -227,35 +258,35 @@ class WindowApi:
                     chunk = proc.read(8192)
                     if chunk:
                         with self._terminal_lock:
-                            state['output'] = (state['output'] + chunk)[-1_000_000:]
-                        if self._window:
-                            try:
-                                js = f"window.__wbTerminalPush && window.__wbTerminalPush({json.dumps(terminal_id)}, {json.dumps(chunk)});"
-                                self._window.evaluate_js(js)
-                            except Exception:
-                                pass
+                            if state['closed']:
+                                return
+                            if state['streaming']:
+                                state['pending_push'] = (state['pending_push'] + chunk)[-1_000_000:]
+                                state['push_event'].set()
+                            else:
+                                state['output'] = (state['output'] + chunk)[-1_000_000:]
             except Exception:
                 pass
             with self._terminal_lock:
                 state['exited'] = True
-            if self._window:
-                try:
-                    js = f"window.__wbTerminalExit && window.__wbTerminalExit({json.dumps(terminal_id)});"
-                    self._window.evaluate_js(js)
-                except Exception:
-                    pass
+                state['push_event'].set()
 
+        threading.Thread(target=push_pending, daemon=True).start()
         threading.Thread(target=collect, daemon=True).start()
         return terminal_id
 
     def cleanup_terminals(self):
         with self._terminal_lock:
-            for state in self._terminals.values():
-                try:
-                    state['process'].close()
-                except Exception:
-                    pass
+            states = list(self._terminals.values())
             self._terminals.clear()
+            for state in states:
+                state['closed'] = True
+                state['push_event'].set()
+        for state in states:
+            try:
+                state['process'].close()
+            except Exception:
+                pass
 
     def terminal_read(self, terminal_id):
         with self._terminal_lock:
@@ -264,6 +295,7 @@ class WindowApi:
                 return {'output': '', 'exited': True}
             output = state['output']
             state['output'] = ''
+            state['streaming'] = True
             return {'output': output, 'exited': state['exited']}
 
     def terminal_write(self, terminal_id, data):
@@ -281,6 +313,9 @@ class WindowApi:
     def terminal_close(self, terminal_id):
         with self._terminal_lock:
             state = self._terminals.pop(terminal_id, None)
+            if state is not None:
+                state['closed'] = True
+                state['push_event'].set()
         if state is not None:
             try:
                 state['process'].close()
@@ -1630,15 +1665,21 @@ def main():
     finally:
         probe.close()
 
+    def start_with_cleanup(**kwargs):
+        try:
+            webview.start(**kwargs)
+        finally:
+            api.cleanup_terminals()
+
     if port_is_free:
-        webview.start(storage_path=storage_path, private_mode=False, http_port=http_port)
+        start_with_cleanup(storage_path=storage_path, private_mode=False, http_port=http_port)
     else:
         sys.stderr.write(
             f"[pywebview] Warning: port {http_port} is already in use — falling back to a "
             "random port. localStorage will not persist across restarts this session (WK-101).\n"
         )
         sys.stderr.flush()
-        webview.start(storage_path=storage_path, private_mode=False)
+        start_with_cleanup(storage_path=storage_path, private_mode=False)
 
 
 if __name__ == "__main__":

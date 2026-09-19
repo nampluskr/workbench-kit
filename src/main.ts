@@ -497,12 +497,12 @@ export class WorkbenchApp {
           {
             id: 'view:tab-mode:folder-cmd',
             label: 'Open Command Prompt (New Tab)',
-            action: () => this.openResource(cwd, title, TERMINAL_KIND, 'cmd', 'pinned'),
+            action: () => this.openResource(cwd, title, TERMINAL_KIND, 'cmd', 'pinned', true),
           },
           {
             id: 'view:tab-mode:folder-terminal',
             label: 'Open PowerShell (New Tab)',
-            action: () => this.openResource(cwd, title, TERMINAL_KIND, 'powershell', 'pinned'),
+            action: () => this.openResource(cwd, title, TERMINAL_KIND, 'powershell', 'pinned', true),
           },
         ];
       }
@@ -511,8 +511,8 @@ export class WorkbenchApp {
         const title = panel.title || cwd;
         return [
           { id: 'view:tab-mode:terminal-current', label: getFolderModeLabel(panel.params?.mode as string), checked: true },
-          { id: 'view:tab-mode:terminal-cmd', label: 'Open Command Prompt (New Tab)', action: () => this.openResource(cwd, title, TERMINAL_KIND, 'cmd', 'pinned') },
-          { id: 'view:tab-mode:terminal-powershell', label: 'Open PowerShell (New Tab)', action: () => this.openResource(cwd, title, TERMINAL_KIND, 'powershell', 'pinned') },
+          { id: 'view:tab-mode:terminal-cmd', label: 'Open Command Prompt (New Tab)', action: () => this.openResource(cwd, title, TERMINAL_KIND, 'cmd', 'pinned', true) },
+          { id: 'view:tab-mode:terminal-powershell', label: 'Open PowerShell (New Tab)', action: () => this.openResource(cwd, title, TERMINAL_KIND, 'powershell', 'pinned', true) },
         ];
       }
       return [{ id: 'view:tab-mode:unsupported', label: 'No Mode for Current Tab', disabled: true }];
@@ -1577,10 +1577,12 @@ export class WorkbenchApp {
     title: string,
     kind: string,
     resourceMode: string,
-    tabMode: EditorOpenMode
+    tabMode: EditorOpenMode,
+    forceNew = false
   ): IDockviewPanel {
     const panel = this.editor.openItem(targetId, title, {
       mode: tabMode,
+      forceNew,
       meta: {
         kind,
         mode: resourceMode,

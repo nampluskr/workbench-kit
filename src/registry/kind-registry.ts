@@ -50,6 +50,8 @@ export type KindRendererFactory = (targetId: string, ctx: KindRendererContext) =
   focus?: () => void;
   /** Test-support only: reads this view's current live content, when it has any. */
   getContentForTest?: () => string;
+  /** Test-support only: current Monaco language and registration status. */
+  getLanguageForTest?: () => { id: string; registered: boolean };
   /** Test-support only: drives a real content edit, when this view has any. */
   appendContentForTest?: (text: string) => void;
   /** Test-support only: drives a real undo through this view's own undo stack, when it has one. */

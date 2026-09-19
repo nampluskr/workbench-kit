@@ -66,14 +66,24 @@ ipcMain.handle('terminal:start', async (e, kind, cwd) => {
   const id = `terminal-${++terminalCounter}`;
   const shell = kind === 'cmd' ? 'cmd.exe' : 'powershell.exe';
   const termProcess = pty.spawn(shell, [], { cwd, cols: 80, rows: 24, env: processEnvForTerminal() });
-  const state = { process: termProcess, output: '', exited: false };
+  const state = { process: termProcess, output: '', pendingPush: '', pushTimer: null, streaming: false, exited: false };
+  const flushPush = () => {
+    if (state.pushTimer) clearTimeout(state.pushTimer);
+    state.pushTimer = null;
+    const data = state.pendingPush;
+    state.pendingPush = '';
+    if (data && win && !win.isDestroyed()) win.webContents.send('terminal:data', id, data);
+  };
   termProcess.onData((data) => {
-    state.output = (state.output + data).slice(-1_000_000);
-    if (win && !win.isDestroyed()) {
-      win.webContents.send('terminal:data', id, data);
+    if (!state.streaming) {
+      state.output = (state.output + data).slice(-1_000_000);
+    } else {
+      state.pendingPush += data;
+      if (!state.pushTimer) state.pushTimer = setTimeout(flushPush, 16);
     }
   });
   termProcess.onExit(() => {
+    flushPush();
     state.exited = true;
     if (win && !win.isDestroyed()) {
       win.webContents.send('terminal:exit', id);
@@ -89,6 +99,7 @@ ipcMain.handle('terminal:read', (_e, id) => {
   if (!state) return { output: '', exited: true };
   const output = state.output;
   state.output = '';
+  state.streaming = true;
   return { output, exited: state.exited };
 });
 ipcMain.handle('terminal:write', (_e, id, data) => { terminals.get(id)?.process.write(data); });
@@ -96,7 +107,9 @@ ipcMain.handle('terminal:resize', (_e, id, cols, rows) => {
   terminals.get(id)?.process.resize(Math.max(2, cols), Math.max(2, rows));
 });
 ipcMain.handle('terminal:close', (_e, id) => {
-  terminals.get(id)?.process.kill();
+  const state = terminals.get(id);
+  if (state?.pushTimer) clearTimeout(state.pushTimer);
+  try { state?.process.kill(); } catch { /* already exited */ }
   terminals.delete(id);
 });
 
@@ -307,6 +320,7 @@ app.whenReady().then(() => {
 
 app.on('before-quit', () => {
   for (const state of terminals.values()) {
+    if (state.pushTimer) clearTimeout(state.pushTimer);
     try { state.process.kill(); } catch { /* ignore */ }
   }
   terminals.clear();

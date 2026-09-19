@@ -2,7 +2,6 @@ const { app, BrowserWindow, ipcMain } = require('electron');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
-const pty = require('node-pty');
 
 app.commandLine.appendSwitch('disable-gpu');
 app.commandLine.appendSwitch('no-sandbox');
@@ -18,6 +17,10 @@ app.on('quit', () => {
 });
 const filePath = path.join(fixture, 'sample.txt');
 fs.writeFileSync(filePath, 'first line', 'utf8');
+const pythonPath = path.join(fixture, 'sample.py');
+const jsonPath = path.join(fixture, 'sample.json');
+fs.writeFileSync(pythonPath, 'print("hello")', 'utf8');
+fs.writeFileSync(jsonPath, '{"ok": true}', 'utf8');
 
 ipcMain.handle('fs:list-drives', () => []);
 ipcMain.handle('fs:read-dir', async (_e, dir) => (await fs.promises.readdir(dir, { withFileTypes: true }))
@@ -32,22 +35,7 @@ let nextId = 0;
 ipcMain.handle('terminal:start', (e, kind, cwd) => {
   const win = BrowserWindow.fromWebContents(e.sender);
   const id = `test-${++nextId}`;
-  const proc = pty.spawn(kind === 'cmd' ? 'cmd.exe' : 'powershell.exe', [], {
-    cwd, cols: 80, rows: 24, env: process.env,
-  });
-  const state = { proc, output: '', exited: false };
-  proc.onData((data) => {
-    state.output += data;
-    if (win && !win.isDestroyed()) {
-      win.webContents.send('terminal:data', id, data);
-    }
-  });
-  proc.onExit(() => {
-    state.exited = true;
-    if (win && !win.isDestroyed()) {
-      win.webContents.send('terminal:exit', id);
-    }
-  });
+  const state = { output: 'BOOT_ONCE\r\n', streaming: false, exited: false, win };
   terminals.set(id, state);
   return id;
 });
@@ -56,14 +44,18 @@ ipcMain.handle('terminal:read', (_e, id) => {
   if (!state) return { output: '', exited: true };
   const output = state.output;
   state.output = '';
+  state.streaming = true;
+  setTimeout(() => {
+    if (terminals.has(id) && state.win && !state.win.isDestroyed()) {
+      state.win.webContents.send('terminal:data', id, 'PUSH_ONCE\r\n');
+    }
+  }, 50);
   return { output, exited: state.exited };
 });
-ipcMain.handle('terminal:write', (_e, id, data) => { terminals.get(id)?.proc.write(data); });
-ipcMain.handle('terminal:resize', (_e, id, cols, rows) => { terminals.get(id)?.proc.resize(cols, rows); });
+ipcMain.handle('terminal:write', () => {});
+ipcMain.handle('terminal:resize', () => {});
 ipcMain.handle('terminal:close', (_e, id) => {
-  const state = terminals.get(id);
   terminals.delete(id);
-  try { state?.proc.kill(); } catch { /* already exited */ }
 });
 
 app.whenReady().then(async () => {
@@ -90,6 +82,14 @@ app.whenReady().then(async () => {
       const dirty = filePanel.params.isDirty === true;
       const saved = await app.kindRegistry.save(filePanel.id);
       const stayedInTab = app.editor.getActivePanel().id === filePanel.id;
+      await app.handleOpenFileDialog(${JSON.stringify(pythonPath)});
+      const pyPanel = app.editor.getActivePanel();
+      const pyLanguage = app.kindRegistry.getInnerForTest(pyPanel.id).getLanguageForTest();
+      await app.handleOpenFileDialog(${JSON.stringify(jsonPath)});
+      const jsonPanel = app.editor.getActivePanel();
+      const jsonLanguage = app.kindRegistry.getInnerForTest(jsonPanel.id).getLanguageForTest();
+      const syntaxLanguages = pyLanguage.id === 'python' && pyLanguage.registered &&
+        jsonLanguage.id === 'json' && jsonLanguage.registered;
       await app.handleOpenFolderDialog(${JSON.stringify(fixture)});
       await wait(300);
       const folderPanel = app.editor.getActivePanel();
@@ -102,9 +102,33 @@ app.whenReady().then(async () => {
         typeof terminalPanel.params.terminalSessionKey === 'string' &&
         Boolean(document.querySelector('.preset-terminal-view .xterm'));
       const separateTabs = folderPanel.id !== terminalPanel.id;
+      const statusbarFileOnly = document.getElementById('statusbar-mode-btn').style.display === 'none';
+      folderPanel.api.setActive();
+      terminalPanel.api.setActive();
+      await wait(50);
+      const terminalFocused = document.activeElement?.classList.contains('xterm-helper-textarea') === true;
+      await wait(150);
+      const transcript = app.kindRegistry.getInnerForTest(terminalPanel.id).getContentForTest();
+      const streamedOnce = transcript.split('BOOT_ONCE').length === 2 &&
+        transcript.split('PUSH_ONCE').length === 2;
+      const layout = app.editor.getApi().toJSON();
+      app.editor.getApi().fromJSON(layout);
+      await wait(150);
+      const restoredPanel = app.editor.getActivePanel();
+      const restoredTranscript = app.kindRegistry.getInnerForTest(restoredPanel.id).getContentForTest();
+      const restoredOnce = restoredPanel.params.terminalSessionKey === terminalPanel.params.terminalSessionKey &&
+        restoredTranscript.split('BOOT_ONCE').length === 2 &&
+        restoredTranscript.split('PUSH_ONCE').length === 2;
+      app.openResource(${JSON.stringify(fixture)}, 'terminal', 'terminal', 'cmd', 'pinned', true);
+      await wait(150);
+      const forcedNewTab = app.editor.getActivePanel().id !== restoredPanel.id &&
+        app.editor.getActiveGroup().panels.filter((panel) => panel.params.kind === 'terminal').length === 2;
       await app.editor.closeActiveTab();
+      await app.editor.getApi().getPanel(restoredPanel.id).api.close();
       await wait(500);
-      return { viewer, dirty, saved, stayedInTab, fileList, terminal, separateTabs };
+      return { viewer, dirty, saved, stayedInTab, syntaxLanguages, fileList, terminal,
+        separateTabs, statusbarFileOnly, terminalFocused,
+        streamedOnce, restoredOnce, forcedNewTab };
     })()`);
     const diskSaved = fs.readFileSync(filePath, 'utf8').includes('changed');
     const closedTerminal = terminals.size === 0;
@@ -114,11 +138,8 @@ app.whenReady().then(async () => {
     console.error(error);
     process.exitCode = 1;
   } finally {
-    for (const state of terminals.values()) {
-      try { state.proc.kill(); } catch { /* already exited */ }
-    }
     win.destroy();
-    app.quit();
+    app.exit(process.exitCode || 0);
   }
 }).catch((error) => {
   console.error(error);

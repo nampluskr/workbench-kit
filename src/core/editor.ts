@@ -39,6 +39,8 @@ export interface EditorOpenOptions {
    * user confirms it.
    */
   mode?: EditorOpenMode;
+  /** Always creates another tab, even when this target and mode are open. */
+  forceNew?: boolean;
   /**
    * Opaque metadata the caller attaches to a panel (FR-I1, D-4, NFR-1).
    * The shell stores and forwards this bag without inspecting its keys or
@@ -875,7 +877,7 @@ export class EditorController {
     // not find it there.
     const activePanel = group.activePanel;
     const isActiveBlank = Boolean(activePanel && activePanel.params?.targetId == null && !activePanel.params?.isDirty);
-    const existingPanel = isActiveBlank ? undefined : group.panels.find((p) =>
+    const existingPanel = isActiveBlank || options?.forceNew ? undefined : group.panels.find((p) =>
       p.params?.targetId === targetId &&
       (meta.kind === undefined || p.params?.kind === meta.kind) &&
       (meta.mode === undefined || p.params?.mode === meta.mode)
@@ -898,7 +900,7 @@ export class EditorController {
     );
     const compatiblePreview = previewSpot &&
       (meta.mode === undefined || previewSpot.params?.mode === undefined || previewSpot.params?.mode === meta.mode);
-    const reusable = isActiveBlank ? activePanel : (mode === 'preview' && compatiblePreview) || isBlankSpot ? previewSpot : undefined;
+    const reusable = options?.forceNew ? undefined : isActiveBlank ? activePanel : (mode === 'preview' && compatiblePreview) || isBlankSpot ? previewSpot : undefined;
     if (reusable) {
       reusable.setTitle(displayTitle);
       reusable.api.setRenderer(requestedRenderer);

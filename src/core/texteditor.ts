@@ -179,6 +179,12 @@ export class TextEditorView {
     return this.model.getValue();
   }
 
+  /** Test-support only: checks both the model ID and a registered grammar. */
+  public getLanguageForTest(): { id: string; registered: boolean } {
+    const id = this.model.getLanguageId();
+    return { id, registered: monaco.languages.getLanguages().some((language) => language.id === id) };
+  }
+
   public isDirty(): boolean {
     return this.model.getValue() !== this.savedValue;
   }

@@ -143,6 +143,7 @@ export function registerFilePreset(registry: ResourceKindRegistry): void {
         updateParams({ mode: newMode });
       },
       getContentForTest: () => view.getValue(),
+      getLanguageForTest: () => view.getLanguageForTest(),
       appendContentForTest: (text: string) => view.appendTextForTest(text),
       undoForTest: () => view.triggerCommand('undo'),
       isDirtyForTest: () => view.isDirty(),
