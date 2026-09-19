@@ -4,6 +4,36 @@
 // and would balloon dist/ with chunks nothing ever loads (D-24, C-4).
 import * as monaco from 'monaco-editor/editor/editor.api';
 import 'monaco-editor/languages/definitions/javascript/register';
+import 'monaco-editor/languages/definitions/typescript/register';
+import 'monaco-editor/languages/definitions/python/register';
+import 'monaco-editor/languages/definitions/markdown/register';
+import 'monaco-editor/languages/definitions/html/register';
+import 'monaco-editor/languages/definitions/css/register';
+import 'monaco-editor/languages/definitions/shell/register';
+import 'monaco-editor/languages/definitions/bat/register';
+import 'monaco-editor/languages/definitions/powershell/register';
+import 'monaco-editor/languages/definitions/yaml/register';
+import 'monaco-editor/languages/definitions/xml/register';
+import 'monaco-editor/languages/definitions/sql/register';
+import 'monaco-editor/languages/definitions/cpp/register';
+import 'monaco-editor/languages/definitions/csharp/register';
+import 'monaco-editor/languages/definitions/java/register';
+import 'monaco-editor/languages/definitions/rust/register';
+import 'monaco-editor/languages/definitions/go/register';
+
+// Lightweight Monarch tokenizer for JSON without worker chunk overhead
+monaco.languages.register({ id: 'json', extensions: ['.json'] });
+monaco.languages.setMonarchTokensProvider('json', {
+  tokenizer: {
+    root: [
+      [/".*?"(?=\s*:)/, 'type.identifier'],
+      [/"(\\.|[^"\\])*"/, 'string'],
+      [/\b(true|false|null)\b/, 'keyword'],
+      [/-?\d+(\.\d+)?([eE][+-]?\d+)?/, 'number'],
+      [/[{}[\],:]/, 'delimiter'],
+    ],
+  },
+});
 // Editor contributions are opt-in when importing the bare API instead of
 // editor.main.js (which would also re-import all ~80 languages). Only the
 // ones D-18 turns on are pulled in individually.
