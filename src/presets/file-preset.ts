@@ -11,6 +11,72 @@ export function getFileModeLabel(mode?: string): string {
   return mode === 'viewer' ? 'Viewer' : 'Editor';
 }
 
+export function detectLanguage(filePath: string): string {
+  const ext = filePath.split(/[/\\]/).pop()?.split('.').pop()?.toLowerCase() || '';
+  switch (ext) {
+    case 'ts':
+    case 'cts':
+    case 'mts':
+      return 'typescript';
+    case 'js':
+    case 'cjs':
+    case 'mjs':
+      return 'javascript';
+    case 'jsx':
+      return 'javascript';
+    case 'tsx':
+      return 'typescript';
+    case 'json':
+      return 'json';
+    case 'html':
+    case 'htm':
+      return 'html';
+    case 'css':
+      return 'css';
+    case 'scss':
+    case 'less':
+      return 'css';
+    case 'md':
+    case 'markdown':
+      return 'markdown';
+    case 'py':
+      return 'python';
+    case 'sh':
+    case 'bash':
+      return 'shell';
+    case 'bat':
+    case 'cmd':
+      return 'bat';
+    case 'ps1':
+      return 'powershell';
+    case 'xml':
+    case 'svg':
+      return 'xml';
+    case 'yaml':
+    case 'yml':
+      return 'yaml';
+    case 'sql':
+      return 'sql';
+    case 'c':
+    case 'h':
+      return 'c';
+    case 'cpp':
+    case 'hpp':
+    case 'cc':
+      return 'cpp';
+    case 'rs':
+      return 'rust';
+    case 'go':
+      return 'go';
+    case 'java':
+      return 'java';
+    case 'cs':
+      return 'csharp';
+    default:
+      return 'plaintext';
+  }
+}
+
 export function registerFilePreset(registry: ResourceKindRegistry): void {
   registry.register(FILE_KIND, (targetId, { params, updateParams }) => {
     // Dockview serializes params, so both the live buffer and saved baseline
@@ -22,7 +88,7 @@ export function registerFilePreset(registry: ResourceKindRegistry): void {
     const view = new TextEditorView({
       value: initialValue,
       savedValue: initialSavedValue,
-      language: 'plaintext',
+      language: detectLanguage(targetId),
       readOnly: initialMode === 'viewer' || params.loadError === true,
     });
     const pushContentParams = () => updateParams({ value: view.getValue(), savedValue: view.getSavedValue() });

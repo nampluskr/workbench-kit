@@ -190,7 +190,12 @@ export class WorkbenchApp {
         this.setActivePanelMode(nextMode);
       }
     });
-    this.editor.onActivePanelChange(() => this.updateStatusbarMode());
+    this.editor.onActivePanelChange((panel) => {
+      this.updateStatusbarMode();
+      if (panel?.id) {
+        this.kindRegistry.focusPanel(panel.id);
+      }
+    });
     this.editor.onLayoutChange(() => this.updateStatusbarMode());
     this.updateStatusbarMode();
 
@@ -491,12 +496,12 @@ export class WorkbenchApp {
           },
           {
             id: 'view:tab-mode:folder-cmd',
-            label: 'Open Command Prompt',
+            label: 'Open Command Prompt (New Tab)',
             action: () => this.openResource(cwd, title, TERMINAL_KIND, 'cmd', 'pinned'),
           },
           {
             id: 'view:tab-mode:folder-terminal',
-            label: 'Open PowerShell',
+            label: 'Open PowerShell (New Tab)',
             action: () => this.openResource(cwd, title, TERMINAL_KIND, 'powershell', 'pinned'),
           },
         ];
@@ -506,8 +511,8 @@ export class WorkbenchApp {
         const title = panel.title || cwd;
         return [
           { id: 'view:tab-mode:terminal-current', label: getFolderModeLabel(panel.params?.mode as string), checked: true },
-          { id: 'view:tab-mode:terminal-cmd', label: 'Open Command Prompt', action: () => this.openResource(cwd, title, TERMINAL_KIND, 'cmd', 'pinned') },
-          { id: 'view:tab-mode:terminal-powershell', label: 'Open PowerShell', action: () => this.openResource(cwd, title, TERMINAL_KIND, 'powershell', 'pinned') },
+          { id: 'view:tab-mode:terminal-cmd', label: 'Open Command Prompt (New Tab)', action: () => this.openResource(cwd, title, TERMINAL_KIND, 'cmd', 'pinned') },
+          { id: 'view:tab-mode:terminal-powershell', label: 'Open PowerShell (New Tab)', action: () => this.openResource(cwd, title, TERMINAL_KIND, 'powershell', 'pinned') },
         ];
       }
       return [{ id: 'view:tab-mode:unsupported', label: 'No Mode for Current Tab', disabled: true }];
@@ -1574,7 +1579,7 @@ export class WorkbenchApp {
     resourceMode: string,
     tabMode: EditorOpenMode
   ): IDockviewPanel {
-    return this.editor.openItem(targetId, title, {
+    const panel = this.editor.openItem(targetId, title, {
       mode: tabMode,
       meta: {
         kind,
@@ -1582,6 +1587,10 @@ export class WorkbenchApp {
         ...(kind === TERMINAL_KIND ? { terminalSessionKey: crypto.randomUUID() } : {}),
       },
     });
+    if (panel?.id) {
+      this.kindRegistry.focusPanel(panel.id);
+    }
+    return panel;
   }
 
   private openDirectoryEntry(entry: HostDirectoryEntry): void {
@@ -1614,25 +1623,13 @@ export class WorkbenchApp {
       const mode = panel.params?.mode || this.defaultFileMode;
       const label = getFileModeLabel(mode);
       btn.style.display = 'inline-flex';
+      btn.disabled = false;
       btn.textContent = `File: ${label}`;
       btn.title = `File Mode: ${label} (click to toggle)`;
-    } else if (kind === FOLDER_KIND) {
-      const label = 'File List';
-      btn.style.display = 'inline-flex';
-      btn.textContent = `Folder: ${label}`;
-      btn.title = 'Folder: File List';
-      btn.disabled = true;
-    } else if (kind === TERMINAL_KIND) {
-      const label = getFolderModeLabel(panel.params?.mode as string);
-      btn.style.display = 'inline-flex';
-      btn.textContent = `Terminal: ${label}`;
-      btn.title = `Terminal: ${label}`;
-      btn.disabled = true;
     } else {
       btn.style.display = 'none';
       btn.textContent = '';
     }
-    if (kind === FILE_KIND) btn.disabled = false;
   }
 
   public getDefaultFileMode(): 'editor' | 'viewer' {

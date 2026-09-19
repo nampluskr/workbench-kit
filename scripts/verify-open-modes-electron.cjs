@@ -29,14 +29,25 @@ ipcMain.handle('fs:write-text-file', async (_e, file, content) => {
 });
 const terminals = new Map();
 let nextId = 0;
-ipcMain.handle('terminal:start', (_e, kind, cwd) => {
+ipcMain.handle('terminal:start', (e, kind, cwd) => {
+  const win = BrowserWindow.fromWebContents(e.sender);
   const id = `test-${++nextId}`;
   const proc = pty.spawn(kind === 'cmd' ? 'cmd.exe' : 'powershell.exe', [], {
     cwd, cols: 80, rows: 24, env: process.env,
   });
   const state = { proc, output: '', exited: false };
-  proc.onData((data) => { state.output += data; });
-  proc.onExit(() => { state.exited = true; });
+  proc.onData((data) => {
+    state.output += data;
+    if (win && !win.isDestroyed()) {
+      win.webContents.send('terminal:data', id, data);
+    }
+  });
+  proc.onExit(() => {
+    state.exited = true;
+    if (win && !win.isDestroyed()) {
+      win.webContents.send('terminal:exit', id);
+    }
+  });
   terminals.set(id, state);
   return id;
 });

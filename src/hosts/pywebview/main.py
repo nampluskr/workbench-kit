@@ -118,6 +118,8 @@ def request_confirmed_close(window):
                     window.evaluate_js("window.__closeConfirmResult = null;")
                     if res == "yes":
                         window._wb_close_confirmed = True
+                        if hasattr(window, '_js_api') and hasattr(window._js_api, 'cleanup_terminals'):
+                            window._js_api.cleanup_terminals()
                         window.destroy()
                     return
             sys.stderr.write("[pywebview] Close confirmation timed out; window stays open.\n")
@@ -223,15 +225,37 @@ class WindowApi:
             try:
                 while proc.isalive():
                     chunk = proc.read(8192)
-                    with self._terminal_lock:
-                        state['output'] = (state['output'] + chunk)[-1_000_000:]
+                    if chunk:
+                        with self._terminal_lock:
+                            state['output'] = (state['output'] + chunk)[-1_000_000:]
+                        if self._window:
+                            try:
+                                js = f"window.__wbTerminalPush && window.__wbTerminalPush({json.dumps(terminal_id)}, {json.dumps(chunk)});"
+                                self._window.evaluate_js(js)
+                            except Exception:
+                                pass
             except Exception:
                 pass
             with self._terminal_lock:
                 state['exited'] = True
+            if self._window:
+                try:
+                    js = f"window.__wbTerminalExit && window.__wbTerminalExit({json.dumps(terminal_id)});"
+                    self._window.evaluate_js(js)
+                except Exception:
+                    pass
 
         threading.Thread(target=collect, daemon=True).start()
         return terminal_id
+
+    def cleanup_terminals(self):
+        with self._terminal_lock:
+            for state in self._terminals.values():
+                try:
+                    state['process'].close()
+                except Exception:
+                    pass
+            self._terminals.clear()
 
     def terminal_read(self, terminal_id):
         with self._terminal_lock:

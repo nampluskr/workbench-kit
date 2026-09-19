@@ -1588,9 +1588,20 @@ body.is-resizing-sidebar {
 .preset-terminal-view {
   width: 100%;
   height: 100%;
+  box-sizing: border-box;
   overflow: hidden;
-  background: #1e1e1e;
-  padding: 5px;
+  background: #0c0c0c;
+  padding: 4px 0 0 8px;
+}
+
+.preset-terminal-view .xterm {
+  width: 100%;
+  height: 100%;
+  padding: 0;
+}
+
+.preset-terminal-view .xterm-viewport {
+  overflow-y: auto !important;
 }
 
 .statusbar-app-items {

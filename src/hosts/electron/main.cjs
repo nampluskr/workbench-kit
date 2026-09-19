@@ -59,15 +59,26 @@ ipcMain.handle('fs:write-text-file', async (_e, filePath, contents) => {
 
 const terminals = new Map();
 let terminalCounter = 0;
-ipcMain.handle('terminal:start', async (_e, kind, cwd) => {
+ipcMain.handle('terminal:start', async (e, kind, cwd) => {
   if (kind !== 'cmd' && kind !== 'powershell') throw new Error('Unsupported shell');
   if (!(await fs.promises.stat(cwd)).isDirectory()) throw new Error('Terminal working directory is not a folder');
+  const win = BrowserWindow.fromWebContents(e.sender);
   const id = `terminal-${++terminalCounter}`;
   const shell = kind === 'cmd' ? 'cmd.exe' : 'powershell.exe';
   const termProcess = pty.spawn(shell, [], { cwd, cols: 80, rows: 24, env: processEnvForTerminal() });
   const state = { process: termProcess, output: '', exited: false };
-  termProcess.onData((data) => { state.output = (state.output + data).slice(-1_000_000); });
-  termProcess.onExit(() => { state.exited = true; });
+  termProcess.onData((data) => {
+    state.output = (state.output + data).slice(-1_000_000);
+    if (win && !win.isDestroyed()) {
+      win.webContents.send('terminal:data', id, data);
+    }
+  });
+  termProcess.onExit(() => {
+    state.exited = true;
+    if (win && !win.isDestroyed()) {
+      win.webContents.send('terminal:exit', id);
+    }
+  });
   terminals.set(id, state);
   return id;
 });
@@ -292,6 +303,13 @@ app.whenReady().then(() => {
       createWindow();
     }
   });
+});
+
+app.on('before-quit', () => {
+  for (const state of terminals.values()) {
+    try { state.process.kill(); } catch { /* ignore */ }
+  }
+  terminals.clear();
 });
 
 app.on('window-all-closed', () => {

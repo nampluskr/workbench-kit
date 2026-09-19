@@ -46,6 +46,8 @@ export type KindRendererFactory = (targetId: string, ctx: KindRendererContext) =
   save?: () => Promise<boolean> | boolean;
   /** Optional: set or switch the active mode of this view. */
   setMode?: (mode: string) => void;
+  /** Optional: request keyboard focus into this view. */
+  focus?: () => void;
   /** Test-support only: reads this view's current live content, when it has any. */
   getContentForTest?: () => string;
   /** Test-support only: drives a real content edit, when this view has any. */
@@ -66,6 +68,7 @@ export class ResourceKindRegistry {
   private factories = new Map<string, KindRendererFactory>();
   private saveables = new Map<string, () => Promise<boolean> | boolean>();
   private modeHandlers = new Map<string, (mode: string) => void>();
+  private focusHandlers = new Map<string, () => void>();
   /** Test-support only: the live inner view per panel, so a test script can drive/read real content without reaching into dockview internals. */
   private innerForTest = new Map<string, ReturnType<KindRendererFactory>>();
 
@@ -114,6 +117,18 @@ export class ResourceKindRegistry {
 
   public setPanelMode(panelId: string, mode: string): void {
     this.modeHandlers.get(panelId)?.(mode);
+  }
+
+  public registerFocusHandler(panelId: string, fn: () => void): void {
+    this.focusHandlers.set(panelId, fn);
+  }
+
+  public unregisterFocusHandler(panelId: string): void {
+    this.focusHandlers.delete(panelId);
+  }
+
+  public focusPanel(panelId: string): void {
+    this.focusHandlers.get(panelId)?.();
   }
 
   /** The single save handler `main.ts` registers via `editor.setSaveHandler` (FR-P7). */
@@ -221,6 +236,13 @@ class KindDispatchRenderer implements IContentRenderer {
     if (this.inner.setMode && this.panelId) {
       this.registry.registerModeHandler(this.panelId, (m) => this.inner?.setMode?.(m));
     }
+    if (this.inner.focus && this.panelId) {
+      this.registry.registerFocusHandler(this.panelId, () => this.inner?.focus?.());
+    }
+  }
+
+  public focus(): void {
+    this.inner?.focus?.();
   }
 
   public dispose(): void {
@@ -229,6 +251,7 @@ class KindDispatchRenderer implements IContentRenderer {
     if (this.panelId) {
       this.registry.unregisterSaveable(this.panelId);
       this.registry.unregisterModeHandler(this.panelId);
+      this.registry.unregisterFocusHandler(this.panelId);
       this.registry.deleteInnerForTest(this.panelId);
     }
     this.inner?.dispose?.();

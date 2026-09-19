@@ -30,6 +30,8 @@ export interface HostFileSystemBridge {
   terminalWrite?: (id: string, data: string) => Promise<void>;
   terminalResize?: (id: string, cols: number, rows: number) => Promise<void>;
   terminalClose?: (id: string) => Promise<void>;
+  onTerminalData?: (callback: (id: string, data: string) => void) => void;
+  onTerminalExit?: (callback: (id: string) => void) => void;
   terminal_start?: (kind: string, cwd: string) => Promise<string>;
   terminal_read?: (id: string) => Promise<{ output: string; exited: boolean }>;
   terminal_write?: (id: string, data: string) => Promise<void>;
@@ -95,6 +97,38 @@ export async function readDirectory(path: string): Promise<HostDirectoryEntry[]>
   throw new Error('Directory reading is unavailable in this host');
 }
 
+type TerminalDataCallback = (id: string, data: string) => void;
+type TerminalExitCallback = (id: string) => void;
+
+const terminalDataListeners = new Set<TerminalDataCallback>();
+const terminalExitListeners = new Set<TerminalExitCallback>();
+
+if (typeof window !== 'undefined') {
+  (window as any).__wbTerminalPush = (id: string, data: string) => {
+    terminalDataListeners.forEach((fn) => fn(id, data));
+  };
+  (window as any).__wbTerminalExit = (id: string) => {
+    terminalExitListeners.forEach((fn) => fn(id));
+  };
+}
+
+let electronBridgeWired = false;
+function ensureHostTerminalStream(): void {
+  if (electronBridgeWired) return;
+  const host = getHostFsBridge();
+  if (host?.onTerminalData) {
+    host.onTerminalData((id, data) => {
+      terminalDataListeners.forEach((fn) => fn(id, data));
+    });
+  }
+  if (host?.onTerminalExit) {
+    host.onTerminalExit((id) => {
+      terminalExitListeners.forEach((fn) => fn(id));
+    });
+  }
+  electronBridgeWired = true;
+}
+
 export const terminalHost = {
   async start(kind: 'cmd' | 'powershell', cwd: string): Promise<string> {
     const host = getHostFsBridge();
@@ -122,6 +156,16 @@ export const terminalHost = {
     const host = getHostFsBridge();
     if (host?.terminalClose) await host.terminalClose(id);
     else if (host?.terminal_close) await host.terminal_close(id);
+  },
+  onData(callback: TerminalDataCallback): () => void {
+    ensureHostTerminalStream();
+    terminalDataListeners.add(callback);
+    return () => terminalDataListeners.delete(callback);
+  },
+  onExit(callback: TerminalExitCallback): () => void {
+    ensureHostTerminalStream();
+    terminalExitListeners.add(callback);
+    return () => terminalExitListeners.delete(callback);
   },
 };
 

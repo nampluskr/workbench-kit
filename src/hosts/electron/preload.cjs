@@ -14,6 +14,16 @@ contextBridge.exposeInMainWorld('workbenchHost', {
   terminalWrite: (id, data) => ipcRenderer.invoke('terminal:write', id, data),
   terminalResize: (id, cols, rows) => ipcRenderer.invoke('terminal:resize', id, cols, rows),
   terminalClose: (id) => ipcRenderer.invoke('terminal:close', id),
+  onTerminalData: (callback) => {
+    const listener = (_e, id, data) => callback(id, data);
+    ipcRenderer.on('terminal:data', listener);
+    return () => ipcRenderer.removeListener('terminal:data', listener);
+  },
+  onTerminalExit: (callback) => {
+    const listener = (_e, id) => callback(id);
+    ipcRenderer.on('terminal:exit', listener);
+    return () => ipcRenderer.removeListener('terminal:exit', listener);
+  },
   listDrives: () => ipcRenderer.invoke('fs:list-drives'),
   // Real window state, pushed from main.cjs's native 'maximize'/'unmaximize'
   // listeners — covers the button AND a titlebar double-click/OS Snap
