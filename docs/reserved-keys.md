@@ -8,7 +8,8 @@
 
 | 키 | 동작 | 근거 |
 | --- | --- | --- |
-| `Ctrl+O` | 폴더 추가 (`File > Add Folder...`) | FR-A1, D-16, v0.2 FR-M4 |
+| `Ctrl+O` | 파일 열기 (`File > Open File...`) | 사용자 요청 (2026-09-19) |
+| `Ctrl+K Ctrl+O` | 폴더 열기 (`File > Open Folder...`) | 사용자 요청 (2026-09-19) |
 | `Ctrl+W` | 활성 탭 닫기 (`File > Close Active Tab`) | FR-N6b, v0.2 FR-M4 |
 | `Ctrl+N` | 활성 칸에 새 빈 탭 열기 (`New Tab`) | 사용자 요청 (2026-09-18) |
 | `Ctrl+\` | 좌우 스플릿 (`View > Layout > Split Right`) | FR-D1 |

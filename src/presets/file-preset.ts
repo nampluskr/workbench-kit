@@ -10,6 +10,10 @@ import { TextEditorView } from '../core/texteditor';
 
 export const FILE_KIND = 'file';
 
+export function getFileModeLabel(mode?: string): string {
+  return mode === 'viewer' ? 'Viewer' : 'Editor';
+}
+
 export function registerFilePreset(registry: ResourceKindRegistry): void {
   registry.register(FILE_KIND, (targetId, { params, updateParams }) => {
     // `params.value`/`params.savedValue`, when present, are this panel's own
@@ -23,10 +27,19 @@ export function registerFilePreset(registry: ResourceKindRegistry): void {
     // unsaved) restored content as ALSO its saved baseline would silently
     // stop being dirty the moment an edit happened to return to that exact
     // text (round-2 adversarial review, Critical #2).
-    const placeholder = `// File preset view: ${targetId}\n`;
+    const initialMode = typeof params.mode === 'string' ? params.mode : 'editor';
+    const placeholder = params.mode
+      ? `// File preset view: ${targetId} [Mode: ${getFileModeLabel(initialMode)}]\n`
+      : `// File preset view: ${targetId}\n`;
     const initialValue = typeof params.value === 'string' ? params.value : placeholder;
     const initialSavedValue = typeof params.savedValue === 'string' ? params.savedValue : initialValue;
-    const view = new TextEditorView({ value: initialValue, savedValue: initialSavedValue, language: 'javascript' });
+    const isReadOnly = initialMode === 'viewer';
+    const view = new TextEditorView({
+      value: initialValue,
+      savedValue: initialSavedValue,
+      language: 'javascript',
+      readOnly: isReadOnly,
+    });
     const pushContentParams = () => updateParams({ value: view.getValue(), savedValue: view.getSavedValue() });
     const unsubscribeContent = view.onDidChangeContent(pushContentParams);
     return {
@@ -44,6 +57,21 @@ export function registerFilePreset(registry: ResourceKindRegistry): void {
         view.markSaved();
         pushContentParams();
         return true;
+      },
+      setMode: (newMode: string) => {
+        const isViewer = newMode === 'viewer';
+        view.setReadOnly(isViewer);
+        updateParams({ mode: newMode });
+        const currentVal = view.getValue();
+        const targetPrefix = `// File preset view: ${targetId}`;
+        if (currentVal.startsWith(targetPrefix)) {
+          const newlineIdx = currentVal.indexOf('\n');
+          const rest = newlineIdx !== -1 ? currentVal.slice(newlineIdx + 1) : '';
+          const newHeader = `${targetPrefix} [Mode: ${getFileModeLabel(newMode)}]\n`;
+          const wasClean = !view.isDirty();
+          view.setValue(newHeader + rest, wasClean);
+          pushContentParams();
+        }
       },
       getContentForTest: () => view.getValue(),
       appendContentForTest: (text) => view.appendTextForTest(text),

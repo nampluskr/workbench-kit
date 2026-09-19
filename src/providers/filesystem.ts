@@ -14,8 +14,10 @@ export interface HostDriveEntry {
 
 export interface HostFileSystemBridge {
   openFolderDialog?: () => Promise<string | null>;
+  openFileDialog?: () => Promise<string | null>;
   readDir?: (dirPath: string) => Promise<HostDirectoryEntry[]>;
   open_folder_dialog?: () => Promise<string | null>;
+  open_file_dialog?: () => Promise<string | null>;
   read_dir?: (dirPath: string) => Promise<HostDirectoryEntry[]>;
   listDrives?: () => Promise<HostDriveEntry[]>;
   list_drives?: () => Promise<HostDriveEntry[]>;
@@ -24,9 +26,9 @@ export interface HostFileSystemBridge {
 function getHostFsBridge(): HostFileSystemBridge | null {
   if (typeof window === 'undefined') return null;
   const electron = (window as unknown as { workbenchHost?: HostFileSystemBridge }).workbenchHost;
-  if (electron?.openFolderDialog || electron?.readDir) return electron;
+  if (electron?.openFolderDialog || electron?.openFileDialog || electron?.readDir) return electron;
   const py = (window as unknown as { pywebview?: { api?: HostFileSystemBridge } }).pywebview?.api;
-  if (py?.open_folder_dialog || py?.read_dir) return py;
+  if (py?.open_folder_dialog || py?.open_file_dialog || py?.read_dir) return py;
   return null;
 }
 
@@ -42,6 +44,23 @@ export async function promptOpenFolderDialog(): Promise<string | null> {
     return await host.open_folder_dialog();
   }
   return null;
+}
+
+/**
+ * Invokes host file selection dialog or fallback prompt.
+ */
+export async function promptOpenFileDialog(): Promise<string | null> {
+  const host = getHostFsBridge();
+  if (host?.openFileDialog) {
+    return await host.openFileDialog();
+  }
+  if (host?.open_file_dialog) {
+    return await host.open_file_dialog();
+  }
+  if (typeof window !== 'undefined' && typeof window.prompt === 'function') {
+    return window.prompt('Enter file path to open:', '/sample/file.txt');
+  }
+  return '/sample/file.txt';
 }
 
 /**

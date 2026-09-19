@@ -1486,10 +1486,14 @@ def main():
     # across exactly two process launches, not the real shared one above —
     # otherwise a test run would pollute (or be polluted by) whatever the
     # real app or another test left in %LOCALAPPDATA%\workbench-kit\pywebview.
-    storage_path = os.environ.get("WB_STORAGE_PATH_OVERRIDE") or os.path.join(
-        os.environ.get("LOCALAPPDATA") or tempfile.gettempdir(),
-        "workbench-kit",
-        "pywebview",
+    storage_path = os.environ.get("WB_STORAGE_PATH_OVERRIDE") or (
+        tempfile.mkdtemp(prefix="wb-smoke-py-")
+        if is_smoke_test
+        else os.path.join(
+            os.environ.get("LOCALAPPDATA") or tempfile.gettempdir(),
+            "workbench-kit",
+            "pywebview",
+        )
     )
     # v0.3 Phase 4 (WK-101) found TWO bugs that together made the comment
     # above's "matching Electron's behavior" claim false, undetected until

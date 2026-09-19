@@ -7,12 +7,33 @@ import type { AppEditorSurface, EditorOpenOptions } from '../core/editor';
 
 export const FOLDER_KIND = 'folder';
 
+export function getFolderModeLabel(mode?: string): string {
+  if (mode === 'cmd') return 'cmd';
+  if (mode === 'terminal') return 'Terminal';
+  return 'File List';
+}
+
 export function registerFolderPreset(registry: ResourceKindRegistry): void {
-  registry.register(FOLDER_KIND, (targetId) => {
+  registry.register(FOLDER_KIND, (targetId, { params, updateParams }) => {
     const element = document.createElement('div');
     element.className = 'preset-folder-view';
-    element.textContent = `Folder preset view: ${targetId}`;
-    return { element };
+    const mode = typeof params.mode === 'string' ? params.mode : undefined;
+    const renderText = (m?: string) => {
+      if (!m) {
+        element.textContent = `Folder preset view: ${targetId}`;
+      } else {
+        element.textContent = `Folder preset view: ${targetId} [Mode: ${getFolderModeLabel(m)}]`;
+      }
+    };
+    renderText(mode);
+
+    return {
+      element,
+      setMode: (newMode: string) => {
+        updateParams({ mode: newMode });
+        renderText(newMode);
+      },
+    };
   });
 }
 

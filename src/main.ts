@@ -14,13 +14,13 @@ import { SetiResolver, VscodeIconsResolver, SimpleResolver } from './icons';
 import { TreeController, TreeNode } from './core/tree';
 import { FolderTabsController, FolderTab, driveIconInnerMarkup } from './core/foldertabs';
 import { ExplorerTitlebarController } from './core/sidebar';
-import { FileSystemTreeProvider, promptOpenFolderDialog, listDrives } from './providers/filesystem';
+import { FileSystemTreeProvider, promptOpenFolderDialog, promptOpenFileDialog, listDrives } from './providers/filesystem';
 import { EditorController, EditorOpenMode, snapshotHasDirtyPanels } from './core/editor';
 import type { SerializedDockview, DockviewGroupPanel } from 'dockview-core';
 import { ContextMenuController, ContextMenuItem } from './core/contextmenu';
 import { ResourceKindRegistry } from './registry/kind-registry';
-import { registerFilePreset, FILE_KIND } from './presets/file-preset';
-import { registerFolderPreset, FOLDER_KIND } from './presets/folder-preset';
+import { registerFilePreset, FILE_KIND, getFileModeLabel } from './presets/file-preset';
+import { registerFolderPreset, FOLDER_KIND, getFolderModeLabel } from './presets/folder-preset';
 import { AppEditorSurface, createAppEditorSurface } from './core/editor';
 import { MenuItem } from './core/menu';
 import { ActivityBarItem } from './core/activitybar';
@@ -110,6 +110,8 @@ export class WorkbenchApp {
   public contextMenuItemsForTreeNode: (nodeId: string) => ContextMenuItem[] = () => [];
   public contextMenuItemsForPanel: (panelId: string) => ContextMenuItem[] = () => [];
   private recentFolders: string[] = [];
+  private defaultFileMode: 'editor' | 'viewer' = 'editor';
+  private defaultFolderMode: 'file-list' | 'cmd' | 'terminal' = 'file-list';
 
   constructor(container: HTMLElement) {
     this.layout = createWorkbenchLayout(container);
@@ -159,6 +161,40 @@ export class WorkbenchApp {
     registerFolderPreset(this.kindRegistry);
     this.editor.setComponentFactory(this.kindRegistry.createComponentFactory(this.editor));
     this.editor.setSaveHandler((panelId) => this.kindRegistry.save(panelId));
+
+    try {
+      if (typeof localStorage !== 'undefined') {
+        const fm = localStorage.getItem('workbench:default-file-mode');
+        if (fm === 'editor' || fm === 'viewer') this.defaultFileMode = fm;
+        const dm = localStorage.getItem('workbench:default-folder-mode');
+        if (dm === 'file-list' || dm === 'cmd' || dm === 'terminal') this.defaultFolderMode = dm;
+      }
+    } catch {
+      // Ignore localStorage errors
+    }
+
+    this.layout.statusbarModeBtn?.addEventListener('click', () => {
+      const panel = this.editor.getActivePanel();
+      if (!panel) return;
+      const kind = panel.params?.kind;
+      if (kind === FILE_KIND) {
+        const currentMode = panel.params?.mode || this.defaultFileMode;
+        const nextMode = currentMode === 'editor' ? 'viewer' : 'editor';
+        this.setActivePanelMode(nextMode);
+      } else if (kind === FOLDER_KIND) {
+        const currentMode = panel.params?.mode || this.defaultFolderMode;
+        const cycle: Record<string, string> = {
+          'file-list': 'cmd',
+          'cmd': 'terminal',
+          'terminal': 'file-list',
+        };
+        const nextMode = cycle[currentMode] || 'file-list';
+        this.setActivePanelMode(nextMode);
+      }
+    });
+    this.editor.onActivePanelChange(() => this.updateStatusbarMode());
+    this.editor.onLayoutChange(() => this.updateStatusbarMode());
+    this.updateStatusbarMode();
 
     // Right-click menu device, default off (FR-G5, FR-G6, D-22, WK-030)
     this.contextMenu = new ContextMenuController(this.layout.root);
@@ -290,9 +326,9 @@ export class WorkbenchApp {
 
     this.loadRecentFolders();
 
-    // Bind File menu actions (FR-A1, FR-N6a). `Open Folder` adds a new
-    // folder tab rather than replacing the current one (v0.3 D-3).
-    this.menu.setAction('file:open-folder', () => this.handleOpenFolderDialog());
+    // Bind File menu actions (FR-A1, FR-N6a).
+    this.menu.setAction('file:open-file', () => void this.handleOpenFileDialog());
+    this.menu.setAction('file:open-folder', () => void this.handleOpenFolderDialog());
     // Recent Folders opens the stored paths as a list, read each time it is
     // shown. A row adds that folder as a new tab (v0.3 D-3); its remove
     // button drops the path for good (v0.2 FR-M7, v0.1 FR-N6a · D-16).
@@ -422,6 +458,55 @@ export class WorkbenchApp {
       { id: 'view:appearance:separator-zen', label: '', type: 'separator' },
       { id: 'view:zen-mode', label: 'Zen Mode', shortcut: 'F11' },
     ]);
+
+    this.menu.setSubmenuProvider('view:tab-mode', () => {
+      const panel = this.editor.getActivePanel();
+      if (!panel) {
+        return [{ id: 'view:tab-mode:empty', label: 'No Active Tab', disabled: true }];
+      }
+      const kind = panel.params?.kind;
+      if (kind === FILE_KIND) {
+        const currentMode = panel.params?.mode || this.defaultFileMode;
+        return [
+          {
+            id: 'view:tab-mode:file-editor',
+            label: 'Editor',
+            checked: currentMode === 'editor',
+            action: () => this.setActivePanelMode('editor'),
+          },
+          {
+            id: 'view:tab-mode:file-viewer',
+            label: 'Viewer',
+            checked: currentMode === 'viewer',
+            action: () => this.setActivePanelMode('viewer'),
+          },
+        ];
+      }
+      if (kind === FOLDER_KIND) {
+        const currentMode = panel.params?.mode || this.defaultFolderMode;
+        return [
+          {
+            id: 'view:tab-mode:folder-file-list',
+            label: 'File List',
+            checked: currentMode === 'file-list',
+            action: () => this.setActivePanelMode('file-list'),
+          },
+          {
+            id: 'view:tab-mode:folder-cmd',
+            label: 'cmd',
+            checked: currentMode === 'cmd',
+            action: () => this.setActivePanelMode('cmd'),
+          },
+          {
+            id: 'view:tab-mode:folder-terminal',
+            label: 'Terminal',
+            checked: currentMode === 'terminal',
+            action: () => this.setActivePanelMode('terminal'),
+          },
+        ];
+      }
+      return [{ id: 'view:tab-mode:unsupported', label: 'No Mode for Current Tab', disabled: true }];
+    });
 
     this.activityBar.setAction('activity:toggle-sidebar', () => this.viewState.toggleSidebar());
     this.activityBar.setAction('activity:toggle-titlebar', toggleTitlebar);
@@ -721,6 +806,11 @@ export class WorkbenchApp {
             run(() => void this.editor.closeAllTabsInGroup());
             return;
           }
+          if ((ctrlOnly || (e.ctrlKey && !e.altKey && !e.metaKey)) && (e.key === 'o' || e.key === 'O')) {
+            resetChord();
+            run(() => void this.handleOpenFolderDialog());
+            return;
+          }
           resetChord();
         }
 
@@ -733,7 +823,7 @@ export class WorkbenchApp {
         }
 
         if (ctrlOnly && (e.key === 'o' || e.key === 'O')) {
-          run(() => this.handleOpenFolderDialog());
+          run(() => void this.handleOpenFileDialog());
         } else if (ctrlOnly && (e.key === 'w' || e.key === 'W')) {
           run(() => this.editor.closeActiveTab());
         } else if (ctrlOnly && (e.key === 'n' || e.key === 'N')) {
@@ -1000,7 +1090,7 @@ export class WorkbenchApp {
    * Per-folder-tab Explorer state (v0.3 D-5, WK-098/099) — expansion,
    * selection, and scroll position, keyed by folder-tab id (not by path:
    * two tabs on the same path keep independent state, PLAN Phase 4's
-   * "같은 경로로 연 탭들도 각각 다른 상태를 유지한다"). Lives only on
+   * "tabs opened with the same path maintain independent states"). Lives only on
    * `WorkbenchApp`, not on `FolderTabsController` or `TreeController` —
    * neither of those needs to know the other exists.
    */
@@ -1038,9 +1128,9 @@ export class WorkbenchApp {
   /** Folder Workspace mode's per-tab editor layouts, keyed by folder-tab id (D-7). Session-only, like `explorerStateByTab`'s sibling but never even considered for persistence (D-8, WK-109). */
   private folderWorkspaceByTab = new Map<string, SerializedDockview>();
   /**
-   * Whether the Shared Editor → Folder Workspace seed (D-8: "처음 Folder
-   * Workspace로 바꿀 때") has already happened once this session. D-8 says
-   * "처음" (the first time), meaning once per session, not once per folder
+   * Whether the Shared Editor → Folder Workspace seed (D-8: "when first
+   * switching to Folder Workspace") has already happened once this session. D-8 says
+   * "first time", meaning once per session, not once per folder
    * tab — without this flag, every previously-unvisited tab entered while
    * already in Folder Workspace mode would keep re-seeding from whatever
    * Shared Editor currently held instead of starting empty like D-8 requires
@@ -1448,10 +1538,95 @@ export class WorkbenchApp {
   }
 
   /** `Open Folder...` always adds a new folder tab; it never replaces the active one (v0.3 D-3). */
-  public async handleOpenFolderDialog(): Promise<void> {
-    const selected = await promptOpenFolderDialog();
+  public async handleOpenFolderDialog(folderPath?: string): Promise<void> {
+    const selected = folderPath ?? (await promptOpenFolderDialog());
     if (selected) {
       this.folderTabs.addTab(selected);
+    }
+  }
+
+  /** `Open File...` opens a file preset in the editor, taking over any clean empty tab. */
+  public async handleOpenFileDialog(filePath?: string): Promise<void> {
+    const selected = filePath ?? (await promptOpenFileDialog());
+    if (selected) {
+      const fileName = selected.split(/[/\\]/).pop() || selected;
+      this.editor.openItem(selected, fileName, {
+        mode: 'pinned',
+        meta: { kind: FILE_KIND, mode: this.defaultFileMode },
+      });
+    }
+  }
+
+  public setActivePanelMode(mode: string): void {
+    const panel = this.editor.getActivePanel();
+    if (!panel) return;
+    const kind = panel.params?.kind;
+    if (kind === FILE_KIND && (mode === 'editor' || mode === 'viewer')) {
+      this.kindRegistry.setPanelMode(panel.id, mode);
+      panel.update({ params: { mode } });
+      this.updateStatusbarMode();
+    } else if (kind === FOLDER_KIND && (mode === 'file-list' || mode === 'cmd' || mode === 'terminal')) {
+      this.kindRegistry.setPanelMode(panel.id, mode);
+      panel.update({ params: { mode } });
+      this.updateStatusbarMode();
+    }
+  }
+
+  public updateStatusbarMode(): void {
+    const btn = this.layout.statusbarModeBtn;
+    if (!btn) return;
+    const panel = this.editor.getActivePanel();
+    if (!panel) {
+      btn.style.display = 'none';
+      btn.textContent = '';
+      return;
+    }
+    const kind = panel.params?.kind;
+    if (kind === FILE_KIND) {
+      const mode = panel.params?.mode || this.defaultFileMode;
+      const label = getFileModeLabel(mode);
+      btn.style.display = 'inline-flex';
+      btn.textContent = `File: ${label}`;
+      btn.title = `File Mode: ${label} (click to toggle)`;
+    } else if (kind === FOLDER_KIND) {
+      const mode = panel.params?.mode || this.defaultFolderMode;
+      const label = getFolderModeLabel(mode);
+      btn.style.display = 'inline-flex';
+      btn.textContent = `Folder: ${label}`;
+      btn.title = `Folder Mode: ${label} (click to toggle)`;
+    } else {
+      btn.style.display = 'none';
+      btn.textContent = '';
+    }
+  }
+
+  public getDefaultFileMode(): 'editor' | 'viewer' {
+    return this.defaultFileMode;
+  }
+
+  public setDefaultFileMode(mode: 'editor' | 'viewer'): void {
+    this.defaultFileMode = mode;
+    try {
+      if (typeof localStorage !== 'undefined') {
+        localStorage.setItem('workbench:default-file-mode', mode);
+      }
+    } catch {
+      // Ignore
+    }
+  }
+
+  public getDefaultFolderMode(): 'file-list' | 'cmd' | 'terminal' {
+    return this.defaultFolderMode;
+  }
+
+  public setDefaultFolderMode(mode: 'file-list' | 'cmd' | 'terminal'): void {
+    this.defaultFolderMode = mode;
+    try {
+      if (typeof localStorage !== 'undefined') {
+        localStorage.setItem('workbench:default-folder-mode', mode);
+      }
+    } catch {
+      // Ignore
     }
   }
 

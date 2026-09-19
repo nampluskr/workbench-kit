@@ -158,6 +158,21 @@ export class TextEditorView {
     return this.savedValue;
   }
 
+  public setValue(value: string, updateSavedBaseline = false): void {
+    this.model.setValue(value);
+    if (updateSavedBaseline) {
+      this.savedValue = value;
+    }
+  }
+
+  public setReadOnly(readOnly: boolean): void {
+    this.editor.updateOptions({ readOnly });
+  }
+
+  public isReadOnly(): boolean {
+    return this.editor.getOption(monaco.editor.EditorOption.readOnly);
+  }
+
   /**
    * Marks the current content as saved (FR-P7): the shell only flips its
    * own dirty bookkeeping here — actually persisting content is the app's

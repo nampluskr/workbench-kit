@@ -38,7 +38,8 @@ const separator = (id: string): MenuItem => Object.freeze({ id, label: '', type:
 // v0.2 FR-M1 · FR-M6 (UT-MNU-002): list, order and separator positions.
 export const DEFAULT_FILE_ITEMS: readonly MenuItem[] = Object.freeze([
   Object.freeze({ id: 'file:new-tab', label: 'New Tab', shortcut: 'Ctrl+N' }),
-  Object.freeze({ id: 'file:open-folder', label: 'Add Folder...', shortcut: 'Ctrl+O' }),
+  Object.freeze({ id: 'file:open-file', label: 'Open File...', shortcut: 'Ctrl+O' }),
+  Object.freeze({ id: 'file:open-folder', label: 'Open Folder...', shortcut: 'Ctrl+K Ctrl+O' }),
   Object.freeze({ id: 'file:open-recent', label: 'Recent Folders', type: 'submenu' as const }),
   separator('file:separator-recent'),
   Object.freeze({ id: 'file:close-tab', label: 'Close Active Tab', shortcut: 'Ctrl+W' }),
@@ -52,6 +53,7 @@ export const DEFAULT_FILE_ITEMS: readonly MenuItem[] = Object.freeze([
 export const DEFAULT_VIEW_ITEMS: readonly MenuItem[] = Object.freeze([
   Object.freeze({ id: 'view:layout', label: 'Layout', type: 'submenu' as const }),
   Object.freeze({ id: 'view:appearance', label: 'Appearance', type: 'submenu' as const }),
+  Object.freeze({ id: 'view:tab-mode', label: 'Tab Mode', type: 'submenu' as const }),
 ]);
 
 // v0.2 FR-M3.

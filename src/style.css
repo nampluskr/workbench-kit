@@ -755,7 +755,7 @@ body.is-resizing-foldertabs {
 }
 
 /* Hidden until hover/focus, like .sidebar-action-btn's app-actions (v0.3 D-4:
-   "hover 시 x를 보이고"). Kept in the DOM (not display:none) so it stays
+   "show x on hover"). Kept in the DOM (not display:none) so it stays
    reachable by keyboard focus within the row. */
 .foldertabs-tab-close {
   flex: 0 0 auto;
@@ -1508,6 +1508,29 @@ body.is-resizing-sidebar {
 .statusbar-right {
   flex: 1;
   justify-content: flex-end;
+}
+
+.statusbar-mode-btn {
+  display: inline-flex;
+  align-items: center;
+  height: 100%;
+  padding: 0 5px;
+  background: transparent;
+  border: none;
+  color: inherit;
+  font-family: inherit;
+  font-size: inherit;
+  cursor: pointer;
+  border-radius: 2px;
+  outline: none;
+}
+
+.statusbar-mode-btn:hover {
+  background-color: var(--button-hover-bg);
+}
+
+.statusbar-mode-btn:focus-visible {
+  outline: 1px solid var(--focus-ring);
 }
 
 .statusbar-app-items {

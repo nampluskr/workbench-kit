@@ -1,10 +1,15 @@
 const { app, BrowserWindow, ipcMain, dialog } = require('electron');
 const path = require('path');
 const fs = require('fs');
+const os = require('os');
 const crypto = require('crypto');
 const { execFile } = require('child_process');
 
 const isSmokeTest = process.argv.includes('--smoke-test');
+if (isSmokeTest) {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'wb-smoke-el-'));
+  app.setPath('userData', tempDir);
+}
 
 ipcMain.on('window:minimize', (e) => {
   const win = BrowserWindow.fromWebContents(e.sender);
@@ -80,7 +85,7 @@ ipcMain.handle('fs:read-dir', async (_e, dirPath) => {
  * `DriveInfo`'s property NAMES stay `Name`/`VolumeLabel` regardless.
  */
 ipcMain.handle('fs:list-drives', async () => {
-  if (process.platform !== 'win32') return [];
+  if (process.platform !== 'win32') return Array.from([]);
   return new Promise((resolve) => {
     execFile(
       'powershell.exe',

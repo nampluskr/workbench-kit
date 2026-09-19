@@ -15,6 +15,16 @@
 
 사람이 구현 중 요청한, backlog에 없는 작업을 요청 건마다 남긴다.
 
+- **파일·폴더 수준 1 열기 모드 및 단축키/상태바 연동 (Level 1)** (2026-09-19)
+  - `수준 1 범위 구현`: 외부 디스크 I/O나 터미널 프로세스 구동 없이, 탭 내 대상 경로 및 열린 모드 플레이스홀더(`// File preset view: ... [Mode: ...]`, `Folder preset view: ... [Mode: ...]`) 표시 및 읽기 전용 상태 연동으로 순수 껍데기 모드 전환 체계 구축.
+  - `파일 모드`: `editor` (기본, 편집 가능) 및 `viewer` (읽기 전용 `readOnly`).
+  - `폴더 모드`: `file-list` (기본) / `cmd` / `terminal` 3가지 모드 지원.
+  - `상태바 모드 버튼 & View 메뉴 연동`: 탭 우측 상단 툴바는 배제하고 상태바 우측(`#statusbar-mode-btn`)에 텍스트 전용 버튼을 배치. 더미 텍스트 없이 활성 탭에 해당하는 모드만 단일 노출(`File: Editor` 또는 `Folder: File List` 등). 클릭 시 모드 토글/순환. 햄버거 메뉴 `View > Tab Mode` 서브메뉴를 통해서도 활성 탭의 모드 확인 및 라디오 체크 선택/전환 지원 (`setActivePanelMode`). 상태바와 메뉴 상호 즉시 동기화.
+  - `단축키 정비`: `Ctrl+N`(New Tab), `Ctrl+O`(Open File...), `Ctrl+K Ctrl+O`(Open Folder...) 정립. `menu.ts` 및 `filesystem.ts`(`promptOpenFileDialog`) 연동.
+  - `빈 탭 덮어쓰기 (Empty Tab Takeover)`: 수정되지 않은 빈 Untitled 탭이 활성 상태일 때 파일/폴더를 열면 새 탭을 추가하지 않고 해당 빈 탭을 재활용.
+  - `src/registry/kind-registry.ts`: `setMode` 핸들러 등록 및 `setPanelMode` 동적 모드 전환 인터페이스 지원.
+  - `검증`: `npm run typecheck`, `verify-dist.mjs`, `verify-phase2.mjs`, `verify-phase3.mjs`, `verify-phase5.mjs`, `verify-phase7.mjs` 및 v0.3 어설션 전체 통과.
+
 - **File/View 메뉴 원점 재구성 및 폴더별 작업공간 기본화** (2026-09-19)
   - `File`: `New Tab`을 메뉴에 노출하고 `Open Folder...`를 실제 동작에 맞는
     `Add Folder...`로, `Close Editor Group`을 `Close All Tabs in Group`으로 바꿨다.

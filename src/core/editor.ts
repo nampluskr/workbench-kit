@@ -879,11 +879,15 @@ export class EditorController {
     // A preview spot that has never shown anything — the `Untitled` tab a
     // split starts with (FR-P11) — is taken by a confirming open too, so
     // pressing Enter there does not leave an empty tab behind beside it.
+    const activePanel = group.activePanel;
+    const isActiveBlank = Boolean(
+      activePanel && activePanel.params?.targetId == null && !activePanel.params?.isDirty
+    );
     const previewSpot = this.getPreviewPanel(group);
     const isBlankSpot = Boolean(
       previewSpot && previewSpot.params?.targetId == null && !previewSpot.params?.isDirty
     );
-    const reusable = mode === 'preview' || isBlankSpot ? previewSpot : undefined;
+    const reusable = isActiveBlank ? activePanel : mode === 'preview' || isBlankSpot ? previewSpot : undefined;
     if (reusable) {
       reusable.setTitle(displayTitle);
       reusable.api.setRenderer(requestedRenderer);

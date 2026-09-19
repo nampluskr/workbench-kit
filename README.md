@@ -85,7 +85,8 @@ npm run dev
 
 | 기능 | workbench-kit | VS Code | 비고 |
 | --- | --- | --- | --- |
-| 폴더 추가 | `Ctrl+O` | `Ctrl+K Ctrl+O` (`Ctrl+O`는 *파일* 열기) | **다름** — 선택한 폴더를 새 Roots 항목으로 추가한다 |
+| 파일 열기 | `Ctrl+O` | `Ctrl+O` | 같음 — 파일 열기 대화상자를 띄우고 활성 탭(수준 1 에디터/뷰어)으로 연다 |
+| 폴더 열기 / 추가 | `Ctrl+K Ctrl+O` | `Ctrl+K Ctrl+O` | 같음 — 선택한 폴더를 새 Roots 항목으로 추가 및 에디터 탭으로 연다 |
 | 새 탭 열기 | `Ctrl+N` | `Ctrl+N` | 같음 — 현재 칸에 빈 탭(`Untitled`)을 추가한다 |
 | 활성 탭 닫기 | `Ctrl+W` | `Ctrl+W` | 같음 |
 | 활성 그룹 모든 탭 닫기 | `Ctrl+K W` | `Ctrl+K W` | 같음 — 현재 칸의 탭들을 일괄 닫는다 (미저장 순차 확인) |

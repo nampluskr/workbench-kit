@@ -14,8 +14,8 @@ export class ViewStateManager {
   private titlebarVisible = true;
   private statusbarVisible = true;
   /**
-   * Starts visible every run and is never persisted (v0.3 D-2 — "표시 상태만은
-   * 저장되지 않는다", same lifetime as the other Activity Bar area toggles).
+   * Starts visible every run and is never persisted (v0.3 D-2 — visibility
+   * state alone is not persisted, same lifetime as the other Activity Bar area toggles).
    */
   private folderTabsVisible = true;
   /**

@@ -43,6 +43,7 @@ export interface WorkbenchLayoutElements {
   statusbar: HTMLElement;
   statusbarPath: HTMLElement;
   statusbarMessage: HTMLElement;
+  statusbarModeBtn: HTMLButtonElement;
   statusbarAppItems: HTMLElement;
 }
 
@@ -115,6 +116,7 @@ export function createWorkbenchLayout(container: HTMLElement): WorkbenchLayoutEl
           <span id="statusbar-message" class="statusbar-message">Ready</span>
         </div>
         <div id="statusbar-right" class="statusbar-item statusbar-right">
+          <button id="statusbar-mode-btn" class="statusbar-mode-btn" type="button" style="display: none;"></button>
           <div id="statusbar-app-items" class="statusbar-app-items"></div>
         </div>
       </footer>
@@ -167,6 +169,7 @@ export function createWorkbenchLayout(container: HTMLElement): WorkbenchLayoutEl
     statusbar: container.querySelector('#statusbar') as HTMLElement,
     statusbarPath: container.querySelector('#statusbar-path') as HTMLElement,
     statusbarMessage: container.querySelector('#statusbar-message') as HTMLElement,
+    statusbarModeBtn: container.querySelector('#statusbar-mode-btn') as HTMLButtonElement,
     statusbarAppItems: container.querySelector('#statusbar-app-items') as HTMLElement,
   };
 }

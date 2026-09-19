@@ -100,7 +100,7 @@ export interface FolderTab {
    * Set when the host could not open this tab's path (deleted/moved) —
    * v0.3 D-6. The tab stays registered; it is never auto-removed. Purely a
    * flag + message the host sets/clears — this controller never checks the
-   * filesystem itself (D-9's "껍데기는 리소스 종류를 모른다").
+   * filesystem itself (D-9's "shell is agnostic to resource kind").
    */
   error: string | null;
   /**
@@ -166,7 +166,7 @@ function hexToRgba(hex: string, alpha: number): string {
   return `rgba(${r}, ${g}, ${b}, ${alpha})`;
 }
 
-/** Inactive-tab colour fade factor (v0.3 WK-112, user request, 2026-09-17: "비활성화시에는 선택한 색이 연해져야 함"). */
+/** Inactive-tab colour fade factor (v0.3 WK-112, user request, 2026-09-17: inactive tab custom color fades). */
 const INACTIVE_TAB_COLOR_ALPHA = 0.35;
 
 /**
@@ -448,8 +448,8 @@ export class FolderTabsController {
    * Drops one tab's registration — never touches the filesystem (D-4). The
    * hover-`×` affordance itself is Phase 2 (WK-089); this method is the data
    * operation it will call, exposed now so the freed number slot is provably
-   * available to the next `addTab` for the same path (PLAN Phase 1: "탭 하나를
-   * 닫으면 그 번호가 다음 탭에 다시 쓰인다").
+   * available to the next `addTab` for the same path (PLAN Phase 1: closing
+   * a tab frees its number slot for reuse).
    */
   public removeTab(id: string): void {
     const idx = this.tabs.findIndex((t) => t.id === id);
@@ -1015,7 +1015,7 @@ export class FolderTabsController {
         row.appendChild(input);
 
         // The close (×) control stays reachable even while renaming (D-4's
-        // "hover 시 ×를 보이고" has no exception for this state — A2 R1
+        // "hover shows ×" has no exception for this state — A2 R1
         // Minor finding). Drag stays off: starting a row-level drag from
         // inside a focused text input almost always means the user meant to
         // select/move the caret, not reorder tabs.

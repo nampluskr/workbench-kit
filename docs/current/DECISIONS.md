@@ -347,3 +347,39 @@ D-7의 `Shared Editor`/`Folder Workspace` 라디오 두 행은 `Workspace per Fo
 보여 준다. 폴더별 작업공간이 이 버전의 핵심이므로 이를 기본으로 삼는다.
 
 ---
+
+## D-11. 파일·폴더 수준 1 열기 모드와 단축키 및 상태바 연동
+
+**선택**
+
+1. **수준 1(Level 1) 껍데기 구현 범위 고정**:
+   - 실제 디스크 I/O나 파일 내용 읽기, 폴더 디렉터리 트리 목록 로드, 외부 자식 프로세스(`node-pty`, cmd/shell) 구동을 일절 포함하지 않는다.
+   - 열린 탭 내부에 대상 식별자 및 열린 모드 텍스트(`// File preset view: ${targetId} [Mode: Editor]` / `[Mode: Viewer]`, `Folder preset view: ${targetId} [Mode: File List]` / `[Mode: cmd]` / `[Mode: Terminal]`)만 표시하고 모드 변경 시 해당 텍스트 및 에디터 편집 가능 여부(`readOnly`)를 전환한다.
+
+2. **상태바 모드 표시 및 조작 정책**:
+   - 탭 우측 상단 헤더 툴바(Header Bar)는 적용하지 않고 탭 스트립을 간결하게 유지한다.
+   - 상태바 우측(`statusbar-right`)에 아이콘 없이 텍스트 전용 버튼(`#statusbar-mode-btn`)을 배치한다.
+   - 현재 활성 탭의 모드만 단일 표시한다:
+     - 파일 탭: `File: Editor` 또는 `File: Viewer` (클릭 시 토글).
+     - 폴더 탭: `Folder: File List` / `Folder: cmd` / `Folder: Terminal` (클릭 시 순환).
+   - 더미 표시 배제: 파일 탭일 때 폴더 모드 더미(`Folder: -`), 폴더 탭일 때 파일 모드 더미(`File: -`)는 일절 표시하지 않는다. 활성 탭이 없거나 일반 탭일 때는 버튼을 숨긴다(`display: none`).
+   - 탭을 전환하거나 탭이 닫혀 활성 탭이 바뀔 때마다 상태바 모드 버튼이 즉시 해당 탭의 모드로 자동 갱신된다.
+   - 기본 모드 설정은 `localStorage`(`workbench:default-file-mode`, `workbench:default-folder-mode`)를 통해 영속화된다.
+
+3. **단축키 및 메뉴 정립**:
+   - `Ctrl+N`: 새 빈 탭 열기 (`File: New Tab`).
+   - `Ctrl+O`: 파일 열기 대화상자 (`File: Open File...`).
+   - `Ctrl+K Ctrl+O`: 폴더 열기 대화상자 (`File: Open Folder...`).
+   - `View > Tab Mode`: 현재 활성 탭의 모드를 상단 햄버거 메뉴에서도 확인 및 전환할 수 있는 서브메뉴를 제공한다. 활성 탭이 파일일 경우 `Editor` / `Viewer`, 폴더일 경우 `File List` / `cmd` / `Terminal` 라디오 체크 항목이 노출되며, 활성 탭이 없거나 일반 탭일 때는 `No Active Tab`(비활성화)으로 안내된다. 메뉴 선택과 상태바 버튼 조작은 상호 즉각 동기화된다.
+
+4. **빈 탭 재활용 (Empty Tab Takeover)**:
+   - 수정되지 않은 빈 탭(`Untitled`, `targetId == null && !isDirty`)이 활성 상태일 때 파일이나 폴더를 열면, 새 탭을 옆에 추가하지 않고 해당 빈 탭 자리를 재활용하여 덮어쓴다.
+
+**근거**
+
+- 상태바에 무의미한 더미 텍스트를 노출하지 않고 현재 작업 중인 탭의 대상 모드만 정갈하게 표시함으로써 시각적 피로도를 줄이고 상태를 즉시 파악할 수 있다.
+- 모드 전환을 상태바 버튼 클릭으로 지원하여 불필요한 헤더 툴바 버튼 난립을 방지하고 에디터/뷰어 작업 영역을 온전히 확보한다.
+- 빈 탭 상태에서 파일을 열 때 탭이 계속 늘어나는 현상을 방지하여 사용성을 개선한다.
+
+---
+
