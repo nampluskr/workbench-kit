@@ -99,6 +99,18 @@
   - 검증: `npm run typecheck` 통과, `npm run build` 산출물 검증.
   - 버그 수정 (2026-09-18): `Ctrl+PageDown`/`PageUp` 시 `main.ts`(capture 단계)와 `focusareas.ts`(bubble 단계) 양쪽에서 중복 발화되어 탭이 2회 연속 순환(제자리 복귀)하던 문제를 수정. `main.ts`의 `run()`에 `e.stopPropagation()`을 추가하고 `focusareas.ts`의 중복 핸들러를 제거하여 단일 실행 보장. Electron 런타임에서 `PageDown`/`PageUp`/`Ctrl+Tab` 전환 정상 작동 확인.
 
+- **Monaco 언어 문법 등록 확장** (2026-09-20)
+  - `src/core/texteditor.ts`: 기존에 JavaScript 하나만 등록돼 있던 것을, TypeScript·
+    Python·Markdown·HTML·CSS·Shell·Bat·PowerShell·YAML·XML·SQL·C++·C#·Java·Rust·Go로
+    확장했다. v0.1 D-24(bare API + 개별 import, `editor.main.js` 전체 로드 회피)를
+    그대로 따라 언어마다 `monaco-editor/languages/definitions/{lang}/register`를
+    개별 import했다 — worker 청크를 끌어오지 않는다.
+  - JSON은 정의 파일을 그대로 쓰면 worker 청크가 딸려 와 D-24를 깨서, 대신 최소
+    Monarch 토크나이저(`setMonarchTokensProvider`)를 직접 등록해 문법 강조만 가볍게 냈다.
+  - `검증`: `npx tsc --noEmit` 통과. `npm run build` 성공(청크 400KB 초과 경고는 기존과
+    동일, 이번 변경이 새로 만든 것 아님). `npm run verify:dist` 전체 통과(Electron·
+    pywebview 두 갈래 파일 집합·SHA-256 해시·CSS 규칙 수·배경색 일치, 0 differences).
+
 ---
 
 ## Phase 1 — Folder Tabs 레일과 폴더 추가 (WK-083 ~ WK-087) — done, 2026-09-16
