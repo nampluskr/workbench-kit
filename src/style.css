@@ -1591,7 +1591,7 @@ body.is-resizing-sidebar {
   box-sizing: border-box;
   overflow: hidden;
   background: #0c0c0c;
-  padding: 4px 0 0 8px;
+  padding: 5px;
 }
 
 .preset-terminal-view .xterm {
