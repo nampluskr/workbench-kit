@@ -4,6 +4,7 @@ const fs = require('fs');
 const os = require('os');
 const crypto = require('crypto');
 const { execFile } = require('child_process');
+const pty = require('node-pty');
 
 const isSmokeTest = process.argv.includes('--smoke-test');
 if (isSmokeTest) {
@@ -37,6 +38,55 @@ ipcMain.handle('dialog:open-folder', async (e) => {
     return null;
   }
   return result.filePaths[0];
+});
+
+ipcMain.handle('dialog:open-file', async (e) => {
+  const win = BrowserWindow.fromWebContents(e.sender);
+  const result = await dialog.showOpenDialog(win, { properties: ['openFile'] });
+  return result.canceled ? null : result.filePaths[0] || null;
+});
+
+ipcMain.handle('fs:read-text-file', async (_e, filePath) => {
+  const bytes = await fs.promises.readFile(filePath);
+  if (bytes.includes(0)) throw new Error('Binary files cannot be opened as text');
+  return new TextDecoder('utf-8', { fatal: true }).decode(bytes);
+});
+
+ipcMain.handle('fs:write-text-file', async (_e, filePath, contents) => {
+  await fs.promises.writeFile(filePath, contents, 'utf8');
+  return true;
+});
+
+const terminals = new Map();
+let terminalCounter = 0;
+ipcMain.handle('terminal:start', async (_e, kind, cwd) => {
+  if (kind !== 'cmd' && kind !== 'powershell') throw new Error('Unsupported shell');
+  if (!(await fs.promises.stat(cwd)).isDirectory()) throw new Error('Terminal working directory is not a folder');
+  const id = `terminal-${++terminalCounter}`;
+  const shell = kind === 'cmd' ? 'cmd.exe' : 'powershell.exe';
+  const termProcess = pty.spawn(shell, [], { cwd, cols: 80, rows: 24, env: processEnvForTerminal() });
+  const state = { process: termProcess, output: '', exited: false };
+  termProcess.onData((data) => { state.output = (state.output + data).slice(-1_000_000); });
+  termProcess.onExit(() => { state.exited = true; });
+  terminals.set(id, state);
+  return id;
+});
+
+function processEnvForTerminal() { return { ...process.env }; }
+ipcMain.handle('terminal:read', (_e, id) => {
+  const state = terminals.get(id);
+  if (!state) return { output: '', exited: true };
+  const output = state.output;
+  state.output = '';
+  return { output, exited: state.exited };
+});
+ipcMain.handle('terminal:write', (_e, id, data) => { terminals.get(id)?.process.write(data); });
+ipcMain.handle('terminal:resize', (_e, id, cols, rows) => {
+  terminals.get(id)?.process.resize(Math.max(2, cols), Math.max(2, rows));
+});
+ipcMain.handle('terminal:close', (_e, id) => {
+  terminals.get(id)?.process.kill();
+  terminals.delete(id);
 });
 
 ipcMain.handle('fs:read-dir', async (_e, dirPath) => {

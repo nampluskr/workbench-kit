@@ -1533,6 +1533,66 @@ body.is-resizing-sidebar {
   outline: 1px solid var(--focus-ring);
 }
 
+.statusbar-mode-btn:disabled {
+  cursor: default;
+  opacity: 0.85;
+}
+
+.folder-file-list {
+  height: 100%;
+  overflow: auto;
+  color: var(--vscode-editor-foreground);
+}
+
+.folder-file-list-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px;
+  border-bottom: 1px solid var(--vscode-panel-border);
+  gap: 10px;
+}
+
+.folder-file-list-header span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.folder-file-list-header button,
+.folder-file-list-row {
+  color: inherit;
+  background: transparent;
+  border: 0;
+  font: inherit;
+  cursor: pointer;
+}
+
+.folder-file-list-row {
+  display: block;
+  width: 100%;
+  padding: 5px 10px;
+  text-align: left;
+}
+
+.folder-file-list-row:hover,
+.folder-file-list-row:focus-visible,
+.folder-file-list-header button:hover {
+  background: var(--button-hover-bg);
+}
+
+.folder-file-list-items {
+  padding: 5px 0;
+}
+
+.preset-terminal-view {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: #1e1e1e;
+  padding: 5px;
+}
+
 .statusbar-app-items {
   display: flex;
   align-items: center;

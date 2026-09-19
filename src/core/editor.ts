@@ -310,6 +310,7 @@ export class EditorController {
   private layoutChangeListeners: (() => void)[] = [];
   private customComponentFactory: EditorComponentFactory | null = null;
   private saveHandler: SaveHandler | null = null;
+  private panelClosedHandler: ((panel: IDockviewPanel) => void) | null = null;
   private dialogController: ConfirmDialogController | null = null;
   public readonly panelLifecycleStats = new Map<string, {
     creationCount: number;
@@ -481,6 +482,11 @@ export class EditorController {
     this.saveHandler = fn;
   }
 
+  /** Runs only for an explicit tab close, not layout serialization/restoration. */
+  public setPanelClosedHandler(fn: ((panel: IDockviewPanel) => void) | null): void {
+    this.panelClosedHandler = fn;
+  }
+
   /** Wires the confirm-dialog device the shell uses before a dirty tab or the app closes (D-28). */
   public setDialogController(dialog: ConfirmDialogController): void {
     this.dialogController = dialog;
@@ -609,6 +615,7 @@ export class EditorController {
   private wirePanelClose(panel: IDockviewPanel): void {
     const rawClose = () => {
       const isLastPanelInWorkbench = this.api.totalPanels === 1 && this.api.groups.length === 1;
+      this.panelClosedHandler?.(panel);
       (this.api as any).component.removePanel(panel, { removeEmptyGroup: !isLastPanelInWorkbench });
       if (this.api.groups.length === 0) {
         this.api.addGroup();
@@ -866,7 +873,13 @@ export class EditorController {
     // whole workbench (narrows v0.1 FR-B2/D-5). The same target may sit open,
     // confirmed, in another group at the same time — this deliberately does
     // not find it there.
-    const existingPanel = group.panels.find((p) => p.params?.targetId === targetId);
+    const activePanel = group.activePanel;
+    const isActiveBlank = Boolean(activePanel && activePanel.params?.targetId == null && !activePanel.params?.isDirty);
+    const existingPanel = isActiveBlank ? undefined : group.panels.find((p) =>
+      p.params?.targetId === targetId &&
+      (meta.kind === undefined || p.params?.kind === meta.kind) &&
+      (meta.mode === undefined || p.params?.mode === meta.mode)
+    );
     if (existingPanel) {
       if (mode === 'pinned') this.pinPanel(existingPanel);
       existingPanel.api.setActive();
@@ -879,15 +892,13 @@ export class EditorController {
     // A preview spot that has never shown anything — the `Untitled` tab a
     // split starts with (FR-P11) — is taken by a confirming open too, so
     // pressing Enter there does not leave an empty tab behind beside it.
-    const activePanel = group.activePanel;
-    const isActiveBlank = Boolean(
-      activePanel && activePanel.params?.targetId == null && !activePanel.params?.isDirty
-    );
     const previewSpot = this.getPreviewPanel(group);
     const isBlankSpot = Boolean(
       previewSpot && previewSpot.params?.targetId == null && !previewSpot.params?.isDirty
     );
-    const reusable = isActiveBlank ? activePanel : mode === 'preview' || isBlankSpot ? previewSpot : undefined;
+    const compatiblePreview = previewSpot &&
+      (meta.mode === undefined || previewSpot.params?.mode === undefined || previewSpot.params?.mode === meta.mode);
+    const reusable = isActiveBlank ? activePanel : (mode === 'preview' && compatiblePreview) || isBlankSpot ? previewSpot : undefined;
     if (reusable) {
       reusable.setTitle(displayTitle);
       reusable.api.setRenderer(requestedRenderer);

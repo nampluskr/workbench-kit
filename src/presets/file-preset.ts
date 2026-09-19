@@ -1,13 +1,10 @@
 import type { ResourceKindRegistry } from '../registry/kind-registry';
 import type { AppEditorSurface, EditorOpenOptions } from '../core/editor';
 import { TextEditorView } from '../core/texteditor';
+import { readTextFile, writeTextFile } from '../providers/filesystem';
 
-// NOT part of the common core. This preset is a minimal example of a
-// "file" resource kind plugged into the registration slot (WK-025); it
-// proves the slot works and is not the validation apps themselves
-// (INTENT 7). Content is placeholder text rendered through the shell's
-// monaco-backed text view (D-18) — no real file reading.
-
+// The file preset owns disk I/O and mode behavior; the editor shell remains
+// independent of resource kinds and filesystem paths.
 export const FILE_KIND = 'file';
 
 export function getFileModeLabel(mode?: string): string {
@@ -16,65 +13,71 @@ export function getFileModeLabel(mode?: string): string {
 
 export function registerFilePreset(registry: ResourceKindRegistry): void {
   registry.register(FILE_KIND, (targetId, { params, updateParams }) => {
-    // `params.value`/`params.savedValue`, when present, are this panel's own
-    // current buffer and its last-saved baseline as of the last edit/save
-    // (written below via updateParams) — carried here through dockview's own
-    // params, which is the only thing `toJSON()`/`fromJSON()` serialize
-    // (v0.3 D-7/D-8, WK-108). Without this a Folder Workspace mode/folder
-    // switch would rebuild this panel from scratch and always show the
-    // placeholder again, discarding whatever had been typed. Both fields are
-    // needed, not just `value`: a restored view that treats its own (still
-    // unsaved) restored content as ALSO its saved baseline would silently
-    // stop being dirty the moment an edit happened to return to that exact
-    // text (round-2 adversarial review, Critical #2).
-    const initialMode = typeof params.mode === 'string' ? params.mode : 'editor';
-    const placeholder = params.mode
-      ? `// File preset view: ${targetId} [Mode: ${getFileModeLabel(initialMode)}]\n`
-      : `// File preset view: ${targetId}\n`;
-    const initialValue = typeof params.value === 'string' ? params.value : placeholder;
+    // Dockview serializes params, so both the live buffer and saved baseline
+    // must be carried through a Folder Workspace layout switch.
+    const initialMode = typeof params.mode === 'string' ? params.mode : 'viewer';
+    const hasSnapshot = typeof params.value === 'string';
+    const initialValue = hasSnapshot ? params.value as string : '';
     const initialSavedValue = typeof params.savedValue === 'string' ? params.savedValue : initialValue;
-    const isReadOnly = initialMode === 'viewer';
     const view = new TextEditorView({
       value: initialValue,
       savedValue: initialSavedValue,
-      language: 'javascript',
-      readOnly: isReadOnly,
+      language: 'plaintext',
+      readOnly: initialMode === 'viewer' || params.loadError === true,
     });
     const pushContentParams = () => updateParams({ value: view.getValue(), savedValue: view.getSavedValue() });
     const unsubscribeContent = view.onDidChangeContent(pushContentParams);
+    let disposed = false;
+    let loading = !hasSnapshot;
+    let loadFailed = params.loadError === true;
+    let currentMode = initialMode;
+    if (!hasSnapshot) {
+      view.setReadOnly(true);
+      void readTextFile(targetId).then((contents) => {
+        if (disposed) return;
+        view.setValue(contents, true);
+        view.markSaved();
+        loading = false;
+        view.setReadOnly(currentMode === 'viewer');
+        updateParams({ loadError: false });
+        pushContentParams();
+      }).catch((error) => {
+        if (disposed) return;
+        view.setValue(`Unable to open ${targetId}: ${String(error)}`, true);
+        loading = false;
+        loadFailed = true;
+        view.setReadOnly(true);
+        updateParams({ loadError: true });
+      });
+    }
     return {
       element: view.element,
       dispose: () => {
+        disposed = true;
         unsubscribeContent();
         view.dispose();
       },
-      onDirtyChange: (cb) => view.onDidChangeDirty(cb),
-      // Placeholder "save" (INTENT 7): no real file I/O, just marks the
-      // current content as the saved baseline (FR-P7, FR-L3) — and pushes
-      // that new baseline into params too, or a later restore would still
-      // treat the pre-save text as the saved baseline.
-      save: () => {
-        view.markSaved();
+      onDirtyChange: (cb: (dirty: boolean) => void) => view.onDidChangeDirty(cb),
+      save: async () => {
+        if (loading || loadFailed) return false;
+        const contents = view.getValue();
+        try {
+          if (!(await writeTextFile(targetId, contents))) return false;
+        } catch {
+          return false;
+        }
+        view.markSaved(contents);
         pushContentParams();
-        return true;
+        // An edit made while the write was in progress is still unsaved.
+        return !view.isDirty();
       },
       setMode: (newMode: string) => {
-        const isViewer = newMode === 'viewer';
-        view.setReadOnly(isViewer);
+        currentMode = newMode;
+        view.setReadOnly(loading || loadFailed || newMode === 'viewer');
         updateParams({ mode: newMode });
-        const currentVal = view.getValue();
-        const targetPrefix = `// File preset view: ${targetId}`;
-        if (currentVal.startsWith(targetPrefix)) {
-          const newlineIdx = currentVal.indexOf('\n');
-          const rest = newlineIdx !== -1 ? currentVal.slice(newlineIdx + 1) : '';
-          const newHeader = `${targetPrefix} [Mode: ${getFileModeLabel(newMode)}]\n`;
-          const wasClean = !view.isDirty();
-          view.setValue(newHeader + rest, wasClean);
-          pushContentParams();
-        }
       },
       getContentForTest: () => view.getValue(),
-      appendContentForTest: (text) => view.appendTextForTest(text),
+      appendContentForTest: (text: string) => view.appendTextForTest(text),
       undoForTest: () => view.triggerCommand('undo'),
       isDirtyForTest: () => view.isDirty(),
     };

@@ -1,5 +1,13 @@
 # workbench-kit
 
+## File and folder tabs (v0.3)
+
+In either desktop host, File > Open File opens a real UTF-8 text file in Viewer mode. Click `File: Viewer` in the status bar (or use View > Tab Mode) to switch that tab to Editor mode; Ctrl+S saves edits to disk. The reverse switch keeps the current buffer and any unsaved changes.
+
+File > Open Folder adds the folder to Roots and opens its File List. Explorer click/Enter opens a file or folder in the active editor group using Viewer/File List. Right-click an Explorer tree item to choose Viewer or Editor for a file, or File List, Command Prompt, or PowerShell for a folder. Different modes occupy separate tabs; an existing matching tab is activated, and a clean active Untitled tab is reused. Shell tabs are independent terminal sessions, not live conversions of File List tabs. Right-click actions are deliberately limited to the Explorer tree, not the editor area.
+
+The terminal requires `node-pty` in Electron and `pywinpty` in pywebview (both are declared dependencies). Browser-only `npm run dev` does not provide native file or terminal access.
+
 여러 데스크톱 앱이 공유하는 **공통 껍데기 한 벌**을 미리 만든다. 창, 메뉴, 탐색기
 트리, 좌우로 가른 칸, 탭 줄, 상태 표시줄, 설정 저장, 실행 환경 연결이 그것이다. 새
 앱을 만들 때 이 껍데기를 다시 짜지 않고 그대로 물려받아, 달라지는 소수만 갈아끼워

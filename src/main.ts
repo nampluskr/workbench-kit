@@ -14,13 +14,14 @@ import { SetiResolver, VscodeIconsResolver, SimpleResolver } from './icons';
 import { TreeController, TreeNode } from './core/tree';
 import { FolderTabsController, FolderTab, driveIconInnerMarkup } from './core/foldertabs';
 import { ExplorerTitlebarController } from './core/sidebar';
-import { FileSystemTreeProvider, promptOpenFolderDialog, promptOpenFileDialog, listDrives } from './providers/filesystem';
+import { FileSystemTreeProvider, promptOpenFolderDialog, promptOpenFileDialog, listDrives, HostDirectoryEntry } from './providers/filesystem';
 import { EditorController, EditorOpenMode, snapshotHasDirtyPanels } from './core/editor';
-import type { SerializedDockview, DockviewGroupPanel } from 'dockview-core';
+import type { SerializedDockview, DockviewGroupPanel, IDockviewPanel } from 'dockview-core';
 import { ContextMenuController, ContextMenuItem } from './core/contextmenu';
 import { ResourceKindRegistry } from './registry/kind-registry';
 import { registerFilePreset, FILE_KIND, getFileModeLabel } from './presets/file-preset';
 import { registerFolderPreset, FOLDER_KIND, getFolderModeLabel } from './presets/folder-preset';
+import { closeTerminalSession, registerTerminalPreset, TERMINAL_KIND } from './presets/terminal-preset';
 import { AppEditorSurface, createAppEditorSurface } from './core/editor';
 import { MenuItem } from './core/menu';
 import { ActivityBarItem } from './core/activitybar';
@@ -110,7 +111,7 @@ export class WorkbenchApp {
   public contextMenuItemsForTreeNode: (nodeId: string) => ContextMenuItem[] = () => [];
   public contextMenuItemsForPanel: (panelId: string) => ContextMenuItem[] = () => [];
   private recentFolders: string[] = [];
-  private defaultFileMode: 'editor' | 'viewer' = 'editor';
+  private defaultFileMode: 'editor' | 'viewer' = 'viewer';
   private defaultFolderMode: 'file-list' | 'cmd' | 'terminal' = 'file-list';
 
   constructor(container: HTMLElement) {
@@ -158,14 +159,20 @@ export class WorkbenchApp {
     // Resource kind registration slot + minimal example presets (FR-I1, FR-I2, FR-I3, WK-025, WK-026)
     this.kindRegistry = new ResourceKindRegistry();
     registerFilePreset(this.kindRegistry);
-    registerFolderPreset(this.kindRegistry);
+    registerFolderPreset(this.kindRegistry, (entry) => this.openDirectoryEntry(entry));
+    registerTerminalPreset(this.kindRegistry);
     this.editor.setComponentFactory(this.kindRegistry.createComponentFactory(this.editor));
     this.editor.setSaveHandler((panelId) => this.kindRegistry.save(panelId));
+    this.editor.setPanelClosedHandler((panel) => {
+      if (panel.params?.kind === TERMINAL_KIND && typeof panel.params.terminalSessionKey === 'string') {
+        closeTerminalSession(panel.params.terminalSessionKey);
+      }
+    });
 
     try {
       if (typeof localStorage !== 'undefined') {
         const fm = localStorage.getItem('workbench:default-file-mode');
-        if (fm === 'editor' || fm === 'viewer') this.defaultFileMode = fm;
+        if (fm === 'viewer') this.defaultFileMode = fm;
         const dm = localStorage.getItem('workbench:default-folder-mode');
         if (dm === 'file-list' || dm === 'cmd' || dm === 'terminal') this.defaultFolderMode = dm;
       }
@@ -180,15 +187,6 @@ export class WorkbenchApp {
       if (kind === FILE_KIND) {
         const currentMode = panel.params?.mode || this.defaultFileMode;
         const nextMode = currentMode === 'editor' ? 'viewer' : 'editor';
-        this.setActivePanelMode(nextMode);
-      } else if (kind === FOLDER_KIND) {
-        const currentMode = panel.params?.mode || this.defaultFolderMode;
-        const cycle: Record<string, string> = {
-          'file-list': 'cmd',
-          'cmd': 'terminal',
-          'terminal': 'file-list',
-        };
-        const nextMode = cycle[currentMode] || 'file-list';
         this.setActivePanelMode(nextMode);
       }
     });
@@ -483,26 +481,33 @@ export class WorkbenchApp {
         ];
       }
       if (kind === FOLDER_KIND) {
-        const currentMode = panel.params?.mode || this.defaultFolderMode;
+        const cwd = panel.params?.targetId as string;
+        const title = panel.title || cwd;
         return [
           {
             id: 'view:tab-mode:folder-file-list',
             label: 'File List',
-            checked: currentMode === 'file-list',
-            action: () => this.setActivePanelMode('file-list'),
+            checked: true,
           },
           {
             id: 'view:tab-mode:folder-cmd',
-            label: 'cmd',
-            checked: currentMode === 'cmd',
-            action: () => this.setActivePanelMode('cmd'),
+            label: 'Open Command Prompt',
+            action: () => this.openResource(cwd, title, TERMINAL_KIND, 'cmd', 'pinned'),
           },
           {
             id: 'view:tab-mode:folder-terminal',
-            label: 'Terminal',
-            checked: currentMode === 'terminal',
-            action: () => this.setActivePanelMode('terminal'),
+            label: 'Open PowerShell',
+            action: () => this.openResource(cwd, title, TERMINAL_KIND, 'powershell', 'pinned'),
           },
+        ];
+      }
+      if (kind === TERMINAL_KIND) {
+        const cwd = panel.params?.targetId as string;
+        const title = panel.title || cwd;
+        return [
+          { id: 'view:tab-mode:terminal-current', label: getFolderModeLabel(panel.params?.mode as string), checked: true },
+          { id: 'view:tab-mode:terminal-cmd', label: 'Open Command Prompt', action: () => this.openResource(cwd, title, TERMINAL_KIND, 'cmd', 'pinned') },
+          { id: 'view:tab-mode:terminal-powershell', label: 'Open PowerShell', action: () => this.openResource(cwd, title, TERMINAL_KIND, 'powershell', 'pinned') },
         ];
       }
       return [{ id: 'view:tab-mode:unsupported', label: 'No Mode for Current Tab', disabled: true }];
@@ -604,10 +609,8 @@ export class WorkbenchApp {
 
     const openFromTree = (node: TreeNode, mode: EditorOpenMode) => {
       const openNow = (target: TreeNode, how: EditorOpenMode) =>
-        this.editor.openItem(target.id, target.label, {
-          mode: how,
-          meta: { kind: kindOf(target.isContainer) },
-        });
+        this.openResource(target.id, target.label, kindOf(target.isContainer),
+          target.isContainer ? 'file-list' : this.defaultFileMode, how);
 
       if (pendingOpen) {
         const keepPinned = pendingOpen.node.id === node.id && pendingOpen.mode === 'pinned';
@@ -631,7 +634,9 @@ export class WorkbenchApp {
       // the target being open, confirmed, in some OTHER group no longer
       // stops the active group's dirty preview from being the real target.
       const activeGroupForCheck = this.editor.getActiveGroup();
-      const alreadyOpen = Boolean(activeGroupForCheck?.panels.some((p) => p.params?.targetId === node.id));
+      const requestedMode = node.isContainer ? 'file-list' : this.defaultFileMode;
+      const alreadyOpen = Boolean(activeGroupForCheck?.panels.some((p) =>
+        p.params?.targetId === node.id && p.params?.mode === requestedMode));
       const doomed = mode === 'preview' && !alreadyOpen ? this.editor.getPreviewPanel() : undefined;
       if (doomed?.params?.isDirty) {
         pendingOpen = { node, mode };
@@ -674,31 +679,36 @@ export class WorkbenchApp {
       if (besideGroup && this.editor.isActivePanelDirty(besideGroup)) {
         void (async () => {
           if (!(await this.editor.confirmReplaceIfDirty(besideGroup))) return;
-          this.editor.openBeside(node.id, node.label, { meta: { kind: kindOf(node.isContainer) } });
+          this.editor.openBeside(node.id, node.label, { meta: { kind: kindOf(node.isContainer), mode: node.isContainer ? 'file-list' : this.defaultFileMode } });
         })();
         return;
       }
-      this.editor.openBeside(node.id, node.label, { meta: { kind: kindOf(node.isContainer) } });
+      this.editor.openBeside(node.id, node.label, { meta: { kind: kindOf(node.isContainer), mode: node.isContainer ? 'file-list' : this.defaultFileMode } });
     });
 
-    // Right-click menu wiring (FR-G5, FR-G6, D-22). The shell only draws the
-    // device; whether it is enabled and what items appear are app decisions.
-    // v0.2 removed the View menu's own switch (FR-M2), so the app turns it on
-    // through setContextMenuEnabled.
+    // The resource opener owns the tree's right-click choices.
+    this.contextMenu.setEnabled(true);
+    this.contextMenuItemsForTreeNode = (nodeId) => {
+      const node = this.tree.getNodeById(nodeId);
+      if (!node) return [];
+      if (node.isContainer) {
+        return [
+          { id: 'open:file-list', label: 'Open File List', action: () => this.openResource(node.id, node.label, FOLDER_KIND, 'file-list', 'pinned') },
+          { id: 'open:cmd', label: 'Open Command Prompt', action: () => this.openResource(node.id, node.label, TERMINAL_KIND, 'cmd', 'pinned') },
+          { id: 'open:powershell', label: 'Open PowerShell', action: () => this.openResource(node.id, node.label, TERMINAL_KIND, 'powershell', 'pinned') },
+        ];
+      }
+      return [
+        { id: 'open:viewer', label: 'Open as Viewer', action: () => this.openResource(node.id, node.label, FILE_KIND, 'viewer', 'pinned') },
+        { id: 'open:editor', label: 'Open as Editor', action: () => this.openResource(node.id, node.label, FILE_KIND, 'editor', 'pinned') },
+      ];
+    };
     this.layout.sidebarContent.addEventListener('contextmenu', (e) => {
       const row = (e.target as HTMLElement).closest('.tree-row') as HTMLElement | null;
       if (!row) return;
       e.preventDefault();
       const nodeId = row.getAttribute('data-id');
       const items = nodeId ? this.contextMenuItemsForTreeNode(nodeId) : [];
-      this.contextMenu.show(e.clientX, e.clientY, items);
-    });
-    this.layout.editorContainer.addEventListener('contextmenu', (e) => {
-      const tab = (e.target as HTMLElement).closest('.dv-tab') as HTMLElement | null;
-      if (!tab) return;
-      e.preventDefault();
-      const panelId = tab.getAttribute('data-tab-panel-id');
-      const items = panelId ? this.contextMenuItemsForPanel(panelId) : [];
       this.contextMenu.show(e.clientX, e.clientY, items);
     });
 
@@ -1542,6 +1552,9 @@ export class WorkbenchApp {
     const selected = folderPath ?? (await promptOpenFolderDialog());
     if (selected) {
       this.folderTabs.addTab(selected);
+      await this.lastActivationPromise;
+      this.openResource(selected, selected.split(/[/\\]/).filter(Boolean).pop() || selected,
+        FOLDER_KIND, 'file-list', 'pinned');
     }
   }
 
@@ -1550,11 +1563,30 @@ export class WorkbenchApp {
     const selected = filePath ?? (await promptOpenFileDialog());
     if (selected) {
       const fileName = selected.split(/[/\\]/).pop() || selected;
-      this.editor.openItem(selected, fileName, {
-        mode: 'pinned',
-        meta: { kind: FILE_KIND, mode: this.defaultFileMode },
-      });
+      this.openResource(selected, fileName, FILE_KIND, this.defaultFileMode, 'pinned');
     }
+  }
+
+  private openResource(
+    targetId: string,
+    title: string,
+    kind: string,
+    resourceMode: string,
+    tabMode: EditorOpenMode
+  ): IDockviewPanel {
+    return this.editor.openItem(targetId, title, {
+      mode: tabMode,
+      meta: {
+        kind,
+        mode: resourceMode,
+        ...(kind === TERMINAL_KIND ? { terminalSessionKey: crypto.randomUUID() } : {}),
+      },
+    });
+  }
+
+  private openDirectoryEntry(entry: HostDirectoryEntry): void {
+    this.openResource(entry.path, entry.name, entry.isContainer ? FOLDER_KIND : FILE_KIND,
+      entry.isContainer ? 'file-list' : this.defaultFileMode, 'pinned');
   }
 
   public setActivePanelMode(mode: string): void {
@@ -1562,10 +1594,6 @@ export class WorkbenchApp {
     if (!panel) return;
     const kind = panel.params?.kind;
     if (kind === FILE_KIND && (mode === 'editor' || mode === 'viewer')) {
-      this.kindRegistry.setPanelMode(panel.id, mode);
-      panel.update({ params: { mode } });
-      this.updateStatusbarMode();
-    } else if (kind === FOLDER_KIND && (mode === 'file-list' || mode === 'cmd' || mode === 'terminal')) {
       this.kindRegistry.setPanelMode(panel.id, mode);
       panel.update({ params: { mode } });
       this.updateStatusbarMode();
@@ -1589,15 +1617,22 @@ export class WorkbenchApp {
       btn.textContent = `File: ${label}`;
       btn.title = `File Mode: ${label} (click to toggle)`;
     } else if (kind === FOLDER_KIND) {
-      const mode = panel.params?.mode || this.defaultFolderMode;
-      const label = getFolderModeLabel(mode);
+      const label = 'File List';
       btn.style.display = 'inline-flex';
       btn.textContent = `Folder: ${label}`;
-      btn.title = `Folder Mode: ${label} (click to toggle)`;
+      btn.title = 'Folder: File List';
+      btn.disabled = true;
+    } else if (kind === TERMINAL_KIND) {
+      const label = getFolderModeLabel(panel.params?.mode as string);
+      btn.style.display = 'inline-flex';
+      btn.textContent = `Terminal: ${label}`;
+      btn.title = `Terminal: ${label}`;
+      btn.disabled = true;
     } else {
       btn.style.display = 'none';
       btn.textContent = '';
     }
+    if (kind === FILE_KIND) btn.disabled = false;
   }
 
   public getDefaultFileMode(): 'editor' | 'viewer' {

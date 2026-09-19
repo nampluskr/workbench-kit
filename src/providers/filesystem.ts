@@ -21,6 +21,20 @@ export interface HostFileSystemBridge {
   read_dir?: (dirPath: string) => Promise<HostDirectoryEntry[]>;
   listDrives?: () => Promise<HostDriveEntry[]>;
   list_drives?: () => Promise<HostDriveEntry[]>;
+  readTextFile?: (path: string) => Promise<string>;
+  writeTextFile?: (path: string, contents: string) => Promise<boolean>;
+  read_text_file?: (path: string) => Promise<string>;
+  write_text_file?: (path: string, contents: string) => Promise<boolean>;
+  terminalStart?: (kind: string, cwd: string) => Promise<string>;
+  terminalRead?: (id: string) => Promise<{ output: string; exited: boolean }>;
+  terminalWrite?: (id: string, data: string) => Promise<void>;
+  terminalResize?: (id: string, cols: number, rows: number) => Promise<void>;
+  terminalClose?: (id: string) => Promise<void>;
+  terminal_start?: (kind: string, cwd: string) => Promise<string>;
+  terminal_read?: (id: string) => Promise<{ output: string; exited: boolean }>;
+  terminal_write?: (id: string, data: string) => Promise<void>;
+  terminal_resize?: (id: string, cols: number, rows: number) => Promise<void>;
+  terminal_close?: (id: string) => Promise<void>;
 }
 
 function getHostFsBridge(): HostFileSystemBridge | null {
@@ -57,11 +71,59 @@ export async function promptOpenFileDialog(): Promise<string | null> {
   if (host?.open_file_dialog) {
     return await host.open_file_dialog();
   }
-  if (typeof window !== 'undefined' && typeof window.prompt === 'function') {
-    return window.prompt('Enter file path to open:', '/sample/file.txt');
-  }
-  return '/sample/file.txt';
+  return null;
 }
+
+export async function readTextFile(path: string): Promise<string> {
+  const host = getHostFsBridge();
+  if (host?.readTextFile) return host.readTextFile(path);
+  if (host?.read_text_file) return host.read_text_file(path);
+  throw new Error('File reading is unavailable in this host');
+}
+
+export async function writeTextFile(path: string, contents: string): Promise<boolean> {
+  const host = getHostFsBridge();
+  if (host?.writeTextFile) return host.writeTextFile(path, contents);
+  if (host?.write_text_file) return host.write_text_file(path, contents);
+  throw new Error('File saving is unavailable in this host');
+}
+
+export async function readDirectory(path: string): Promise<HostDirectoryEntry[]> {
+  const host = getHostFsBridge();
+  if (host?.readDir) return host.readDir(path);
+  if (host?.read_dir) return host.read_dir(path);
+  throw new Error('Directory reading is unavailable in this host');
+}
+
+export const terminalHost = {
+  async start(kind: 'cmd' | 'powershell', cwd: string): Promise<string> {
+    const host = getHostFsBridge();
+    if (host?.terminalStart) return host.terminalStart(kind, cwd);
+    if (host?.terminal_start) return host.terminal_start(kind, cwd);
+    throw new Error('Terminal is unavailable in this host');
+  },
+  async read(id: string): Promise<{ output: string; exited: boolean }> {
+    const host = getHostFsBridge();
+    if (host?.terminalRead) return host.terminalRead(id);
+    if (host?.terminal_read) return host.terminal_read(id);
+    return { output: '', exited: true };
+  },
+  async write(id: string, data: string): Promise<void> {
+    const host = getHostFsBridge();
+    if (host?.terminalWrite) await host.terminalWrite(id, data);
+    else if (host?.terminal_write) await host.terminal_write(id, data);
+  },
+  async resize(id: string, cols: number, rows: number): Promise<void> {
+    const host = getHostFsBridge();
+    if (host?.terminalResize) await host.terminalResize(id, cols, rows);
+    else if (host?.terminal_resize) await host.terminal_resize(id, cols, rows);
+  },
+  async close(id: string): Promise<void> {
+    const host = getHostFsBridge();
+    if (host?.terminalClose) await host.terminalClose(id);
+    else if (host?.terminal_close) await host.terminal_close(id);
+  },
+};
 
 /**
  * Every accessible drive root on the host, with its volume label (v0.3

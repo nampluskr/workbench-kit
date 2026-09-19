@@ -8,6 +8,7 @@ import threading
 import tempfile
 import shutil
 import socket
+from winpty import PtyProcess
 
 # Windows consoles often default stdout/stderr to a legacy codepage (e.g.
 # cp949) that cannot encode arbitrary Unicode punctuation appearing in test
@@ -131,6 +132,9 @@ def request_confirmed_close(window):
 class WindowApi:
     def __init__(self):
         self._window = None
+        self._terminals = {}
+        self._terminal_counter = 0
+        self._terminal_lock = threading.Lock()
 
     def set_window(self, window):
         self._window = window
@@ -182,6 +186,82 @@ class WindowApi:
             if result and len(result) > 0:
                 return result[0]
         return None
+
+    def open_file_dialog(self):
+        if self._window:
+            result = self._window.create_file_dialog(webview.OPEN_DIALOG)
+            if result and len(result) > 0:
+                return result[0]
+        return None
+
+    def read_text_file(self, file_path):
+        with open(file_path, 'rb') as stream:
+            data = stream.read()
+        if b'\0' in data:
+            raise RuntimeError('Binary files cannot be opened as text')
+        return data.decode('utf-8-sig')
+
+    def write_text_file(self, file_path, contents):
+        with open(file_path, 'w', encoding='utf-8') as stream:
+            stream.write(contents)
+        return True
+
+    def terminal_start(self, kind, cwd):
+        if kind not in ('cmd', 'powershell'):
+            raise RuntimeError('Unsupported shell')
+        if not os.path.isdir(cwd):
+            raise RuntimeError('Terminal working directory is not a folder')
+        executable = 'cmd.exe' if kind == 'cmd' else 'powershell.exe'
+        proc = PtyProcess.spawn(executable, cwd=cwd, dimensions=(24, 80))
+        with self._terminal_lock:
+            self._terminal_counter += 1
+            terminal_id = 'terminal-' + str(self._terminal_counter)
+            state = {'process': proc, 'output': '', 'exited': False}
+            self._terminals[terminal_id] = state
+
+        def collect():
+            try:
+                while proc.isalive():
+                    chunk = proc.read(8192)
+                    with self._terminal_lock:
+                        state['output'] = (state['output'] + chunk)[-1_000_000:]
+            except Exception:
+                pass
+            with self._terminal_lock:
+                state['exited'] = True
+
+        threading.Thread(target=collect, daemon=True).start()
+        return terminal_id
+
+    def terminal_read(self, terminal_id):
+        with self._terminal_lock:
+            state = self._terminals.get(terminal_id)
+            if state is None:
+                return {'output': '', 'exited': True}
+            output = state['output']
+            state['output'] = ''
+            return {'output': output, 'exited': state['exited']}
+
+    def terminal_write(self, terminal_id, data):
+        with self._terminal_lock:
+            state = self._terminals.get(terminal_id)
+        if state is not None:
+            state['process'].write(data)
+
+    def terminal_resize(self, terminal_id, cols, rows):
+        with self._terminal_lock:
+            state = self._terminals.get(terminal_id)
+        if state is not None:
+            state['process'].setwinsize(max(2, int(rows)), max(2, int(cols)))
+
+    def terminal_close(self, terminal_id):
+        with self._terminal_lock:
+            state = self._terminals.pop(terminal_id, None)
+        if state is not None:
+            try:
+                state['process'].close()
+            except Exception:
+                pass
 
     def read_dir(self, dir_path):
         if not os.path.exists(dir_path) or not os.path.isdir(dir_path):

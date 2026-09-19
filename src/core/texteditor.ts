@@ -159,10 +159,10 @@ export class TextEditorView {
   }
 
   public setValue(value: string, updateSavedBaseline = false): void {
-    this.model.setValue(value);
     if (updateSavedBaseline) {
       this.savedValue = value;
     }
+    this.model.setValue(value);
   }
 
   public setReadOnly(readOnly: boolean): void {
@@ -178,9 +178,9 @@ export class TextEditorView {
    * own dirty bookkeeping here — actually persisting content is the app's
    * job, done before calling this.
    */
-  public markSaved(): void {
-    this.savedValue = this.model.getValue();
-    this.dirtyChangeCallbacks.forEach((cb) => cb(false));
+  public markSaved(value = this.model.getValue()): void {
+    this.savedValue = value;
+    this.dirtyChangeCallbacks.forEach((cb) => cb(this.isDirty()));
   }
 
   /** Test-support only: how many cursors/selections currently exist. */
