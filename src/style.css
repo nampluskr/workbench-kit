@@ -332,14 +332,103 @@
 }
 
 /*
- * The one token colour a plain text document uses. Syntax highlighting draws
- * .mtk2 and up, whose colours live only in that blocked stylesheet — out of
- * scope until an app turns a language on (user decision, 2026-09-15). Hand
- * copied here for the same reason the dv-* rules are.
+ * Syntax highlighting token colours. monaco assigns .mtk{n} by the order a
+ * colour first appears in the active theme's rule list and emits the matching
+ * CSS into the <style class="monaco-colors"> element the CSP blocks, so
+ * without these every token renders at the .mtk1 default and highlighting
+ * looks switched off even though tokenization ran (found 2026-09-20, after
+ * the language grammars landed and made .mtk2+ reachable for the first time).
+ *
+ * Generated from monaco 0.56.0's own `vs`/`vs-dark` themes via
+ * TokenTheme.createFromRawTokenTheme + generateTokensCSSForColorMap, the same
+ * pair that produces the blocked stylesheet — not picked by eye. Regenerate
+ * both blocks when monaco is upgraded. `.mtk1` keeps reading the app token so
+ * plain text still follows this app's three colour themes.
  */
 .monaco-editor .mtk1 {
   color: var(--vscode-editor-foreground);
 }
+
+/* vs-dark — the base texteditor.ts selects for the dark theme only. */
+.monaco-editor .mtk2 { color: #1e1e1e; }
+.monaco-editor .mtk3 { color: #cc6666; }
+.monaco-editor .mtk4 { color: #9cdcfe; }
+.monaco-editor .mtk5 { color: #ce9178; }
+.monaco-editor .mtk6 { color: #b5cea8; }
+.monaco-editor .mtk7 { color: #608b4e; }
+.monaco-editor .mtk8 { color: #569cd6; }
+.monaco-editor .mtk9 { color: #dcdcdc; }
+.monaco-editor .mtk10 { color: #808080; }
+.monaco-editor .mtk11 { color: #f44747; }
+.monaco-editor .mtk12 { color: #c586c0; }
+.monaco-editor .mtk13 { color: #a79873; }
+.monaco-editor .mtk14 { color: #dd6a6f; }
+.monaco-editor .mtk15 { color: #5bb498; }
+.monaco-editor .mtk16 { color: #909090; }
+.monaco-editor .mtk17 { color: #778899; }
+.monaco-editor .mtk18 { color: #ff00ff; }
+.monaco-editor .mtk19 { color: #b46695; }
+.monaco-editor .mtk20 { color: #ff0000; }
+.monaco-editor .mtk21 { color: #4f76ac; }
+.monaco-editor .mtk22 { color: #3dc9b0; }
+.monaco-editor .mtk23 { color: #74b0df; }
+.monaco-editor .mtk24 { color: #4864aa; }
+
+/* vs — the base for BOTH light and gray (setEditorColorTheme sends everything
+   but dark here), whose colour order differs entirely from vs-dark's. */
+[data-theme="light"] .monaco-editor .mtk2,
+[data-theme="gray"] .monaco-editor .mtk2 { color: #fffffe; }
+[data-theme="light"] .monaco-editor .mtk3,
+[data-theme="gray"] .monaco-editor .mtk3 { color: #808080; }
+[data-theme="light"] .monaco-editor .mtk4,
+[data-theme="gray"] .monaco-editor .mtk4 { color: #ff0000; }
+[data-theme="light"] .monaco-editor .mtk5,
+[data-theme="gray"] .monaco-editor .mtk5 { color: #0451a5; }
+[data-theme="light"] .monaco-editor .mtk6,
+[data-theme="gray"] .monaco-editor .mtk6 { color: #0000ff; }
+[data-theme="light"] .monaco-editor .mtk7,
+[data-theme="gray"] .monaco-editor .mtk7 { color: #098658; }
+[data-theme="light"] .monaco-editor .mtk8,
+[data-theme="gray"] .monaco-editor .mtk8 { color: #008000; }
+[data-theme="light"] .monaco-editor .mtk9,
+[data-theme="gray"] .monaco-editor .mtk9 { color: #dd0000; }
+[data-theme="light"] .monaco-editor .mtk10,
+[data-theme="gray"] .monaco-editor .mtk10 { color: #383838; }
+[data-theme="light"] .monaco-editor .mtk11,
+[data-theme="gray"] .monaco-editor .mtk11 { color: #cd3131; }
+[data-theme="light"] .monaco-editor .mtk12,
+[data-theme="gray"] .monaco-editor .mtk12 { color: #863b00; }
+[data-theme="light"] .monaco-editor .mtk13,
+[data-theme="gray"] .monaco-editor .mtk13 { color: #af00db; }
+[data-theme="light"] .monaco-editor .mtk14,
+[data-theme="gray"] .monaco-editor .mtk14 { color: #800000; }
+[data-theme="light"] .monaco-editor .mtk15,
+[data-theme="gray"] .monaco-editor .mtk15 { color: #e00000; }
+[data-theme="light"] .monaco-editor .mtk16,
+[data-theme="gray"] .monaco-editor .mtk16 { color: #3030c0; }
+[data-theme="light"] .monaco-editor .mtk17,
+[data-theme="gray"] .monaco-editor .mtk17 { color: #666666; }
+[data-theme="light"] .monaco-editor .mtk18,
+[data-theme="gray"] .monaco-editor .mtk18 { color: #778899; }
+[data-theme="light"] .monaco-editor .mtk19,
+[data-theme="gray"] .monaco-editor .mtk19 { color: #c700c7; }
+[data-theme="light"] .monaco-editor .mtk20,
+[data-theme="gray"] .monaco-editor .mtk20 { color: #a31515; }
+[data-theme="light"] .monaco-editor .mtk21,
+[data-theme="gray"] .monaco-editor .mtk21 { color: #4f76ac; }
+[data-theme="light"] .monaco-editor .mtk22,
+[data-theme="gray"] .monaco-editor .mtk22 { color: #008080; }
+[data-theme="light"] .monaco-editor .mtk23,
+[data-theme="gray"] .monaco-editor .mtk23 { color: #001188; }
+[data-theme="light"] .monaco-editor .mtk24,
+[data-theme="gray"] .monaco-editor .mtk24 { color: #4864aa; }
+
+/* The font-style/decoration classes from the same blocked stylesheet. */
+.monaco-editor .mtki { font-style: italic; }
+.monaco-editor .mtkb { font-weight: bold; }
+.monaco-editor .mtku { text-decoration: underline; text-underline-position: under; }
+.monaco-editor .mtks { text-decoration: line-through; }
+.monaco-editor .mtks.mtku { text-decoration: underline line-through; text-underline-position: under; }
 
 /*
  * The caret and the current-line marker get no colour from the bundled
