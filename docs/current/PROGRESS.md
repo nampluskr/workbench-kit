@@ -203,6 +203,100 @@
     검증으로 로직 수정이 실증됐다고 판단. `npm run verify:dist` 전체 통과(0
     differences), 다른 회귀 없음.
 
+- **미리보기 탭이 대상만 바꾸고 내용을 갱신하지 않던 버그 수정** (2026-09-21,
+  커밋 `e309951`)
+  - 문제: 미리보기 탭에서 문서를 번갈아 클릭하면 제목과 구문 하이라이트는 새
+    파일로 바뀌는데 **본문은 이전 파일 그대로** 남았다(사용자 보고, 실제 확인은
+    `tsconfig.json` ↔ `vite.config.ts`).
+  - 원인: `editor.ts`의 `openItem()`이 미리보기 탭을 재사용할 때 이전 리소스의
+    키를 `undefined`로 보내 지우려 하는데, **dockview가 params를 merge할 때
+    `undefined` 값 키를 버린다.** 그래서 그 키들이 `KindDispatchRenderer`까지
+    도달하지 못하고, 렌더러 재생성 시 이전 파일의 `value` 스냅샷이 params에
+    그대로 살아남았다. `file-preset.ts`는 `params.value`가 문자열이면 스냅샷이
+    있다고 보고 디스크를 읽지 않으므로(`hasSnapshot`) 이전 내용이 계속 보였다.
+  - 확증: IPC 읽기를 계측해 B 파일을 여는 동안 디스크 읽기가 **0건**이고,
+    팩토리에 전달된 params가 `targetId`는 새 파일인데 `value`는 이전 파일
+    내용임을 실측했다.
+  - `src/registry/kind-registry.ts`: identity(`kind`/`targetId`)가 바뀌는
+    업데이트는 merge하지 않고 들어온 params만 쓰도록 고쳤다. 다른 리소스를
+    그리는데 이전 리소스가 써넣은 상태를 물려받을 이유가 없다. 같은 identity의
+    업데이트(`setTabDirty` 등)는 기존대로 merge되어 살아있는 뷰를 헐지 않는다.
+  - `scripts/verify-open-modes-electron.cjs`에 이 버그를 겨냥한 회귀 단언
+    `previewSwapped`를 추가했다. 수정 전 빌드에서 `false`, 수정 후 `true`이고
+    다른 단언은 양쪽 모두 `true`임을 실측해, 이 단언이 이 버그만 정확히
+    잡는다는 것을 확인했다.
+  - `검증`: `npx tsc --noEmit`·`npm run build` 통과. `verify:open-modes` 전 항목
+    통과. `verify:dist`·`verify:phase5~7`·`verify:v03-phase1`·`verify:v05-phase5`·
+    `verify:v06-phase6`(Folder Workspace 스냅샷 왕복 — 이 코드 경로를 쓰는 곳)
+    회귀 0건.
+
+- **구문 하이라이트 토큰 색상이 CSP에 막혀 나오지 않던 버그 수정** (2026-09-21,
+  커밋 `609c048`)
+  - 문제: 언어 문법을 등록(9f11f72)했는데도 에디터에서 색이 전혀 입혀지지 않았다.
+    토크나이징 자체는 정상이라 `mtk8`·`mtk9` 같은 클래스는 생성되는데, 세 클래스의
+    computed color가 모두 동일했다.
+  - 원인: monaco는 `.mtk{n}` 색을 런타임 `<style class="monaco-colors">` 요소로
+    주입하는데 이 앱의 CSP(`style-src 'self'`)가 이를 차단한다 — `--vscode-*`
+    블럭이 이미 우회하고 있던 것과 **같은 실패**다. `style.css`에는 `.mtk1`만
+    손으로 복사돼 있었고, 문법 등록으로 `.mtk2` 이상이 처음 도달 가능해지면서
+    이제야 드러났다.
+  - monaco 0.56.0의 `vs`/`vs-dark` 테마에서 `TokenTheme.createFromRawTokenTheme`
+    + `generateTokensCSSForColorMap`으로 색을 생성해 넣었다 — 차단된 스타일시트를
+    만드는 바로 그 함수 쌍의 출력이라 눈으로 고른 값이 아니다. monaco 업그레이드
+    시 두 블럭을 다시 생성한다.
+  - light와 gray가 **둘 다 `vs` 베이스를 쓴다**(`setEditorColorTheme`이 dark만
+    `vs-dark`로 보낸다). 처음엔 gray를 vs-dark에 묶었다가, 검증에서 gray의
+    `mtk6`이 엉뚱한 색으로 나오는 것을 보고 바로잡았다.
+  - `검증`: 실행 중인 앱에서 실제 Python 파일을 열어 세 테마의 computed color를
+    실측했다 — dark 6색(`import` 파랑·주석 초록·숫자 연두·문자열 주황),
+    light/gray 5색으로 VS Code 표준 색과 일치. `verify:dist` 통과(D-29 금지 토큰
+    검사 포함, 두 갈래 SHA-256 일치).
+
+- **터미널 커서가 보이지 않고 깜빡이지 않던 버그 수정** (2026-09-21,
+  커밋 `57a8bc9`)
+  - 문제: `cursorBlink: true`·`cursorStyle: 'bar'`를 줬는데도 캐럿이 화면에
+    보이지 않았다.
+  - 원인: **xterm 6의 `xterm.css`에 캐럿을 칠하거나 깜빡이게 하는 규칙이 아예
+    없다.** `.xterm-cursor-pointer`(마우스 포인터 모양)만 있고 `@keyframes`도
+    `animation`도 없다. DOM 렌더러는 `.xterm-cursor`와 `-bar`/`-block`/
+    `-underline`·`-blink` 클래스를 붙이지만 시각 표현은 앱이 제공해야 한다.
+    `terminal-preset.ts`의 theme cursor 색은 canvas/WebGL 렌더러용이라 DOM
+    렌더러에는 닿지 않는다.
+  - `src/style.css`에 bar/block/underline 세 모양과 `wb-terminal-cursor-blink`
+    keyframes를 추가했다. **포커스된 터미널만 깜빡인다**(`.xterm.focus`) — 여러
+    터미널이 동시에 열려 있을 때 전부 점멸하지 않도록 Windows Terminal 동작에
+    맞췄다.
+  - `검증`: 실행 중인 앱에서 `::before`의 `animationName`이
+    `wb-terminal-cursor-blink`이고 너비 2px·흰색, `@keyframes` 등록,
+    `.xterm`에 `focus` 클래스가 붙는 것을 실측했다.
+
+- **한글이 영문과 칸이 맞지 않던 문제 — 에디터·터미널 D2Coding 적용**
+  (2026-09-21, 커밋 `cb9560e`)
+  - 문제: 한글이 섞인 줄마다 격자가 어긋났다(사용자 보고, VS Code 화면과 대조).
+  - 원인: 어긋나는 것은 한글이 아니라 **ASCII 폭**이었다. 설치된 한글 글꼴 8종은
+    모두 한글을 정확히 font-size(14px)로 렌더하는데, Consolas는 ASCII를 7.7px,
+    Cascadia Mono는 8.2px로 내보낸다. 고정폭 격자는 한글:ASCII = 2:1이어야
+    맞는데 1.818·1.707이 되어 깨졌다. 12~18px 전 구간에서 동일했다.
+  - Consolas 뒤에 한글 글꼴을 덧붙이는 것으로는 해결되지 않는다(`Consolas,
+    D2Coding` 조합도 1.818) — ASCII와 한글을 **한 글꼴이 함께** 처리해야 한다.
+  - D2Coding 1.3.3을 공식 릴리스(`naver/d2-coding-font`)에서 받아 SHA-256을
+    릴리스 다이제스트와 대조해 검증한 뒤, 관리자 권한 없이 사용자 범위
+    (`%LOCALAPPDATA%\Microsoft\Windows\Fonts` + HKCU 등록)로 설치했다.
+  - 터미널은 `terminal-preset.ts`의 `fontFamily` 설정만으로는 적용되지 않았다 —
+    **xterm도 생성자 폰트를 런타임 `<style>` 요소로 주입해 같은 CSP에 막힌다.**
+    행들이 앱 기본 글꼴(`system-ui`)을 상속해 비율 1.091, 고정폭조차 아니었다.
+    구문 색상과 같은 방식으로 `style.css`에 직접 썼고, 값이 어긋나지 않도록
+    프리셋과 함께 관리한다는 주석을 남겼다.
+  - 폴백은 `monospace`로 뒀다. 격자(2:1)는 유지되지만 이 PC에서는 GulimChe로
+    해석되므로(픽셀 해시로 확인) D2Coding이 없는 환경에서는 비트맵 글꼴로 보인다.
+  - `검증`: 실행 중인 앱에서 에디터와 터미널의 `.xterm`·`.xterm-rows`·행 요소가
+    모두 실제로 D2Coding으로 렌더되는 것을 픽셀 해시 일치로 확인했고(굴림체
+    아님), 비율이 에디터 2.000(ASCII 7px/한글 14px)·터미널 2.000(6.5px/13px)임을
+    실측했다. `verify:dist`·`verify:v03-phase1`·`verify:v06-phase6`·
+    `verify:open-modes` 통과.
+  - **남은 의존성**: 글꼴을 이 PC의 사용자 계정에만 설치했다. 배포를 고려하면
+    `README.md`에 의존성으로 적거나 앱에 번들하는 결정이 필요하다(이번 범위 밖).
+
 ---
 
 ## Phase 1 — Folder Tabs 레일과 폴더 추가 (WK-083 ~ WK-087) — done, 2026-09-16
