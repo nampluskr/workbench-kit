@@ -126,9 +126,32 @@ app.whenReady().then(async () => {
       await app.editor.closeActiveTab();
       await app.editor.getApi().getPanel(restoredPanel.id).api.close();
       await wait(500);
+
+      // A preview tab browsing one file after another must show the NEW
+      // file's content, not just retitle and re-highlight over the old one.
+      // The previous resource's value snapshot used to survive in the
+      // panel's params (openItem clears it by sending undefined, which
+      // dockview drops when merging), so the file preset saw a snapshot,
+      // skipped its disk read, and kept rendering the first file.
+      app.editor.clear();
+      await wait(100);
+      app.editor.openItem(${JSON.stringify(pythonPath)}, 'sample.py', { mode: 'preview', meta: { kind: 'file', mode: 'viewer' } });
+      await wait(400);
+      const previewFirst = app.editor.getActivePanel();
+      const previewFirstText = app.kindRegistry.getInnerForTest(previewFirst.id).getContentForTest();
+      app.editor.openItem(${JSON.stringify(jsonPath)}, 'sample.json', { mode: 'preview', meta: { kind: 'file', mode: 'viewer' } });
+      await wait(400);
+      const previewSecond = app.editor.getActivePanel();
+      const previewSecondInner = app.kindRegistry.getInnerForTest(previewSecond.id);
+      const previewSwapped = previewSecond.id === previewFirst.id &&
+        previewFirstText.includes('print("hello")') &&
+        previewSecondInner.getContentForTest().includes('"ok"') &&
+        !previewSecondInner.getContentForTest().includes('print("hello")') &&
+        previewSecondInner.getLanguageForTest().id === 'json';
+
       return { viewer, dirty, saved, stayedInTab, syntaxLanguages, fileList, terminal,
         separateTabs, statusbarFileOnly, terminalFocused,
-        streamedOnce, restoredOnce, forcedNewTab };
+        streamedOnce, restoredOnce, forcedNewTab, previewSwapped };
     })()`);
     const diskSaved = fs.readFileSync(filePath, 'utf8').includes('changed');
     const closedTerminal = terminals.size === 0;

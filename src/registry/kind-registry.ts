@@ -186,7 +186,17 @@ class KindDispatchRenderer implements IContentRenderer {
     // metadata (e.g. isDirty from setTabDirty) must not tear down a live
     // view for the tab's lifetime (D-4, D-24).
     const identityChanged = merged.kind !== this.params.kind || merged.targetId !== this.params.targetId;
-    this.params = merged;
+    // On an identity change the merge above is the wrong shape: whatever the
+    // PREVIOUS resource wrote back through `updateParams` (a file's `value`/
+    // `savedValue` snapshot, say) is still in `this.params` and would be
+    // handed to the new resource's renderer as if it described the new
+    // target. `openItem` does try to clear those keys by sending them as
+    // `undefined`, but dockview drops undefined-valued keys when it merges,
+    // so they never reach us — a preview tab browsing A then B rendered B's
+    // title and language over A's content, never reading B from disk
+    // (reported 2026-09-20). Identity changes therefore take the incoming
+    // params alone; only same-identity updates merge.
+    this.params = identityChanged ? ({ ...event.params } as { kind?: string; targetId?: string }) : merged;
     if (identityChanged) {
       this.renderForCurrentParams();
     }
