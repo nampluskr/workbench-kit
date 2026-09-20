@@ -1693,6 +1693,56 @@ body.is-resizing-sidebar {
   overflow-y: auto !important;
 }
 
+/*
+ * xterm 6's DOM renderer tags the caret (.xterm-cursor, plus -bar/-block/
+ * -underline and -blink) but ships no rule that paints or animates it — its
+ * xterm.css carries only .xterm-cursor-pointer, the mouse pointer shape. The
+ * caret was therefore invisible and `cursorBlink: true` had no visible effect
+ * (found 2026-09-20). The theme's cursor colour set in terminal-preset.ts
+ * reaches the canvas/WebGL renderers, not this one, so the shape is drawn
+ * here against the same Campbell palette that preset uses.
+ */
+.preset-terminal-view .xterm-cursor.xterm-cursor-bar::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: #ffffff;
+}
+
+.preset-terminal-view .xterm-cursor.xterm-cursor-block {
+  background: #ffffff;
+  color: #0c0c0c;
+}
+
+.preset-terminal-view .xterm-cursor.xterm-cursor-underline::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 2px;
+  background: #ffffff;
+}
+
+.preset-terminal-view .xterm-cursor {
+  position: relative;
+}
+
+/* Only the focused terminal blinks, matching Windows Terminal: an unfocused
+   pane keeps a steady caret so several open terminals do not all pulse. */
+.preset-terminal-view .xterm.focus .xterm-cursor.xterm-cursor-blink::before,
+.preset-terminal-view .xterm.focus .xterm-cursor.xterm-cursor-blink.xterm-cursor-block {
+  animation: wb-terminal-cursor-blink 1s step-end infinite;
+}
+
+@keyframes wb-terminal-cursor-blink {
+  0%, 50% { opacity: 1; }
+  50.1%, 100% { opacity: 0; }
+}
+
 .statusbar-app-items {
   display: flex;
   align-items: center;
