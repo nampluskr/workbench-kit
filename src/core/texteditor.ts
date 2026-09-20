@@ -130,6 +130,15 @@ export class TextEditorView {
       model: this.model,
       readOnly: Boolean(options.readOnly),
       automaticLayout: true,
+      // Not monaco's Windows default of `Consolas, 'Courier New', monospace`:
+      // Consolas advances its ASCII 7.7px at 14px while a Hangul glyph takes
+      // the full 14px cell, so a Hangul character is not exactly two ASCII
+      // columns and mixed Korean/ASCII lines fall off the grid (user report,
+      // 2026-09-20). D2Coding sizes both from one design, holding the 2:1
+      // cell. The bare `monospace` keyword also holds 2:1 but resolves to
+      // GulimChe here — a bitmap face with poor ASCII legibility — so it is
+      // only the fallback for machines without D2Coding.
+      fontFamily: "'D2Coding', monospace",
       lineNumbers: lineNumbersVisible ? 'on' : 'off',
       // Reserves width for 3 digits by default (monaco's own default is 5)
       // instead of growing/shrinking the gutter as the line count crosses

@@ -101,7 +101,14 @@ export function registerTerminalPreset(registry: ResourceKindRegistry): void {
       cursorStyle: 'bar',
       cursorWidth: 2,
       cursorInactiveStyle: 'bar',
-      fontFamily: '"Cascadia Mono", "Cascadia Code", Consolas, "Courier New", monospace',
+      // Windows mono faces size their ASCII advance independently of the CJK
+      // cell: at 13px Consolas advances 7.7px and Cascadia Mono 8.2px against
+      // a 14px Hangul glyph, so one Hangul character stops being exactly two
+      // ASCII columns and every mixed line drifts out of the grid (user
+      // report, 2026-09-20). D2Coding designs both together and holds the
+      // 2:1 cell. `monospace` behind it holds 2:1 too but resolves to
+      // GulimChe here, so it is a fallback only.
+      fontFamily: "'D2Coding', monospace",
       fontSize: 13,
       lineHeight: 1.25,
       convertEol: false,

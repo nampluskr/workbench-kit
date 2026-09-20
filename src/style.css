@@ -1687,6 +1687,24 @@ body.is-resizing-sidebar {
   width: 100%;
   height: 100%;
   padding: 0;
+  /*
+   * xterm publishes the `fontFamily`/`fontSize` from its constructor through
+   * a <style> element it injects at runtime — the same element this app's CSP
+   * (style-src 'self') blocks for monaco's colours. Without these the rows
+   * inherit --font-family and the terminal renders in a PROPORTIONAL face
+   * (measured ratio 1.09, not 2.00), so nothing lines up (found 2026-09-20).
+   * Keep in step with the Terminal options in terminal-preset.ts.
+   */
+  font-family: 'D2Coding', monospace;
+  font-size: 13px;
+}
+
+.preset-terminal-view .xterm-rows,
+.preset-terminal-view .xterm-rows > div,
+.preset-terminal-view .xterm-helper-textarea,
+.preset-terminal-view .xterm-char-measure-element {
+  font-family: 'D2Coding', monospace;
+  font-size: 13px;
 }
 
 .preset-terminal-view .xterm-viewport {
