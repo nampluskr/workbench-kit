@@ -94,7 +94,7 @@ app.whenReady().then(async () => {
       await wait(300);
       const folderPanel = app.editor.getActivePanel();
       const fileList = folderPanel.params.mode === 'file-list' &&
-        [...document.querySelectorAll('.folder-file-list-row')].some((row) => row.textContent.includes('sample.txt'));
+        [...document.querySelectorAll('.folder-file-list .tree-row')].some((row) => row.textContent.includes('sample.txt'));
       app.openResource(${JSON.stringify(fixture)}, 'terminal', 'terminal', 'cmd', 'pinned');
       await wait(500);
       const terminalPanel = app.editor.getActivePanel();

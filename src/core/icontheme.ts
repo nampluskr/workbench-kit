@@ -22,6 +22,19 @@ export class IconThemeManager {
   private activeColorTheme: ColorThemeId = 'dark';
   private resolvers: Map<FileIconThemeId, FileIconResolver> = new Map();
   private onThemeChangeCallbacks: ((theme: FileIconThemeId) => void)[] = [];
+  /**
+   * Separate from `onThemeChangeCallbacks` on purpose (Codex A22 R1,
+   * Major): `TreeController`'s Explorer subscribes to file-icon-theme
+   * changes only and gets its OWN dedicated colour-only refresh
+   * (`WorkbenchApp`'s `this.tree?.refreshThemeColors()`, called from
+   * `ThemeManager.onThemeChange` directly) — a full `tree.render()` on
+   * every colour-theme flip would drop an open inline-rename row (A14
+   * R1-3). Folding colour-theme changes into `onThemeChangeCallbacks`
+   * here would silently give the Explorer tree an extra full re-render
+   * it was deliberately spared. `RowListController` has no inline-rename
+   * state to lose, so it can just re-`render()` on this event.
+   */
+  private onColorThemeChangeCallbacks: ((theme: ColorThemeId) => void)[] = [];
 
   constructor(initialTheme: FileIconThemeId = 'seti', initialColorTheme: ColorThemeId = 'dark') {
     this.setTheme(initialTheme);
@@ -35,6 +48,14 @@ export class IconThemeManager {
         resolver.setColorTheme(colorTheme);
       }
     }
+    this.onColorThemeChangeCallbacks.forEach((cb) => cb(colorTheme));
+  }
+
+  public onColorThemeChange(cb: (theme: ColorThemeId) => void): () => void {
+    this.onColorThemeChangeCallbacks.push(cb);
+    return () => {
+      this.onColorThemeChangeCallbacks = this.onColorThemeChangeCallbacks.filter((c) => c !== cb);
+    };
   }
 
   public getColorTheme(): ColorThemeId {

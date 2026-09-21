@@ -13,6 +13,7 @@
     "start:pywebview": "python -m src.hosts.pywebview.main",
     "verify:dist": "node scripts/verify-dist.mjs",
     "verify:open-modes": "electron scripts/verify-open-modes-electron.cjs",
+    "verify:rowlist": "electron scripts/verify-rowlist-electron.cjs",
     "verify:terminal-host": "electron scripts/verify-terminal-host-electron.cjs",
     "verify:phase2": "node scripts/verify-phase2.mjs",
     "verify:phase3": "node scripts/verify-phase3.mjs",

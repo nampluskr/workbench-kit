@@ -297,6 +297,59 @@
   - **남은 의존성**: 글꼴을 이 PC의 사용자 계정에만 설치했다. 배포를 고려하면
     `README.md`에 의존성으로 적거나 앱에 번들하는 결정이 필요하다(이번 범위 밖).
 
+- **폴더 file-list 탭의 행이 탐색기(Explorer) 트리와 동일한 아이콘·hover·선택·
+  우클릭·키보드 nav를 갖도록 함 (WK-113)** (2026-09-21, 사용자 요청)
+  - 요청: "폴더 리스트만 보이고 하위 폴더 펼치기는 하지 않는" 것만 탐색기와
+    다르고, 선택·hover·우클릭 등 나머지는 전부 탐색기 영역과 동일하게.
+  - `src/core/rowlist.ts`(신규): 재귀 확장이 없는 단일 레벨 선택 가능 행
+    리스트. 탐색기의 `TreeController`를 "루트 숨김·확장 금지" 모드로 재사용하지
+    않고 별도 컴포넌트로 만들었다 — `TreeController`는 탐색기가 의존하는,
+    여러 차례 적대적 검증을 거친(A4·A9·A14) 컴포넌트라 거기에 새 모드를
+    얹는 것은 공유 이득 없이 회귀 위험만 만든다(파일 상단 주석에 근거 기록).
+    대신 시각·상호작용 계약만 공유한다: 탐색기와 같은 `.tree-list`/`.tree-row`/
+    `.tree-icon` CSS 클래스(새 CSS 0줄로 hover·선택색·focus ring·스크롤바를
+    그대로 물려받음), 같은 `IconThemeManager.resolveIcon()`(D-4 — 확장자 지식
+    없음), 같은 click(preview)/dblclick(pinned)/Enter 열기 규칙.
+  - `src/main.ts`: 탐색기 트리 전용이던 `openFromTree()` 지역 클로저를
+    `openFromEntry()`/`openEntryOnEnter()`/`buildResourceContextMenuItems()`
+    클래스 메서드로 일반화했다(`OpenableEntry` = `{id,label,isContainer}`).
+    dirty-preview 확인·pending-open 병합(v0.2 A9 R1/R3에서 다듬어진 로직)과
+    우클릭 메뉴 5항목을 탐색기 트리와 폴더 리스트 행이 완전히 동일하게 공유한다.
+  - `src/presets/folder-preset.ts`: `RowListController`로 재작성. `readDirectory()`
+    응답에 `loadGeneration` 카운터를 붙여 Refresh 연타 시 오래된 응답이 최신
+    결과를 덮어쓰지 못하게 했다.
+  - `src/core/icontheme.ts`: `IconThemeManager.onColorThemeChange()` 신설 —
+    탐색기 트리는 Color Theme 변경 시 `main.ts`가 직접 `refreshThemeColors()`를
+    불러 인라인 편집 행을 보존하는 전용 경로를 쓰지만(A14 R1-3), 새 리스트는
+    그런 상태가 없어 이 이벤트로 그냥 `render()`한다.
+  - `검증`: `npx tsc --noEmit`·`npm run build` 통과. `verify:dist`(0
+    differences)·`verify:open-modes`·`verify:phase2`·`verify:phase3`·
+    `verify:v03-phase1`·`verify:v03-phase3`·`verify:v05-phase5` 회귀 0건.
+    신규 `scripts/verify-rowlist-electron.cjs`(`npm run verify:rowlist`)를
+    추가해 아이콘·정렬·click=preview·dblclick=pinned(실제 click·click·dblclick
+    3-이벤트 시퀀스)·ArrowUp/Down 포커스 이동·우클릭 메뉴(파일 2항목·폴더
+    3항목) 9개 단언 전부 통과. `verify:open-modes`의 `.folder-file-list-row`
+    셀렉터를 새 `.tree-row` 마크업에 맞춰 갱신했다.
+  - 반대 벤더 적대적 검증(Codex `gpt-5.6-sol`, 새 기능이라 필수): `docs/reviews/
+    A22.md`. 1회차 Critical 0·Major 4·Minor 1 — 클릭이 리스트에 실제 포커스를
+    안 주던 것, Color Theme 전환 시 아이콘 색이 안 바뀌던 것, Refresh race
+    조건 3건은 수정했다. 접근성 퇴행(`<button>`→div) 지적은 최초 포커스
+    보완만 하고 전체 ARIA 리스트박스화는 하지 않았다 — 탐색기 트리 자체가
+    같은 수준이라 "탐색기와 동일하게"라는 사용자 요청과 이 판단이 맞는다는
+    근거를 남겼다. 2회차(격리된 non-git 디렉터리로 재검증 — git 상태·이력을
+    보지 않는다는 검토자 제약을 codex가 어기려는 정황이 있어 방식을 바꿨다):
+    1~3 RESOLVED, 4~5 PARTIALLY RESOLVED. 새 Critical·Major 0건. 5번(테스트가
+    실제 DOM 포커스를 확인 안 함)은 우클릭 직후 `document.activeElement`
+    실측 단언을 추가해 처리했고, `this.listEl.focus()`를 일부러 지워 이
+    단언이 실제로 실패하는 것까지 확인한 뒤 복원해 회귀 포착력을 검증했다.
+  - **계획 외 발견**: `verify:open-modes`의 `terminal`/`terminalFocused`
+    단언이 이 세션 후반부터 이 변경과 무관하게 실패하기 시작했다(node-pty로
+    실제 cmd.exe를 띄우는 부분). 변경분을 git stash로 되돌린 순수 베이스라인
+    에서도 동일하게 실패하는 것을 확인해 **이 변경의 회귀가 아니라 이 세션의
+    샌드박스 환경 저하(반복된 Electron 프로세스 구동 이후 자식 프로세스
+    spawn 관련 추정)**임을 검증했다 — 기존에 알려진 "Electron 환경 플레이크"
+    범주로 분류한다.
+
 ---
 
 ## Phase 1 — Folder Tabs 레일과 폴더 추가 (WK-083 ~ WK-087) — done, 2026-09-16

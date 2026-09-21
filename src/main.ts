@@ -14,7 +14,7 @@ import { SetiResolver, VscodeIconsResolver, SimpleResolver } from './icons';
 import { TreeController, TreeNode } from './core/tree';
 import { FolderTabsController, FolderTab, driveIconInnerMarkup } from './core/foldertabs';
 import { ExplorerTitlebarController } from './core/sidebar';
-import { FileSystemTreeProvider, promptOpenFolderDialog, promptOpenFileDialog, listDrives, HostDirectoryEntry } from './providers/filesystem';
+import { FileSystemTreeProvider, promptOpenFolderDialog, promptOpenFileDialog, listDrives } from './providers/filesystem';
 import { EditorController, EditorOpenMode, snapshotHasDirtyPanels } from './core/editor';
 import type { SerializedDockview, DockviewGroupPanel, IDockviewPanel } from 'dockview-core';
 import { ContextMenuController, ContextMenuItem } from './core/contextmenu';
@@ -66,6 +66,20 @@ interface ExplorerState {
 type EditorMode = 'shared' | 'workspace';
 
 /**
+ * The minimal shape `openFromEntry`/`buildResourceContextMenuItems` need to
+ * open or build a menu for a resource (WK-113, 2026-09-21). `TreeNode` and
+ * `HostDirectoryEntry` (folder file-list rows) both satisfy this
+ * structurally, which is what lets the Explorer tree and a folder tab's
+ * flat file list share the exact same open-mode and context-menu rules
+ * without either one importing the other's type.
+ */
+interface OpenableEntry {
+  id: string;
+  label: string;
+  isContainer?: boolean;
+}
+
+/**
  * Everything a real app-extension author is meant to use (FR-I1 ~ FR-I11,
  * FR-N10, FR-N12, FR-G6). Unlike `window.__workbenchApp` (a full-access
  * diagnostic hook the Phase 1-4 test harnesses already depend on), this
@@ -113,6 +127,8 @@ export class WorkbenchApp {
   private recentFolders: string[] = [];
   private defaultFileMode: 'editor' | 'viewer' = 'viewer';
   private defaultFolderMode: 'file-list' | 'cmd' | 'terminal' = 'file-list';
+  /** See `openFromEntry` — coalesces requests while a dirty-preview confirm is on screen. */
+  private pendingOpenEntry: { entry: OpenableEntry; mode: EditorOpenMode } | null = null;
 
   constructor(container: HTMLElement) {
     this.layout = createWorkbenchLayout(container);
@@ -159,7 +175,15 @@ export class WorkbenchApp {
     // Resource kind registration slot + minimal example presets (FR-I1, FR-I2, FR-I3, WK-025, WK-026)
     this.kindRegistry = new ResourceKindRegistry();
     registerFilePreset(this.kindRegistry);
-    registerFolderPreset(this.kindRegistry, (entry) => this.openDirectoryEntry(entry));
+    registerFolderPreset(this.kindRegistry, {
+      iconTheme: this.iconTheme,
+      onOpenEntry: (entry) => this.openFromEntry(entry, 'preview'),
+      onConfirmEntry: (entry) => this.openFromEntry(entry, 'pinned'),
+      onEnterOpenEntry: (entry) => this.openEntryOnEnter(entry),
+      onContextMenuEntry: (entry, x, y) => this.contextMenu.show(
+        x, y, this.buildResourceContextMenuItems(entry.id, entry.label, entry.isContainer)
+      ),
+    });
     registerTerminalPreset(this.kindRegistry);
     this.editor.setComponentFactory(this.kindRegistry.createComponentFactory(this.editor));
     this.editor.setSaveHandler((panelId) => this.kindRegistry.save(panelId));
@@ -598,84 +622,17 @@ export class WorkbenchApp {
     // Bind Tree item opening rules (FR-B1 ~ FR-B4, FR-A6, FR-A14, D-5).
     // Which kind a node opens as is an app-layer decision (isContainer is a
     // generic core field); the shell itself never branches on file/folder.
+    // The actual preview/pinned/dirty-confirm rules live in `openFromEntry`
+    // (a class method, not a local closure here) so folder-list rows
+    // (WK-113) can share them byte-for-byte instead of re-deriving the same
+    // three rounds of adversarial findings (A9 R1/R3) independently.
     const kindOf = (isContainer: boolean | undefined) => (isContainer ? FOLDER_KIND : FILE_KIND);
-    // Round-1 adversarial finding (Critical): selecting a new item replaces
-    // the target group's active tab in place (FR-B1), which would silently
-    // discard an unsaved edit. Ask first, same as closing that tab would (D-28).
-    // A single pick is browsing: it goes to the group's preview spot and
-    // replaces whatever was being looked at there (v0.2 FR-P1 ~ FR-P3).
-    // A9 Round-3 (Major): a double click delivers click, click, dblclick.
-    // With a dirty preview each click used to start its own confirmation, and
-    // the dblclick opened the target pinned *behind* the dialog — after which
-    // "Discard" found the target already open and discarded nothing. While a
-    // confirmation is on screen, further requests fold into the one pending
-    // request instead: the latest target wins, and a confirm upgrades it.
-    let pendingOpen: { node: TreeNode; mode: EditorOpenMode } | null = null;
 
-    const openFromTree = (node: TreeNode, mode: EditorOpenMode) => {
-      const openNow = (target: TreeNode, how: EditorOpenMode) =>
-        this.openResource(target.id, target.label, kindOf(target.isContainer),
-          target.isContainer ? 'file-list' : this.defaultFileMode, how);
-
-      if (pendingOpen) {
-        const keepPinned = pendingOpen.node.id === node.id && pendingOpen.mode === 'pinned';
-        pendingOpen = { node, mode: keepPinned ? 'pinned' : mode };
-        return;
-      }
-
-      // Stays fully synchronous in the common (clean) case — the acceptance
-      // suites assert state right after a synchronous keydown/click with 0
-      // waits. Only a genuinely dirty replace target takes the async confirm
-      // path: overwriting it would discard an unsaved edit (D-28).
-      //
-      // A9 Round-1 (Critical): the tab about to be overwritten is the preview
-      // spot, which is not necessarily the active one. Both the question and
-      // the answer have to name that same panel.
-      //
-      // A9 Round-3 (Major): a target that is already open in THIS group is
-      // jumped to, not loaded into the preview spot, so nothing is
-      // overwritten and asking would be a false alarm whose "Discard"
-      // discards nothing. FR-P15/D-15 narrowed this to the active group —
-      // the target being open, confirmed, in some OTHER group no longer
-      // stops the active group's dirty preview from being the real target.
-      const activeGroupForCheck = this.editor.getActiveGroup();
-      const requestedMode = node.isContainer ? 'file-list' : this.defaultFileMode;
-      const alreadyOpen = Boolean(activeGroupForCheck?.panels.some((p) =>
-        p.params?.targetId === node.id && p.params?.mode === requestedMode));
-      const doomed = mode === 'preview' && !alreadyOpen ? this.editor.getPreviewPanel() : undefined;
-      if (doomed?.params?.isDirty) {
-        pendingOpen = { node, mode };
-        void (async () => {
-          const proceed = await this.editor.confirmReplaceIfDirty(doomed);
-          const request = pendingOpen;
-          pendingOpen = null;
-          if (!proceed || !request) return;
-          // What the user just agreed to is replacing the dirty preview spot,
-          // so the target goes INTO that spot. A pinned request would
-          // otherwise open beside it and leave the "discarded" content in
-          // place. A double click folded in here is then honoured by
-          // confirming the tab the target landed in.
-          const landed = openNow(request.node, 'preview');
-          if (request.mode === 'pinned') this.editor.pinPanel(landed);
-        })();
-        return;
-      }
-      openNow(node, mode);
-    };
-
-    this.tree.onOpen((node) => openFromTree(node, 'preview'));
+    this.tree.onOpen((node) => this.openFromEntry(node, 'preview'));
     // A double click on a file/folder row: the user is keeping this one
     // (v0.2 FR-P4).
-    this.tree.onConfirm((node) => openFromTree(node, 'pinned'));
-    // Plain Enter: preview-first, like a click, unless the focused item is
-    // already the active group's preview spot — a second Enter on the same
-    // item is what confirms it (v0.2 FR-P7, FR-T3, D-16).
-    this.tree.onEnterOpen((node) => {
-      const activeGroup = this.editor.getActiveGroup();
-      const currentPreview = activeGroup ? this.editor.getPreviewPanel(activeGroup) : undefined;
-      const alreadyPreviewing = currentPreview?.params?.targetId === node.id;
-      openFromTree(node, alreadyPreviewing ? 'pinned' : 'preview');
-    });
+    this.tree.onConfirm((node) => this.openFromEntry(node, 'pinned'));
+    this.tree.onEnterOpen((node) => this.openEntryOnEnter(node));
     this.tree.onOpenToSide((node) => {
       const activeGroup = this.editor.getActiveGroup();
       const besideGroup = activeGroup ? this.editor.findBesideGroup(activeGroup) : undefined;
@@ -696,17 +653,7 @@ export class WorkbenchApp {
     this.contextMenuItemsForTreeNode = (nodeId) => {
       const node = this.tree.getNodeById(nodeId);
       if (!node) return [];
-      if (node.isContainer) {
-        return [
-          { id: 'open:file-list', label: 'Open File List', action: () => this.openResource(node.id, node.label, FOLDER_KIND, 'file-list', 'pinned') },
-          { id: 'open:cmd', label: 'Open Command Prompt', action: () => this.openResource(node.id, node.label, TERMINAL_KIND, 'cmd', 'pinned') },
-          { id: 'open:powershell', label: 'Open PowerShell', action: () => this.openResource(node.id, node.label, TERMINAL_KIND, 'powershell', 'pinned') },
-        ];
-      }
-      return [
-        { id: 'open:viewer', label: 'Open as Viewer', action: () => this.openResource(node.id, node.label, FILE_KIND, 'viewer', 'pinned') },
-        { id: 'open:editor', label: 'Open as Editor', action: () => this.openResource(node.id, node.label, FILE_KIND, 'editor', 'pinned') },
-      ];
+      return this.buildResourceContextMenuItems(node.id, node.label, node.isContainer);
     };
     this.layout.sidebarContent.addEventListener('contextmenu', (e) => {
       const row = (e.target as HTMLElement).closest('.tree-row') as HTMLElement | null;
@@ -1595,9 +1542,77 @@ export class WorkbenchApp {
     return panel;
   }
 
-  private openDirectoryEntry(entry: HostDirectoryEntry): void {
-    this.openResource(entry.path, entry.name, entry.isContainer ? FOLDER_KIND : FILE_KIND,
-      entry.isContainer ? 'file-list' : this.defaultFileMode, 'pinned');
+  /**
+   * The Explorer tree's click/dblclick/Enter opening rules (FR-B1 ~ FR-B4,
+   * FR-A6, FR-A14, D-5 — see the `this.tree.onOpen`/`onConfirm`/`onEnterOpen`
+   * wiring below), generalised to any `OpenableEntry` so a folder tab's flat
+   * file-list rows (WK-113) get the exact same preview-vs-pinned semantics
+   * and the same dirty-preview confirmation gate the Explorer tree earned
+   * across three rounds of adversarial review (A9 R1/R3). Which kind an
+   * entry opens as is still an app-layer decision (`isContainer` is a
+   * generic field) — the shell itself never branches on file/folder.
+   */
+  private openFromEntry(entry: OpenableEntry, mode: EditorOpenMode): void {
+    const openNow = (target: OpenableEntry, how: EditorOpenMode) =>
+      this.openResource(target.id, target.label, target.isContainer ? FOLDER_KIND : FILE_KIND,
+        target.isContainer ? 'file-list' : this.defaultFileMode, how);
+
+    if (this.pendingOpenEntry) {
+      const keepPinned = this.pendingOpenEntry.entry.id === entry.id && this.pendingOpenEntry.mode === 'pinned';
+      this.pendingOpenEntry = { entry, mode: keepPinned ? 'pinned' : mode };
+      return;
+    }
+
+    const activeGroupForCheck = this.editor.getActiveGroup();
+    const requestedMode = entry.isContainer ? 'file-list' : this.defaultFileMode;
+    const alreadyOpen = Boolean(activeGroupForCheck?.panels.some((p) =>
+      p.params?.targetId === entry.id && p.params?.mode === requestedMode));
+    const doomed = mode === 'preview' && !alreadyOpen ? this.editor.getPreviewPanel() : undefined;
+    if (doomed?.params?.isDirty) {
+      this.pendingOpenEntry = { entry, mode };
+      void (async () => {
+        const proceed = await this.editor.confirmReplaceIfDirty(doomed);
+        const request = this.pendingOpenEntry;
+        this.pendingOpenEntry = null;
+        if (!proceed || !request) return;
+        const landed = openNow(request.entry, 'preview');
+        if (request.mode === 'pinned') this.editor.pinPanel(landed);
+      })();
+      return;
+    }
+    openNow(entry, mode);
+  }
+
+  /**
+   * Plain `Enter` on a focused row: preview-first like a click, unless the
+   * row is already sitting in the active group's preview spot, in which
+   * case this second `Enter` is what confirms/pins it (v0.2 FR-P7, FR-T3,
+   * D-16). Shared by the Explorer tree and folder-list rows (WK-113).
+   */
+  private openEntryOnEnter(entry: OpenableEntry): void {
+    const activeGroup = this.editor.getActiveGroup();
+    const currentPreview = activeGroup ? this.editor.getPreviewPanel(activeGroup) : undefined;
+    const alreadyPreviewing = currentPreview?.params?.targetId === entry.id;
+    this.openFromEntry(entry, alreadyPreviewing ? 'pinned' : 'preview');
+  }
+
+  /**
+   * The right-click choices for a file/folder resource (v0.2 D-22, FR-G6):
+   * shared by the Explorer tree's context menu and a folder tab's flat
+   * file-list rows (WK-113) so both surfaces offer identical actions.
+   */
+  private buildResourceContextMenuItems(id: string, label: string, isContainer: boolean | undefined): ContextMenuItem[] {
+    if (isContainer) {
+      return [
+        { id: 'open:file-list', label: 'Open File List', action: () => this.openResource(id, label, FOLDER_KIND, 'file-list', 'pinned') },
+        { id: 'open:cmd', label: 'Open Command Prompt', action: () => this.openResource(id, label, TERMINAL_KIND, 'cmd', 'pinned') },
+        { id: 'open:powershell', label: 'Open PowerShell', action: () => this.openResource(id, label, TERMINAL_KIND, 'powershell', 'pinned') },
+      ];
+    }
+    return [
+      { id: 'open:viewer', label: 'Open as Viewer', action: () => this.openResource(id, label, FILE_KIND, 'viewer', 'pinned') },
+      { id: 'open:editor', label: 'Open as Editor', action: () => this.openResource(id, label, FILE_KIND, 'editor', 'pinned') },
+    ];
   }
 
   public setActivePanelMode(mode: string): void {

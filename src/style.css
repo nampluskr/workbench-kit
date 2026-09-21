@@ -1629,7 +1629,8 @@ body.is-resizing-sidebar {
 
 .folder-file-list {
   height: 100%;
-  overflow: auto;
+  display: flex;
+  flex-direction: column;
   color: var(--vscode-editor-foreground);
 }
 
@@ -1640,6 +1641,7 @@ body.is-resizing-sidebar {
   padding: 10px;
   border-bottom: 1px solid var(--vscode-panel-border);
   gap: 10px;
+  flex: 0 0 auto;
 }
 
 .folder-file-list-header span {
@@ -1648,8 +1650,7 @@ body.is-resizing-sidebar {
   white-space: nowrap;
 }
 
-.folder-file-list-header button,
-.folder-file-list-row {
+.folder-file-list-header button {
   color: inherit;
   background: transparent;
   border: 0;
@@ -1657,21 +1658,38 @@ body.is-resizing-sidebar {
   cursor: pointer;
 }
 
-.folder-file-list-row {
-  display: block;
-  width: 100%;
-  padding: 5px 10px;
-  text-align: left;
-}
-
-.folder-file-list-row:hover,
-.folder-file-list-row:focus-visible,
 .folder-file-list-header button:hover {
   background: var(--button-hover-bg);
 }
 
+.folder-file-list-status {
+  padding: 10px;
+  color: var(--sidebar-fg);
+  opacity: 0.7;
+  flex: 0 0 auto;
+}
+
+/*
+ * The row list itself (src/core/rowlist.ts) mounts its own `.tree-list`
+ * child here — same class the Explorer sidebar uses, so hover, selection
+ * colour, focus ring and scrollbar theming all come from the existing
+ * `.tree-list`/`.tree-row` rules with 0 new ones (WK-113). This wrapper
+ * only needs to give that child a sized flex box to scroll within.
+ */
 .folder-file-list-items {
-  padding: 5px 0;
+  flex: 1;
+  display: flex;
+  min-height: 0;
+}
+
+.folder-file-list-items .tree-list {
+  flex: 1;
+}
+
+.folder-file-list-empty {
+  padding: 10px;
+  color: var(--sidebar-fg);
+  opacity: 0.7;
 }
 
 .preset-terminal-view {
