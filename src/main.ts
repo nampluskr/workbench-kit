@@ -278,6 +278,15 @@ export class WorkbenchApp {
     this.folderTabs.onRelocateRequested = (id) => {
       void this.handleRelocateFolderTab(id);
     };
+    // A folder tab's own right-click menu (v0.3 WK-114, out-of-plan
+    // addition, 2026-09-23 — user request): the same three "open a folder"
+    // choices `buildResourceContextMenuItems` already offers for a
+    // container, now reachable from the rail itself, not just the Explorer
+    // tree. `tab.path` is the tab's actual filesystem root regardless of
+    // any user-set alias, so opened resources still title/target correctly.
+    this.folderTabs.onContextMenu((tab, x, y) => {
+      this.contextMenu.show(x, y, this.buildResourceContextMenuItems(tab.path, this.folderTabs.displayName(tab), true));
+    });
     // onSelect fires on EVERY successful pick, even clicking the tab that
     // was already active — unlike onActivate below, which only fires on an
     // actual change. Explorer visibility has to follow the former: clicking
@@ -628,11 +637,18 @@ export class WorkbenchApp {
     // three rounds of adversarial findings (A9 R1/R3) independently.
     const kindOf = (isContainer: boolean | undefined) => (isContainer ? FOLDER_KIND : FILE_KIND);
 
-    this.tree.onOpen((node) => this.openFromEntry(node, 'preview'));
-    // A double click on a file/folder row: the user is keeping this one
+    // A folder row no longer opens anything of its own on click/dblclick/
+    // Enter (v0.3 WK-114, out-of-plan addition, 2026-09-23 — user request):
+    // the Explorer is now pure navigation (arrow keys, expand/collapse) +
+    // file selection. Opening a folder (file list/CMD/PowerShell) moved to
+    // the folder tab rail's own right-click menu. Arrow-key navigation and
+    // Space/dblclick expand-collapse are untouched — neither goes through
+    // onOpen/onConfirm/onEnterOpen.
+    this.tree.onOpen((node) => { if (!node.isContainer) this.openFromEntry(node, 'preview'); });
+    // A double click on a file row: the user is keeping this one
     // (v0.2 FR-P4).
-    this.tree.onConfirm((node) => this.openFromEntry(node, 'pinned'));
-    this.tree.onEnterOpen((node) => this.openEntryOnEnter(node));
+    this.tree.onConfirm((node) => { if (!node.isContainer) this.openFromEntry(node, 'pinned'); });
+    this.tree.onEnterOpen((node) => { if (!node.isContainer) this.openEntryOnEnter(node); });
     this.tree.onOpenToSide((node) => {
       const activeGroup = this.editor.getActiveGroup();
       const besideGroup = activeGroup ? this.editor.findBesideGroup(activeGroup) : undefined;
@@ -653,6 +669,11 @@ export class WorkbenchApp {
     this.contextMenuItemsForTreeNode = (nodeId) => {
       const node = this.tree.getNodeById(nodeId);
       if (!node) return [];
+      // A folder row's own "open a folder" choices moved to the folder tab
+      // rail's right-click menu (v0.3 WK-114, out-of-plan addition,
+      // 2026-09-23 — user request). A file row is unaffected — ContextMenu
+      // Controller.show() already no-ops on zero items (FR-G5).
+      if (node.isContainer) return [];
       return this.buildResourceContextMenuItems(node.id, node.label, node.isContainer);
     };
     this.layout.sidebarContent.addEventListener('contextmenu', (e) => {

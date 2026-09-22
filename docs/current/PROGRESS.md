@@ -350,6 +350,49 @@
     spawn 관련 추정)**임을 검증했다 — 기존에 알려진 "Electron 환경 플레이크"
     범주로 분류한다.
 
+- **폴더 열기 트리거를 탐색기 트리에서 폴더 탭 레일 우클릭 메뉴로 이관
+  (WK-114)** (2026-09-23, 사용자 요청)
+  - 요청: 폴더 탭 레일이 등록된 Root 폴더 리스트 관리 전용이 되고, 탭
+    우클릭으로 "새 탭에서 파일리스트로 열기"/"CMD 열기"/"PowerShell 열기"를
+    고를 수 있게 한다. 반대로 탐색기 영역은 폴더 우클릭 메뉴와 폴더 클릭/
+    엔터의 "새 탭 열기" 동작을 모두 잃고, 방향키 이동·펼치기/접기(기존
+    유지)와 파일 선택(기존 유지)만 남는 순수 내비게이션이 된다. PLAN 반영
+    없는 추가 요청이며, 사용자가 직접 수동 테스트하는 조건으로 반대 벤더
+    적대적 검증은 생략했다.
+  - `src/core/foldertabs.ts`: `FolderTabsController`에 `onContextMenu(cb)`를
+    신설했다. 다른 공개 콜백(`onRelocateRequested` 등)과 같은 원칙으로,
+    레일 자신은 우클릭 메뉴에 어떤 항목이 와야 하는지 모르고 host(main.ts)에
+    `(tab, x, y)`만 넘긴다. 각 탭 행의 `contextmenu` 리스너는 renaming 중인
+    행에는 붙지 않는다(그 분기는 `continue`로 먼저 빠짐).
+  - `src/main.ts`:
+    - `this.folderTabs.onContextMenu(...)`를 새로 연결해 기존
+      `buildResourceContextMenuItems(id, label, true)`(WK-113부터 있던, 폴더용
+      3항목: Open File List/Command Prompt/PowerShell)를 탭의 `tab.path`
+      기준으로 그대로 재사용한다 — 새 메뉴 항목을 만들지 않고 기존 걸 재배선만
+      했다.
+    - `this.tree.onOpen`/`onConfirm`/`onEnterOpen` 3곳 모두 `node.isContainer`일
+      때 아무 것도 하지 않도록 가드를 추가했다(파일 행은 기존 그대로
+      `openFromEntry`/`openEntryOnEnter` 경유). 방향키 이동·`Space`/더블클릭
+      펼치기-접기(`toggleExpand`)는 애초에 `onOpen`/`onConfirm`/`onEnterOpen`과
+      무관한 별도 경로라 손대지 않았다.
+    - `contextMenuItemsForTreeNode`가 `node.isContainer`면 빈 배열을
+      반환하도록 바꿨다 — `ContextMenuController.show()`가 원래 0개 항목이면
+      아무 것도 그리지 않는 설계(FR-G5)라 별도 처리 없이 "폴더 우클릭 시
+      메뉴 없음"이 된다.
+    - `src/presets/folder-preset.ts`(WK-113의 폴더 file-list 탭 행)와
+      `rowlist.ts`의 `onOpenEntry`/`onContextMenuEntry` 경유 동작은 **건드리지
+      않았다** — 사용자 요청이 명시한 "탐색기 영역"은 좌측 트리이고, 폴더
+      탭 안에서 열리는 file-list 패널 내부 행은 별개 표면이라 범위 밖으로
+      판단했다.
+  - `검증`: `npx tsc --noEmit` 통과. `npm run verify:v03-phase1`(폴더 탭 레일
+    회귀) 전부 통과, Electron·pywebview 불일치 0건. `npm run verify:v02-phase1`
+    은 13건 실패했는데 전부 "폴더 클릭/더블클릭/Enter가 preview 탭을 연다"는
+    이번에 의도적으로 제거한 옛 동작(FR-P3·FR-P5·FR-P10·FR-T3·FR-T3-PREVIEW)을
+    직접 확인하는 단언들이다 — 이 변경이 실제로 적용됐다는 증거로 해석하고
+    손대지 않았다(v0.1/v0.2 스위트는 각자 자기 버전의 계약을 고정한 기록이라는
+    기존 정책, WK-113 항목 마지막 문단과 같은 판단). 사용자가 직접 수동
+    테스트한다.
+
 ---
 
 ## Phase 1 — Folder Tabs 레일과 폴더 추가 (WK-083 ~ WK-087) — done, 2026-09-16

@@ -290,6 +290,13 @@ export class FolderTabsController {
   private emptyCallbacks: Array<() => void> = [];
   private changeCallbacks: Array<() => void> = [];
   private removeCallbacks: Array<(id: string) => void> = [];
+  /**
+   * Fired on a tab row's right-click (v0.3 WK-114, out-of-plan addition,
+   * 2026-09-23 — user request). The rail itself has no opinion on what
+   * items such a menu should offer; the host (main.ts) decides that, the
+   * same split `onRelocateRequested`/`onAddRequested` already use.
+   */
+  private contextMenuCallbacks: Array<(tab: FolderTab, x: number, y: number) => void> = [];
 
   public onAddRequested: (() => void) | null = null;
   /** Fired when the user clicks an error tab's "Locate Folder…" control (v0.3 D-6, WK-103). */
@@ -492,6 +499,14 @@ export class FolderTabsController {
     this.removeCallbacks.push(cb);
     return () => {
       this.removeCallbacks = this.removeCallbacks.filter((c) => c !== cb);
+    };
+  }
+
+  /** See `contextMenuCallbacks`' doc comment. */
+  public onContextMenu(cb: (tab: FolderTab, x: number, y: number) => void): () => void {
+    this.contextMenuCallbacks.push(cb);
+    return () => {
+      this.contextMenuCallbacks = this.contextMenuCallbacks.filter((c) => c !== cb);
     };
   }
 
@@ -1103,6 +1118,10 @@ export class FolderTabsController {
           e.preventDefault();
           this.activateTab(tab.id);
         }
+      });
+      row.addEventListener('contextmenu', (e) => {
+        e.preventDefault();
+        for (const cb of this.contextMenuCallbacks) cb(tab, e.clientX, e.clientY);
       });
 
       const relocateBtn = row.querySelector<HTMLButtonElement>('.foldertabs-tab-relocate');
