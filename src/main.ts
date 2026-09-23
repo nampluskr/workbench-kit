@@ -932,20 +932,16 @@ export class WorkbenchApp {
 
   /**
    * Drag — or arrow-key nudge — the handle between the Folder Tabs rail and
-   * the Explorer to resize the rail. Mirrors `setupSidebarResize()` above:
-   * same 200px minimum, same ~60% of window cap, same "lives only in a CSS
-   * variable, never persisted" rule (user request, 2026-09-17: apply the
-   * Explorer's width values — default/min/max, and resizability — to the
-   * Folder Tabs rail too).
+   * the Explorer to resize the rail. The rail starts at 200px, stops at
+   * 150px, and keeps the same ~60% of window cap and "lives only in a CSS
+   * variable, never persisted" rule as the Explorer.
    */
   private setupFolderTabsResize(): void {
     const handle = this.layout.folderTabsResizeHandle;
     const rail = this.layout.folderTabsRail;
     if (!handle || !rail) return;
 
-    // Lowered to 160 (user request, 2026-09-17) — same value as the
-    // Explorer's own MIN in setupSidebarResize() above.
-    const MIN = 160;
+    const MIN = 150;
     const clamp = (px: number) => {
       const max = Math.max(MIN, Math.round((window.innerWidth || 1280) * 0.6));
       return Math.min(max, Math.max(MIN, px));

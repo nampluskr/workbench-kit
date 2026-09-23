@@ -657,12 +657,10 @@ html, body, #app {
  * shows, while this rail lists the sidebar's own dataset (v0.3 INTENT 3).
  */
 .workbench-foldertabs-rail {
-  /* Matches the Explorer's own default/min/max width behavior (user
-     request, 2026-09-17) — see .foldertabs-resize-handle and
-     setupFolderTabsResize() for the same clamp (min 160, max ~60% of the
-     window) the Explorer's own resize handle uses. */
+  /* Starts at 200px and clamps at 150px; see setupFolderTabsResize() for
+     the matching drag/keyboard minimum and ~60% window maximum. */
   width: var(--foldertabs-width);
-  min-width: 160px;
+  min-width: 150px;
   background-color: var(--sidebar-bg);
   color: var(--sidebar-fg);
   display: flex;
