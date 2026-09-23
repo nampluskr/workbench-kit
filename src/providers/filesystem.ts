@@ -4,6 +4,10 @@ export interface HostDirectoryEntry {
   name: string;
   path: string;
   isContainer: boolean;
+  /** Bytes, or `null` for a container (v0.3 WK-118) — folder size is not computed recursively, same as Explorer's own Details view default. */
+  size: number | null;
+  /** Last-modified time, epoch milliseconds (v0.3 WK-118) — both a file and a folder have one. */
+  mtimeMs: number;
 }
 
 export interface HostDriveEntry {

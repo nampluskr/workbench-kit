@@ -1644,22 +1644,27 @@ body.is-resizing-sidebar {
   flex: 0 0 auto;
 }
 
-.folder-file-list-header span {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.folder-file-list-header button {
+/* Windows Explorer-style address bar (v0.3 WK-117) — same visual language as the folder tab rail's own inline-rename input (`.foldertabs-tab-rename-input`). */
+.folder-file-list-path-input {
+  flex: 1 1 auto;
+  min-width: 0;
+  height: 22px;
+  background-color: var(--bg-color);
   color: inherit;
-  background: transparent;
-  border: 0;
-  font: inherit;
-  cursor: pointer;
+  border: 1px solid transparent;
+  border-radius: 2px;
+  padding: 0 3px;
+  font-family: inherit;
+  font-size: inherit;
+  outline: none;
 }
 
-.folder-file-list-header button:hover {
-  background: var(--button-hover-bg);
+.folder-file-list-path-input:hover {
+  border-color: var(--border-color);
+}
+
+.folder-file-list-path-input:focus {
+  border-color: var(--focus-ring);
 }
 
 .folder-file-list-status {
@@ -1670,20 +1675,76 @@ body.is-resizing-sidebar {
 }
 
 /*
- * The row list itself (src/core/rowlist.ts) mounts its own `.tree-list`
- * child here — same class the Explorer sidebar uses, so hover, selection
- * colour, focus ring and scrollbar theming all come from the existing
- * `.tree-list`/`.tree-row` rules with 0 new ones (WK-113). This wrapper
- * only needs to give that child a sized flex box to scroll within.
+ * The row list itself (src/core/rowlist.ts) mounts its own `.rowlist-header`
+ * + `.tree-list` children here — `.tree-list` is the same class the
+ * Explorer sidebar uses, so hover, selection colour, focus ring and
+ * scrollbar theming all come from the existing `.tree-list`/`.tree-row`
+ * rules with 0 new ones (WK-113). This wrapper stacks the (fixed-height)
+ * header above the (scrollable) list (v0.3 WK-118).
  */
 .folder-file-list-items {
   flex: 1;
   display: flex;
+  flex-direction: column;
   min-height: 0;
 }
 
 .folder-file-list-items .tree-list {
   flex: 1;
+}
+
+/* Details-view columns (v0.3 WK-118) — Name/Ext/Size/Date, Explorer-style. `--rowlist-grid` is set once via the DOM API in rowlist.ts (dockview-css.md's "no literal style= in rendered HTML" applies to this file too), inherited by both the header and every row below it. */
+.rowlist-header {
+  display: grid;
+  grid-template-columns: var(--rowlist-grid);
+  flex: 0 0 auto;
+  height: 22px;
+  border-bottom: 1px solid var(--border-color);
+  font-size: inherit;
+}
+
+.rowlist-header-cell {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  padding: 0 10px;
+  cursor: pointer;
+  overflow: hidden;
+  white-space: nowrap;
+  color: var(--sidebar-fg);
+  opacity: 0.85;
+}
+
+.rowlist-header-cell:hover {
+  background-color: var(--button-hover-bg);
+}
+
+.rowlist-sort-arrow {
+  font-size: 11px;
+  flex: 0 0 auto;
+}
+
+/* `.tree-row`'s own `padding-left` is a tree-indent affordance this grid
+   layout does not use — each cell below carries its own 10px gutter
+   instead, so the header's and a row's grid tracks start at the same x. */
+.tree-row.rowlist-row {
+  display: grid;
+  grid-template-columns: var(--rowlist-grid);
+  width: 100%;
+  padding-left: 0;
+}
+
+.rowlist-cell {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding: 0 10px;
+}
+
+.rowlist-cell-name {
+  display: flex;
+  align-items: center;
+  padding: 0 10px;
 }
 
 .folder-file-list-empty {

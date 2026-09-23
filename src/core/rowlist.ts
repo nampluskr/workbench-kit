@@ -20,41 +20,82 @@ import { renderIconMarkup, escapeHtml } from './tree';
  * module still does not know file extensions, it only receives
  * `isContainer` per row).
  *
- * Interaction is deliberately its OWN, narrower contract (WK-116,
- * out-of-plan addition, 2026-09-23 — user request), not the Explorer
- * tree's open-elsewhere rules: a click only selects, and dblclick/Enter
- * both fire one `onActivate` — this view has no concept of "open a file
- * viewer/editor", only "select a row" and "activate a row" (the caller,
- * `folder-preset.ts`, decides what activating a row means: step into a
- * subfolder or step up via a `..` row; a file row activating is simply
- * not wired to anything by the caller). No right-click menu — a folder's
- * own actions live on the folder tab rail now, a file's on the Explorer
- * (WK-114/WK-115).
+ * Interaction is deliberately its OWN, narrower contract (WK-116), not the
+ * Explorer tree's open-elsewhere rules: a click only selects, and
+ * dblclick/Enter both fire one `onActivate` — this view has no concept of
+ * "open a file viewer/editor", only "select a row" and "activate a row"
+ * (the caller, `folder-preset.ts`, decides what activating a row means).
+ * No right-click menu — a folder's own actions live on the folder tab rail
+ * now, a file's on the Explorer (WK-114/WK-115).
+ *
+ * Details-view columns (v0.3 WK-118, out-of-plan addition, 2026-09-23 —
+ * user request): a clickable header row per column, Explorer-style
+ * click-once/click-again sort direction toggling. This component only
+ * renders whatever `columns` text each item already carries and reports
+ * which column/direction the user asked for via `onSortRequest` — it does
+ * not know what "Size" or "Date" mean, or how to compare them (natural
+ * sort, numeric size, folders-vs-files grouping): sorting the actual
+ * `items` array is `folder-preset.ts`'s job, using the raw
+ * `HostDirectoryEntry` values it still has, not these pre-formatted
+ * display strings (a formatted date string does not sort correctly as
+ * text). This component only ever reorders what it is handed.
  */
+
+export interface RowListColumn {
+  id: string;
+  label: string;
+  /** A CSS grid track size for this column (e.g. `'1fr'`, `'90px'`). */
+  width: string;
+}
+
+export type RowListSortDirection = 'asc' | 'desc';
 
 export interface RowListItem {
   id: string;
   label: string;
   isContainer?: boolean;
+  /** Pre-formatted display text for every column after the first (Name), keyed by column id. */
+  columns?: Record<string, string>;
 }
 
 export class RowListController {
   private container: HTMLElement;
   private iconThemeManager: IconThemeManager;
+  private headerEl: HTMLElement;
   private listEl: HTMLElement;
+  private columns: RowListColumn[];
 
   private items: RowListItem[] = [];
   private selectedId: string | null = null;
   private focusedId: string | null = null;
+  private sortColumn: string;
+  private sortDirection: RowListSortDirection = 'asc';
 
   /** Fires on dblclick and on Enter alike — the caller decides what "activating" a row means. */
   private onActivateCallbacks: ((item: RowListItem) => void)[] = [];
+  /** Fires when a header is clicked — the caller re-sorts `items` and calls `setItems()`/`setSortState()` back. */
+  private onSortRequestCallbacks: ((columnId: string, direction: RowListSortDirection) => void)[] = [];
   private unsubscribeIconTheme: () => void;
   private unsubscribeColorTheme: () => void;
 
-  constructor(container: HTMLElement, iconThemeManager: IconThemeManager) {
+  constructor(container: HTMLElement, iconThemeManager: IconThemeManager, columns: RowListColumn[]) {
     this.container = container;
     this.iconThemeManager = iconThemeManager;
+    this.columns = columns;
+    this.sortColumn = columns[0]?.id ?? 'name';
+
+    this.container.classList.add('rowlist-container');
+    // Set once via the DOM API (not baked into an HTML template string —
+    // .claude/rules/dockview-css.md's "don't hand-place things with a
+    // literal `style="..."` in rendered HTML" applies to this file too),
+    // as a CSS custom property every column cell below inherits — the same
+    // "set a dynamic value through element.style, let CSS classes do the
+    // rest" pattern `foldertabs.ts` already uses for its tab accent colour.
+    this.container.style.setProperty('--rowlist-grid', columns.map((c) => c.width).join(' '));
+
+    this.headerEl = document.createElement('div');
+    this.headerEl.className = 'rowlist-header';
+    this.container.appendChild(this.headerEl);
 
     this.listEl = document.createElement('div');
     // Same class the Explorer's scroll area uses — its CSS (scrollbar
@@ -74,6 +115,7 @@ export class RowListController {
     // comment (icontheme.ts) for why this is a separate event rather than
     // folded into the same one.
     this.unsubscribeColorTheme = this.iconThemeManager.onColorThemeChange(() => this.render());
+    this.renderHeader();
     this.render();
   }
 
@@ -103,15 +145,29 @@ export class RowListController {
     return this.items;
   }
 
+  /** The caller tells this view which column/direction the just-applied `setItems()` order reflects, so the header arrow matches (v0.3 WK-118). */
+  public setSortState(columnId: string, direction: RowListSortDirection): void {
+    this.sortColumn = columnId;
+    this.sortDirection = direction;
+    this.renderHeader();
+  }
+
   public dispose(): void {
     this.unsubscribeIconTheme();
     this.unsubscribeColorTheme();
+    this.container.classList.remove('rowlist-container');
+    this.container.removeChild(this.headerEl);
     this.container.removeChild(this.listEl);
   }
 
   public onActivate(cb: (item: RowListItem) => void): () => void {
     this.onActivateCallbacks.push(cb);
     return () => { this.onActivateCallbacks = this.onActivateCallbacks.filter((c) => c !== cb); };
+  }
+
+  public onSortRequest(cb: (columnId: string, direction: RowListSortDirection) => void): () => void {
+    this.onSortRequestCallbacks.push(cb);
+    return () => { this.onSortRequestCallbacks = this.onSortRequestCallbacks.filter((c) => c !== cb); };
   }
 
   /**
@@ -178,6 +234,43 @@ export class RowListController {
     rowEl?.scrollIntoView({ block: 'nearest' });
   }
 
+  private renderHeader(): void {
+    this.headerEl.innerHTML = '';
+    for (const col of this.columns) {
+      const cell = document.createElement('div');
+      cell.className = 'rowlist-header-cell';
+      cell.setAttribute('role', 'columnheader');
+      cell.tabIndex = 0;
+
+      const label = document.createElement('span');
+      label.textContent = col.label;
+      cell.appendChild(label);
+
+      if (col.id === this.sortColumn) {
+        const arrow = document.createElement('i');
+        arrow.className = `codicon ${this.sortDirection === 'asc' ? 'codicon-chevron-up' : 'codicon-chevron-down'} rowlist-sort-arrow`;
+        cell.appendChild(arrow);
+      }
+
+      const activate = () => {
+        // Same column clicked again toggles direction (Explorer's own
+        // click-once/click-again rule); a different column starts fresh
+        // at ascending.
+        const direction: RowListSortDirection =
+          col.id === this.sortColumn && this.sortDirection === 'asc' ? 'desc' : 'asc';
+        this.onSortRequestCallbacks.forEach((cb) => cb(col.id, direction));
+      };
+      cell.addEventListener('click', activate);
+      cell.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          activate();
+        }
+      });
+      this.headerEl.appendChild(cell);
+    }
+  }
+
   public render(): void {
     if (this.items.length === 0) {
       this.listEl.replaceChildren();
@@ -192,14 +285,28 @@ export class RowListController {
     for (const item of this.items) {
       const isSelected = item.id === this.selectedId;
       const isFocused = item.id === this.focusedId;
+      // Icon resolution always uses the raw name (e.g. a special-named
+      // folder like "node_modules" or ".git" keys an icon theme's own
+      // lookup) — the `[brackets]` below are a display-only convention for
+      // a container row (v0.3 WK-119, user request, 2026-09-23), including
+      // the synthetic `..` row, which is a container too.
       const iconDesc = this.iconThemeManager.resolveIcon(item.label, Boolean(item.isContainer));
+      const displayLabel = item.isContainer ? `[${item.label}]` : item.label;
+      let cellsHtml = `
+          <span class="rowlist-cell rowlist-cell-name">
+            ${renderIconMarkup(iconDesc)}
+            <span class="tree-label">${escapeHtml(displayLabel)}</span>
+          </span>
+      `;
+      for (const col of this.columns.slice(1)) {
+        cellsHtml += `<span class="rowlist-cell">${escapeHtml(item.columns?.[col.id] ?? '')}</span>`;
+      }
       html += `
-        <div class="tree-row ${isSelected ? 'selected' : ''} ${isFocused ? 'focused' : ''}"
+        <div class="tree-row rowlist-row ${isSelected ? 'selected' : ''} ${isFocused ? 'focused' : ''}"
              data-id="${escapeHtml(item.id)}"
              role="option"
              aria-selected="${isSelected}">
-          ${renderIconMarkup(iconDesc)}
-          <span class="tree-label">${escapeHtml(item.label)}</span>
+          ${cellsHtml}
         </div>
       `;
     }

@@ -487,6 +487,174 @@
       `.params` 접근에서 크래시한다.
   - 사용자가 직접 수동 테스트한다.
 
+- **폴더 file-list 탭의 Refresh를 탐색기 Refresh로 이관, 경로 표시줄을
+  윈도우 탐색기 주소창처럼 편집·복사 가능하게 변경 (WK-117)** (2026-09-23,
+  사용자 요청)
+  - 요청: 폴더 file-list 탭 자신의 Refresh 버튼을 없애고, 탐색기 영역의
+    Refresh 아이콘(또는 단축키)로 그 탭도 새로고침되게 한다. 탭 최상단의
+    경로 표시를 윈도우 탐색기 주소창처럼 수정 가능한 텍스트 영역으로
+    바꾸고, 전체 경로를 복사할 수 있게 한다. PLAN 반영 없는 추가 요청이며,
+    사용자가 직접 수동 테스트하는 조건으로 반대 벤더 적대적 검증은 생략했다
+    (WK-114~116과 동일 조건).
+  - **"Refresh 단축키" 판단**: `docs/reserved-keys.md` 5절에 이미 "탐색기
+    뷰 액션(New File·New Folder·**Refresh**·Collapse All)은 네이티브
+    `<button>`이라 `Tab`으로 포커스하고 `Enter`/`Space`로 누른다"는 마우스
+    없는 경로가 문서화돼 있고, 같은 문서 서두는 "이 목록에 없는 키는 전부
+    앱 몫"이라 명시한다. 새 전역 단축키(F5 등)를 임의로 추가하면 그
+    "예약 키는 이 표가 전부"라는 불변식을 문서 갱신 없이 깨뜨리게 되므로,
+    새 키를 만들지 않고 **기존에 이미 문서화된 그 키보드 경로(Tab+Enter/
+    Space)가 그대로 이 요청의 "단축키"를 만족한다**고 판단했다 — 버튼
+    클릭 하나만 앱 계층에서 확장했다.
+  - `src/registry/kind-registry.ts`: `KindRendererFactory`의 반환 객체에
+    `refresh?: () => void`를 추가했다. `save`/`setMode`/`focus`와 똑같은
+    모양으로 `registerRefreshHandler`/`unregisterRefreshHandler`/
+    `refreshPanel(panelId)`를 뒀고, `KindDispatchRenderer`의 재배치
+    시점(`renderForCurrentParams`)과 전체 `dispose()` 양쪽에서 같은
+    자리에 등록·해제를 끼워 넣었다 — `focus` 핸들러가 이미 두 자리 모두에서
+    등록되고 있어 그 패턴을 그대로 따랐다(재배치 시점엔 `saveable`만
+    지우던 기존의 비대칭은 이번 범위가 아니라 손대지 않았다).
+  - `src/core/sidebar.ts`: `ExplorerTitlebarController`에 공개
+    `refresh()`(Refresh 버튼 클릭이 이미 하던 `treeController.refresh()`를
+    그대로 감쌈)와 `onRefresh(cb)` 구독을 추가했다. 이 컴포넌트는 여전히
+    리소스 종류를 모른다 — "새로고침이 일어났다"는 사실만 알리고, 그걸
+    "폴더 file-list 탭도 새로고침"으로 번역하는 건 `main.ts`(app 계층) 몫
+    이다(`setNewItemHandler`가 이미 쓰던 것과 같은 분리).
+  - `src/main.ts`: `explorerTitlebar.onRefresh(...)`를 새로 연결해
+    `this.editor.getApi().panels`(모든 그룹의 모든 패널, dockview
+    `DockviewApi.panels`) 중 `params.kind === FOLDER_KIND`인 것 전부에
+    `kindRegistry.refreshPanel(panel.id)`를 부른다 — 활성 탭 하나가
+    아니라 열려 있는 폴더 file-list 탭 전부를 새로고침한다(다른 탭 그룹에
+    떠 있는 것도 방치되지 않도록).
+  - `src/presets/folder-preset.ts`: 헤더의 `Refresh` `<button>`을
+    지웠다. 경로를 보여주던 `<span>`을 `<input type="text">`(주소창
+    스타일)로 바꿔, `focus`에서 전체 선택(`title.select()`, 클릭 한 번으로
+    Ctrl+C 복사 가능)되게 하고, `Enter`는 입력값이 현재 경로와 다르면
+    그 경로로 `load()`(새 경로 탐색, 유효하지 않으면 기존 오류 상태
+    표시), `Escape`/포커스 아웃은 실제 현재 경로로 되돌린다. 반환 객체에
+    `refresh: () => void load(currentPath)`를 추가해 위 레지스트리
+    후크와 연결했다.
+  - `src/style.css`: `.folder-file-list-path-input`을 새로 추가했다 —
+    폴더 탭 레일의 인라인 이름변경 입력(`.foldertabs-tab-rename-input`)과
+    같은 시각 언어(`--bg-color`/`--focus-ring`)를 재사용했다. 처음에
+    `padding: 0 6px`로 썼다가 `verify:dist`의 D-29 금지값 검사(`6px`가
+    `4px`·`8px`·`16px`·`12px`와 함께 금지 목록에 있다)에 걸려
+    `padding: 0 3px`(기존 rename input과 동일 값)로 바꿨다.
+  - `검증`: `npx tsc --noEmit`·`npm run build` 통과. `npm run verify:dist`
+    (0 differences, D-29 포함) 통과. `npm run verify:phase2`·
+    `npm run verify:v03-phase1`도 실행했다 — Phase 2는 무관 영역이라 전부
+    통과, v03-phase1의 4건 실패는 WK-115에서 이미 기록한 것과 동일(헤더
+    버튼 자체가 없어진 결과)이라 새로 생긴 게 아님을 재확인했다.
+  - **오늘 처음 실행해 본 legacy suite에서 발견, 원인은 오늘이 아님**:
+    `npm run verify:phase5`(v0.1 스위트, 이전에 실행한 적 없음)가
+    `P5-FR-I3`(탐색기에서 폴더 행을 고르면 폴더 프리셋이 활성 탭으로
+    열린다)와 `P5-FR-G5-DEFAULT-OFF`(그 연쇄로 보이는 우클릭 메뉴 단언) 2건
+    실패한다. `git stash`로 오늘 변경분(WK-117)을 걷어내고 직전 커밋
+    (`1c4dd2e`, WK-114~116까지 반영된 상태)에서 다시 돌려 **이미 그
+    시점에 똑같이 실패**하는 것을 확인했다 — WK-114가 탐색기의 폴더
+    클릭-열기를 없앤 결과이지 오늘 바뀐 것이 아니다. `stash pop`으로
+    작업 내용을 즉시 복원했다.
+  - 사용자가 직접 수동 테스트한다.
+
+- **폴더 file-list 탭에 Name/Ext/Size/Date 상세 보기 컬럼과 탐색기 스타일
+  정렬(클릭 1회=오름차순·2회=내림차순, 폴더/파일 그룹 분리 유지) 추가
+  (WK-118)** (2026-09-23, 사용자 요청)
+  - 요청: 폴더 file-list 탭에 윈도우 탐색기 "자세히" 보기처럼 Name·Ext·
+    Size·Date 헤더를 두고, 각 헤더 클릭 시 그 그룹(폴더는 폴더끼리/파일은
+    파일끼리) 안에서만 정렬되게 한다. 클릭 1회 오름차순·2회 내림차순은
+    탐색기와 동일하게. PLAN 반영 없는 추가 요청이며, 사용자가 직접 수동
+    테스트하는 조건으로 반대 벤더 적대적 검증은 생략했다(WK-114~117과
+    동일 조건 — 사용자가 이번에도 명시적으로 확인).
+  - 구현 전 작업량·방식을 먼저 정리해 보고했다 — 지금까지(WK-114~117)와
+    달리 **호스트 네이티브 코드 두 벌(Electron·pywebview)을 모두 건드리는
+    첫 out-of-plan 작업**이었기 때문. 다음 세 가지는 사용자에게 직접
+    확인받고 진행했다: **①** Size 정렬 시 크기 값이 없는 폴더 그룹은
+    이름으로 대체 정렬, **②** 이번에도 반대 벤더 검증 생략, **③** 이름
+    정렬은 탐색기와 동일한 자연 정렬(file2 < file10).
+  - `src/providers/filesystem.ts`: `HostDirectoryEntry`에 `size: number |
+    null`(폴더는 `null` — 탐색기 기본 동작처럼 재귀 계산하지 않는다)과
+    `mtimeMs: number`(파일·폴더 모두)를 추가했다.
+  - `src/hosts/electron/main.cjs`(`fs:read-dir`)·`src/hosts/pywebview/
+    main.py`(`read_dir`): 기존에 심볼릭 링크 판별용으로만 조건부로 부르던
+    `stat()`을 **모든 항목에 대해** 부르도록 바꿔 size(파일만)·mtime을
+    채운다. 항목 하나의 `stat()` 실패(깨진 링크·권한 문제)는 그 항목만
+    `size: null`/`mtimeMs: 0`으로 남기고 디렉터리 전체 읽기를 실패시키지
+    않는다(기존 심볼릭 링크 처리와 같은 "부분 실패 허용" 방침).
+  - `src/core/rowlist.ts`: `RowListController`가 컬럼(`RowListColumn[]`:
+    id·label·grid 폭)을 받아 클릭 가능한 헤더 행을 그리도록 확장했다.
+    헤더 클릭은 `onSortRequest(columnId, direction)`을 쏘기만 하고 —
+    **정렬 자체는 하지 않는다.** 이 컴포넌트는 포맷된 표시 문자열만
+    갖고 있어(Size/Date를 문자열로 정렬하면 틀린 순서가 나온다 —
+    "12 B"가 "9 B"보다 문자열로 앞선다), 실제 정렬은 원본 숫자 값을 가진
+    `folder-preset.ts`의 몫으로 명확히 분리했다. 컬럼 폭은 `--rowlist-grid`
+    CSS 커스텀 속성으로 컨테이너에 한 번만 DOM API로 설정하고(HTML 문자열에
+    `style="..."`를 박아 넣지 않는다 — `.claude/rules/dockview-css.md`의
+    "렌더 코드에 리터럴 style= 금지" 원칙을 이 파일에도 적용, `foldertabs.ts`
+    의 탭 색상 지정과 같은 패턴), 헤더·행 양쪽이 상속해 쓴다.
+  - `src/presets/folder-preset.ts`: `sortEntries()`가 컨테이너/파일을
+    먼저 분리하고 각 그룹을 독립적으로 정렬한다 — Size로 정렬할 때 폴더
+    그룹만 Name으로 대체(사용자 결정 ①). 이름 비교는 `naturalCompare()`
+    (`localeCompare`의 `numeric: true` 옵션, 사용자 결정 ③)로 통일했고,
+    모든 컬럼의 동률은 자연 정렬 이름으로 2차 정렬한다. `formatDate()`는
+    의도적으로 `toLocaleString()`/`Intl`을 쓰지 않았다 — Electron
+    (Chromium)과 pywebview(OS 자체 WebView2/WebKit)는 서로 다른 브라우저
+    엔진이라 로캘 데이터에 따라 같은 시각을 다르게 포맷할 수 있고, 이는
+    이 프로젝트가 엄격히 지키는 두 갈래 바이트 단위 동일성(D-25/NFR-2,
+    `verify:dist`의 SHA-256 비교)을 조용히 깰 수 있다 — `Date`의 순수
+    getter(`getFullYear` 등)는 로캘과 무관한 고정 ECMAScript 동작이라
+    이걸로 직접 고정 영문 포맷 문자열을 조립했다. 헤더 클릭은 이미 읽어온
+    `entriesByPath`를 재정렬만 할 뿐 디렉터리를 다시 읽지 않는다.
+  - `src/style.css`: `.rowlist-header`/`.rowlist-header-cell`/
+    `.rowlist-cell`/`.rowlist-cell-name`/`.rowlist-sort-arrow` 신설.
+    처음에 `font-size: 12px`로 썼다가 `verify:dist`의 D-29 금지값 검사에
+    걸려 `11px`(기존 다른 작은 아이콘 텍스트와 동일 값)로 바꿨다.
+  - `검증`: `npx tsc --noEmit`·`npm run build` 통과. `npm run verify:dist`
+    (0 differences, CSS 규칙 수 1772/1773·해시 일치 포함) 통과.
+    `src/hosts/pywebview/main.py`는 `verify:dist`가 이미 실제 pywebview
+    호스트 프로세스를 띄워 통과시켰지만, `size`/`mtimeMs` 값 자체는
+    `verify-phase3.mjs`가 쓰는 실제 winpython 인터프리터로 직접
+    `WindowApi.read_dir('.')`를 호출해 폴더는 `size: None`, 파일은 정수
+    `size`, 모든 항목에 `mtimeMs`가 채워지는 것까지 실측 확인했다.
+    Electron 쪽은 임시 Electron 러너(작업용, 커밋하지 않고 삭제)로 실제
+    창을 띄워 헤더 라벨(Name/Ext/Size/Date), `..` 행, Size 오름차순·
+    내림차순·재클릭 반전, 폴더 그룹의 Size→Name 대체 정렬, 자연 정렬
+    (file2.log < file10.log, 동률 시 이름으로 2차 정렬 포함), 폴더 행의
+    빈 Size 셀 등을 실제 DOM에서 9개 단언으로 확인했다 — 한 차례 과반수
+    단언이 실패했으나 원인은 앱이 아니라 테스트 스크립트 자체였다
+    ("seti" 아이콘 테마가 파일 아이콘 글리프를 실제 유니코드 사설 영역
+    문자로 `.tree-icon` 안에 텍스트로 넣는 것이 VS Code Seti 테마와 같은
+    정상 설계인데, 테스트가 이름 칸을 `.tree-label`이 아니라 상위 셀
+    전체의 `textContent`로 읽어 그 글리프 문자까지 같이 집어간 것 —
+    `.tree-label`만 읽도록 스크립트를 고치자 전부 통과했다).
+  - 사용자가 직접 수동 테스트한다.
+
+- **Date 형식을 YYYY-MM-DD 24시간제로, 컨테이너 행 이름을 `[이름]`으로
+  표시 (WK-119)** (2026-09-23, 사용자 요청)
+  - 요청: WK-118의 Date 컬럼 형식(`MM/DD/YYYY hh:mm AM/PM`)을
+    `YYYY-MM-DD HH:MM`(24시간제)로 바꾸고, 폴더 이름은 `[이름]`처럼
+    대괄호로 감싼다. 상위 이동 행은 `[..]`. PLAN 반영 없는 추가 요청,
+    반대 벤더 적대적 검증 생략(동일 조건 계속).
+  - `src/presets/folder-preset.ts`의 `formatDate()`를 AM/PM 12시간제
+    조립에서 `${getFullYear()}-${pad(month)}-${pad(date)}
+    ${pad(hours)}:${pad(minutes)}`로 바꿨다 — 여전히 `Date`의 순수
+    getter만 쓴다(WK-118에서 남긴 두 갈래 로캘 비의존 근거 그대로 유효).
+  - 대괄호는 `folder-preset.ts`가 아니라 `src/core/rowlist.ts`의
+    `render()`에서 붙였다 — 아이콘 조회(`resolveIcon(item.label, ...)`)는
+    **원래 이름 그대로** 넘기고, 화면에 찍는 `.tree-label` 텍스트만
+    `item.isContainer`일 때 `[${item.label}]`로 감싼다. 이름과 아이콘
+    조회 키를 분리한 이유: `node_modules`·`.git` 같은 특정 폴더 이름에
+    전용 아이콘을 주는 아이콘 테마(vscode-icons 등)가 이름을 정확히
+    매칭해야 하는데, 대괄호를 붙인 채로 넘기면 그 매칭이 깨져 전부
+    기본 폴더 아이콘으로 떨어진다. 정렬 비교(`compareEntries`)는 애초에
+    `HostDirectoryEntry.name`(원본, `RowListItem.label`이 아님)을 쓰므로
+    대괄호 표시는 정렬에 영향이 없다. 합성 `..` 행도 `isContainer: true`
+    라 별도 처리 없이 자동으로 `[..]`가 된다.
+  - `검증`: `npx tsc --noEmit`·`npm run build`·`npm run verify:dist`(0
+    differences) 통과. 임시 Electron 스모크 스크립트(작업용, 커밋하지
+    않고 삭제)로 실제 창을 띄워 `node_modules`/`my_folder` 폴더 행이
+    `[node_modules]`/`[my_folder]`로, `..` 행이 `[..]`로, Date 셀이
+    `2026-09-23 11:06` 형식으로 뜨는 것을 실제 DOM에서 확인했다.
+  - 사용자가 직접 수동 테스트한다.
+
 ---
 
 ## Phase 1 — Folder Tabs 레일과 폴더 추가 (WK-083 ~ WK-087) — done, 2026-09-16

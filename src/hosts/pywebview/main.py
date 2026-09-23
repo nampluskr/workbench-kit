@@ -329,10 +329,25 @@ class WindowApi:
             entries = []
             for name in os.listdir(dir_path):
                 full_path = os.path.join(dir_path, name)
+                is_container = os.path.isdir(full_path)
+                # size/mtimeMs (v0.3 WK-118) — same "best effort, do not fail
+                # the whole directory over one bad entry" stance as the
+                # Electron side's stat() try/except.
+                size = None
+                mtime_ms = 0
+                try:
+                    st = os.stat(full_path)
+                    if not is_container:
+                        size = st.st_size
+                    mtime_ms = st.st_mtime * 1000
+                except OSError:
+                    pass
                 entries.append({
                     "name": name,
                     "path": full_path,
-                    "isContainer": os.path.isdir(full_path),
+                    "isContainer": is_container,
+                    "size": size,
+                    "mtimeMs": mtime_ms,
                 })
             return entries
         except Exception as e:

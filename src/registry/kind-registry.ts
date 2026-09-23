@@ -48,6 +48,8 @@ export type KindRendererFactory = (targetId: string, ctx: KindRendererContext) =
   setMode?: (mode: string) => void;
   /** Optional: request keyboard focus into this view. */
   focus?: () => void;
+  /** Optional: re-read this view's own backing data from scratch (WK-117). */
+  refresh?: () => void;
   /** Test-support only: reads this view's current live content, when it has any. */
   getContentForTest?: () => string;
   /** Test-support only: current Monaco language and registration status. */
@@ -71,6 +73,7 @@ export class ResourceKindRegistry {
   private saveables = new Map<string, () => Promise<boolean> | boolean>();
   private modeHandlers = new Map<string, (mode: string) => void>();
   private focusHandlers = new Map<string, () => void>();
+  private refreshHandlers = new Map<string, () => void>();
   /** Test-support only: the live inner view per panel, so a test script can drive/read real content without reaching into dockview internals. */
   private innerForTest = new Map<string, ReturnType<KindRendererFactory>>();
 
@@ -131,6 +134,18 @@ export class ResourceKindRegistry {
 
   public focusPanel(panelId: string): void {
     this.focusHandlers.get(panelId)?.();
+  }
+
+  public registerRefreshHandler(panelId: string, fn: () => void): void {
+    this.refreshHandlers.set(panelId, fn);
+  }
+
+  public unregisterRefreshHandler(panelId: string): void {
+    this.refreshHandlers.delete(panelId);
+  }
+
+  public refreshPanel(panelId: string): void {
+    this.refreshHandlers.get(panelId)?.();
   }
 
   /** The single save handler `main.ts` registers via `editor.setSaveHandler` (FR-P7). */
@@ -251,6 +266,9 @@ class KindDispatchRenderer implements IContentRenderer {
     if (this.inner.focus && this.panelId) {
       this.registry.registerFocusHandler(this.panelId, () => this.inner?.focus?.());
     }
+    if (this.inner.refresh && this.panelId) {
+      this.registry.registerRefreshHandler(this.panelId, () => this.inner?.refresh?.());
+    }
   }
 
   public focus(): void {
@@ -264,6 +282,7 @@ class KindDispatchRenderer implements IContentRenderer {
       this.registry.unregisterSaveable(this.panelId);
       this.registry.unregisterModeHandler(this.panelId);
       this.registry.unregisterFocusHandler(this.panelId);
+      this.registry.unregisterRefreshHandler(this.panelId);
       this.registry.deleteInnerForTest(this.panelId);
     }
     this.inner?.dispose?.();

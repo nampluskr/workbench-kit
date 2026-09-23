@@ -241,6 +241,15 @@ export class WorkbenchApp {
       this.layout.sidebarCollapseAllBtn,
       this.tree
     );
+    // Explorer's own Refresh (button click, or its native-button keyboard
+    // path — Tab + Enter/Space, reserved-keys.md §5) now also re-reads
+    // every open folder file-list tab (v0.3 WK-117, out-of-plan addition,
+    // 2026-09-23 — user request: its own per-tab Refresh button is gone).
+    this.explorerTitlebar.onRefresh(() => {
+      for (const panel of this.editor.getApi().panels) {
+        if (panel.params?.kind === FOLDER_KIND) this.kindRegistry.refreshPanel(panel.id);
+      }
+    });
     this.fsProvider = new FileSystemTreeProvider();
     this.tree.setDataProvider(this.fsProvider);
 

@@ -119,18 +119,29 @@ ipcMain.handle('fs:read-dir', async (_e, dirPath) => {
     return await Promise.all(
       entries.map(async (entry) => {
         let isContainer = entry.isDirectory();
-        if (!isContainer && entry.isSymbolicLink()) {
-          try {
-            const stat = await fs.promises.stat(path.join(dirPath, entry.name));
-            isContainer = stat.isDirectory();
-          } catch {
-            isContainer = false;
-          }
+        const fullPath = path.join(dirPath, entry.name);
+        // Always stat now (not just for symlinks) — size/mtime (v0.3
+        // WK-118) need it regardless of entry kind, and it also still
+        // resolves a symlink's real isContainer the same way as before.
+        let size = null;
+        let mtimeMs = 0;
+        try {
+          const stat = await fs.promises.stat(fullPath);
+          if (entry.isSymbolicLink()) isContainer = stat.isDirectory();
+          if (!isContainer) size = stat.size;
+          mtimeMs = stat.mtimeMs;
+        } catch {
+          // Broken symlink or a permission error reading this one entry —
+          // keep the Dirent's own isContainer guess, leave size/mtimeMs at
+          // their unknown defaults rather than failing the whole directory.
+          if (entry.isSymbolicLink()) isContainer = false;
         }
         return {
           name: entry.name,
-          path: path.join(dirPath, entry.name),
+          path: fullPath,
           isContainer,
+          size,
+          mtimeMs,
         };
       })
     );
