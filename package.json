@@ -15,6 +15,7 @@
     "verify:open-modes": "electron scripts/verify-open-modes-electron.cjs",
     "verify:rowlist": "electron scripts/verify-rowlist-electron.cjs",
     "verify:terminal-host": "electron scripts/verify-terminal-host-electron.cjs",
+    "verify:terminal-renderer": "electron scripts/verify-terminal-renderer-electron.cjs",
     "verify:phase2": "node scripts/verify-phase2.mjs",
     "verify:phase3": "node scripts/verify-phase3.mjs",
     "verify:phase4": "node scripts/verify-phase4.mjs",
@@ -55,6 +56,7 @@
   "dependencies": {
     "@vscode/codicons": "^0.0.46-24",
     "@xterm/addon-fit": "^0.11.0",
+    "@xterm/addon-webgl": "^0.19.0",
     "@xterm/xterm": "^6.0.0",
     "dockview-core": "^8.2.0",
     "monaco-editor": "0.56.0",

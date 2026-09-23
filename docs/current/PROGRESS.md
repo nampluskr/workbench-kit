@@ -15,6 +15,39 @@
 
 사람이 구현 중 요청한, backlog에 없는 작업을 요청 건마다 남긴다.
 
+- **터미널 Windows Terminal 계열 타이포그래피와 Codex TUI 선 연결 개선**
+  (2026-09-23, 사용자 요청)
+  - 한글과 ASCII의 2:1 셀 폭을 안정적으로 유지하기 위해 기본 글꼴은 D2Coding을
+    유지하고, 크기를 14px로 올렸다. 줄간격은 1.25에서 1.1로 낮추고 보통/굵은
+    굵기와 자간 0을 명시해 Windows Terminal에 가까운 밀도로 조정했다.
+  - `@xterm/addon-webgl`을 추가하고 `customGlyphs`를 활성화했다. Codex 시작 화면의
+    직사각형처럼 box-drawing 문자로 만든 테두리는 WebGL의 사용자 정의 글리프로
+    이어 그려 오른쪽 세로선이 글꼴 메트릭 때문에 어긋나는 현상을 줄인다. GPU 또는
+    WebGL context를 쓸 수 없으면 기존 DOM 렌더러로 안전하게 폴백한다.
+  - 검증: `npm run typecheck`, `npm run build`, `npm run verify:dist` 통과.
+    `npm run verify:terminal-renderer`에서 실제 production Electron 창에 터미널을 열어
+    WebGL canvas 생성, D2Coding 우선 적용, 14px, 자간 0을 확인했다. 실제 Codex 화면의
+    육안 확인은 사용자가 진행한다.
+
+- **file-list 최초 루트 복귀 버튼과 Electron 테두리 크기 조절** (2026-09-23, 사용자 요청)
+  - 주소 입력칸 앞에 `codicon-root-folder` 버튼을 추가했다. 하위 폴더나 직접 입력한
+    다른 경로로 이동한 뒤에도 해당 탭의 최초 `targetId`로 돌아간다.
+  - Electron의 투명 resize grip은 커서만 표시하고 창 bounds 브리지가 없어 드래그가
+    종료되고 있었다. preload/main에 기존 공통 resize 처리용 bounds IPC를 연결했다.
+    최대화·전체화면·크기 변경 불가 상태는 거부하며 숫자와 최소 크기를 검사한다.
+  - 공통 드래그에서 IPC 응답 전에 버튼을 놓은 경우, 오른쪽 버튼, 포커스 이탈을
+    처리하고 마지막 프레임의 이동량이 유실되지 않도록 했다. pywebview 브리지는 유지했다.
+  - 검증: `npm run typecheck`, `npm run build`, `npm run verify:dist` 통과.
+    양쪽 호스트가 동일 배포물 해시를 읽음(0 differences).
+    `electron scripts/verify-root-resize-electron.cjs` 통과: 실제 production host/preload와
+    합성 DOM 마우스 이벤트로 루트 복귀, 8방향 native bounds 변경, 빠른 버튼 해제,
+    최대화 상태 차단 확인. 물리 마우스와 다중 모니터 DPI 테스트는 별도로 남는다.
+  - 세션 내 읽기 전용 리뷰에서 명확한 회귀·범위 초과 지적 없음.
+    필수 반대 벤더 검증은 Claude 사용량 한도(429)로 1/3회차 실행 실패.
+    이후 사용자가 이번 변경의 적대적 검증 생략과 직접 실행 확인을 승인했다.
+    `docs/reviews/A23.md` 참조. 구현·자동 검증 완료, 사용자 수동 확인 대기.
+    커밋·푸시는 아직 하지 않았다.
+
 - **파일·폴더 수준 1 열기 모드 및 단축키/상태바 연동 (Level 1)** (2026-09-19)
   - `수준 1 범위 구현`: 외부 디스크 I/O나 터미널 프로세스 구동 없이, 탭 내 대상 경로 및 열린 모드 플레이스홀더(`// File preset view: ... [Mode: ...]`, `Folder preset view: ... [Mode: ...]`) 표시 및 읽기 전용 상태 연동으로 순수 껍데기 모드 전환 체계 구축.
   - `파일 모드`: `editor` (기본, 편집 가능) 및 `viewer` (읽기 전용 `readOnly`).

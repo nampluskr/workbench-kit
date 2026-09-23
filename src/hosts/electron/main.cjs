@@ -29,6 +29,21 @@ ipcMain.on('window:close', (e) => {
   if (win) win.close();
 });
 
+// Renderer edge grips use screen-coordinate deltas in device-independent pixels.
+ipcMain.handle('window:get-bounds', (e) => {
+  const win = BrowserWindow.fromWebContents(e.sender);
+  return win && !win.isDestroyed() && !win.isMaximized() && !win.isFullScreen()
+    && win.isResizable() ? win.getBounds() : null;
+});
+
+ipcMain.on('window:set-bounds', (e, x, y, width, height) => {
+  const win = BrowserWindow.fromWebContents(e.sender);
+  if (!win || win.isDestroyed() || win.isMaximized() || win.isFullScreen() || !win.isResizable()) return;
+  if (![x, y, width, height].every(Number.isFinite)) return;
+  win.setBounds({ x: Math.round(x), y: Math.round(y),
+    width: Math.max(300, Math.round(width)), height: Math.max(200, Math.round(height)) });
+});
+
 ipcMain.handle('dialog:open-folder', async (e) => {
   const win = BrowserWindow.fromWebContents(e.sender);
   const result = await dialog.showOpenDialog(win, {

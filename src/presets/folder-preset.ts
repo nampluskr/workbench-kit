@@ -173,6 +173,15 @@ export function registerFolderPreset(registry: ResourceKindRegistry, deps: Folde
     element.className = 'preset-folder-view folder-file-list';
     const header = document.createElement('div');
     header.className = 'folder-file-list-header';
+    const rootButton = document.createElement('button');
+    rootButton.type = 'button';
+    rootButton.className = 'folder-file-list-root';
+    rootButton.title = `Go to root folder: ${targetId}`;
+    rootButton.setAttribute('aria-label', rootButton.title);
+    const rootIcon = document.createElement('i');
+    rootIcon.className = 'codicon codicon-root-folder';
+    rootIcon.setAttribute('aria-hidden', 'true');
+    rootButton.append(rootIcon);
     // Windows Explorer-style address bar (v0.3 WK-117): an editable,
     // selectable text field rather than a plain label, so the full path is
     // both copyable (focus selects it all) and directly navigable (type a
@@ -183,7 +192,7 @@ export function registerFolderPreset(registry: ResourceKindRegistry, deps: Folde
     title.className = 'folder-file-list-path-input';
     title.spellcheck = false;
     title.value = targetId;
-    header.append(title);
+    header.append(rootButton, title);
 
     const statusEl = document.createElement('div');
     statusEl.className = 'folder-file-list-status';
@@ -376,6 +385,8 @@ export function registerFolderPreset(registry: ResourceKindRegistry, deps: Folde
     // before it.
     title.addEventListener('blur', () => { title.value = currentPath; });
 
+    // The tab target remains the original root even after address-bar navigation.
+    rootButton.addEventListener('click', () => { if (!disposed) void load(targetId); });
     void load(currentPath);
     return {
       element,

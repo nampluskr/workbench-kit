@@ -1,5 +1,6 @@
 import { Terminal } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
+import { WebglAddon } from '@xterm/addon-webgl';
 import '@xterm/xterm/css/xterm.css';
 import type { ResourceKindRegistry } from '../registry/kind-registry';
 import { terminalHost } from '../providers/filesystem';
@@ -109,8 +110,15 @@ export function registerTerminalPreset(registry: ResourceKindRegistry): void {
       // 2:1 cell. `monospace` behind it holds 2:1 too but resolves to
       // GulimChe here, so it is a fallback only.
       fontFamily: "'D2Coding', monospace",
-      fontSize: 13,
-      lineHeight: 1.25,
+      fontSize: 14,
+      fontWeight: 'normal',
+      fontWeightBold: 'bold',
+      letterSpacing: 0,
+      lineHeight: 1.1,
+      // Canvas/WebGL renderers draw box characters as continuous custom
+      // glyphs instead of relying on font metrics. This is what keeps TUI
+      // frames such as the Codex welcome boxes joined at their right edge.
+      customGlyphs: true,
       convertEol: false,
       scrollback: 10000,
       theme: {
@@ -159,6 +167,16 @@ export function registerTerminalPreset(registry: ResourceKindRegistry): void {
     requestAnimationFrame(() => {
       if (disposed) return;
       terminal.open(element);
+      // The DOM renderer cannot use xterm's custom box glyphs. Prefer WebGL
+      // for Windows Terminal-like connected lines, while keeping DOM as a
+      // functional fallback when the GPU/context is unavailable or lost.
+      try {
+        const webglAddon = new WebglAddon();
+        webglAddon.onContextLoss(() => webglAddon.dispose());
+        terminal.loadAddon(webglAddon);
+      } catch (error) {
+        console.warn('[Terminal] WebGL renderer unavailable; using DOM renderer.', error);
+      }
       terminal.write(session.transcript);
       session.views.add(showData);
       observer.observe(element);

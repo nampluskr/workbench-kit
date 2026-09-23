@@ -478,13 +478,8 @@ html, body, #app {
 }
 
 /*
- * Edge/corner resize grips (user request, 2026-09-12). Electron's frameless
- * window already gets native OS edge-resize; pywebview's WebView2 child
- * covers the window pixel-for-pixel, so the OS never sees the cursor at the
- * true edge to hit-test against. These invisible strips give the cursor
- * feedback everywhere, and their mousedown starts a native resize via
- * core/window.ts's startResize() — a no-op on Electron, where the OS
- * handles it below the page entirely.
+ * Edge/corner resize grips for both hosts. The renderer handles drags
+ * through core/window.ts and the host's window-bounds bridge.
  */
 .resize-grip {
   position: fixed;
@@ -1647,6 +1642,29 @@ body.is-resizing-sidebar {
 }
 
 /* Windows Explorer-style address bar (v0.3 WK-117) — same visual language as the folder tab rail's own inline-rename input (`.foldertabs-tab-rename-input`). */
+.folder-file-list-root {
+  flex: 0 0 22px;
+  height: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 0;
+  border-radius: 2px;
+  color: inherit;
+  background: transparent;
+  cursor: pointer;
+}
+
+.folder-file-list-root:hover {
+  background-color: var(--button-hover-bg);
+}
+
+.folder-file-list-root:focus-visible {
+  outline: 1px solid var(--focus-ring);
+  outline-offset: -1px;
+}
+
 .folder-file-list-path-input {
   flex: 1 1 auto;
   min-width: 0;
@@ -1824,10 +1842,13 @@ body.is-resizing-sidebar {
    * (style-src 'self') blocks for monaco's colours. Without these the rows
    * inherit --font-family and the terminal renders in a PROPORTIONAL face
    * (measured ratio 1.09, not 2.00), so nothing lines up (found 2026-09-20).
-   * Keep in step with the Terminal options in terminal-preset.ts.
+   * Keep in step with the Terminal options in terminal-preset.ts. WebGL is
+   * preferred there, but these values remain the DOM fallback contract.
    */
   font-family: 'D2Coding', monospace;
-  font-size: 13px;
+  font-size: 14px;
+  font-weight: normal;
+  letter-spacing: 0;
 }
 
 .preset-terminal-view .xterm-rows,
@@ -1835,7 +1856,9 @@ body.is-resizing-sidebar {
 .preset-terminal-view .xterm-helper-textarea,
 .preset-terminal-view .xterm-char-measure-element {
   font-family: 'D2Coding', monospace;
-  font-size: 13px;
+  font-size: 14px;
+  font-weight: normal;
+  letter-spacing: 0;
 }
 
 .preset-terminal-view .xterm-viewport {
