@@ -386,6 +386,15 @@ class WindowApi:
             drives.append({"path": root, "label": label})
         return drives
 
+    def get_drive_total_bytes(self, target_path):
+        """Total byte capacity of the drive containing `target_path`
+        (v0.3 WK-125) — `shutil.disk_usage` already resolves any path to
+        its containing volume, no drive-root normalization needed here."""
+        try:
+            return shutil.disk_usage(target_path).total
+        except Exception:
+            return 0
+
 
 WINDOW_WIDTH = 1280
 WINDOW_HEIGHT = 800

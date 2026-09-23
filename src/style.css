@@ -1676,6 +1676,24 @@ body.is-resizing-sidebar {
   flex: 0 0 auto;
 }
 
+/* Total Commander-style status footer (v0.3 WK-125) — a separator (border)
+   above a single-line, read-only text row, same visual weight as the
+   address bar's own border-bottom. */
+.folder-file-list-footer {
+  flex: 0 0 auto;
+  height: 22px;
+  padding: 0 10px;
+  display: flex;
+  align-items: center;
+  border-top: 1px solid var(--vscode-panel-border);
+  color: var(--sidebar-fg);
+  font-family: inherit;
+  font-size: inherit;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
 /*
  * The row list itself (src/core/rowlist.ts) mounts its own `.rowlist-header`
  * + `.tree-list` children here — `.tree-list` is the same class the
@@ -1771,6 +1789,14 @@ body.is-resizing-sidebar {
   display: flex;
   align-items: center;
   padding: 0 10px;
+}
+
+/* Total Commander-style mark (v0.3 WK-125) — same red the statusbar/error-
+   tab states already use (`.foldertabs-tab.error`), not a new colour. Three
+   classes beats `.tree-row.selected`'s two on specificity alone, so a
+   marked+selected row still reads red without `!important`. */
+.tree-row.rowlist-row.marked {
+  color: var(--statusbar-error-fg, #f48771);
 }
 
 .folder-file-list-empty {

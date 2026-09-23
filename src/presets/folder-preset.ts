@@ -1,6 +1,6 @@
 import type { ResourceKindRegistry } from '../registry/kind-registry';
 import type { AppEditorSurface, EditorOpenOptions } from '../core/editor';
-import { readDirectory, type HostDirectoryEntry } from '../providers/filesystem';
+import { readDirectory, getDriveTotalBytes, type HostDirectoryEntry } from '../providers/filesystem';
 import { IconThemeManager } from '../core/icontheme';
 import { RowListController, RowListItem, RowListColumn, RowListSortDirection } from '../core/rowlist';
 
@@ -126,6 +126,28 @@ function sortEntries(entries: HostDirectoryEntry[], column: SortColumn, directio
 }
 
 /**
+ * Recursive size of everything under `path` (v0.3 WK-125, user request) —
+ * deliberately NOT computed for every folder row up front (WK-118 already
+ * decided against that, same cost concern); this only runs when a folder
+ * is actually marked (Space), same as Total Commander's own on-demand
+ * calculation. A subfolder this can't read (permission error, race with a
+ * delete) contributes 0 rather than failing the whole sum — matches this
+ * file's existing "one bad entry doesn't sink the directory" stance.
+ */
+async function computeFolderSize(path: string): Promise<number> {
+  let entries: HostDirectoryEntry[];
+  try {
+    entries = await readDirectory(path);
+  } catch {
+    return 0;
+  }
+  const childTotals = await Promise.all(
+    entries.map((entry) => (entry.isContainer ? computeFolderSize(entry.path) : Promise.resolve(entry.size ?? 0)))
+  );
+  return childTotals.reduce((sum, n) => sum + n, 0);
+}
+
+/**
  * A folder tab's editor-area "file list" view (WK-113), rebuilt as a
  * self-contained one-level-at-a-time browser (WK-116): it no longer opens
  * files/folders anywhere else. A click only selects; double-click/Enter on
@@ -136,6 +158,14 @@ function sortEntries(entries: HostDirectoryEntry[], column: SortColumn, directio
  * Details-view columns (v0.3 WK-118, out-of-plan addition, 2026-09-23 —
  * user request): Name/Ext/Size/Date, Explorer-style clickable/sortable
  * headers via `RowListController`'s `columns`/`onSortRequest`.
+ *
+ * Total Commander-style marking (v0.3 WK-125, user request): Space toggles
+ * a row's mark (red text, `rowlist.ts`'s own concern) without moving
+ * focus; a marked folder's Size is calculated on the spot
+ * (`computeFolderSize`) since it's otherwise never known (WK-118). A
+ * status footer below the list mirrors Total Commander's own bottom bar:
+ * `<marked bytes> / <drive total bytes> in <marked>/<total> file(s),
+ * <marked>/<total> dir(s)`.
  */
 export function registerFolderPreset(registry: ResourceKindRegistry, deps: FolderPresetDeps): void {
   registry.register(FOLDER_KIND, (targetId) => {
@@ -161,7 +191,15 @@ export function registerFolderPreset(registry: ResourceKindRegistry, deps: Folde
 
     const listContainer = document.createElement('div');
     listContainer.className = 'folder-file-list-items';
-    element.append(header, statusEl, listContainer);
+
+    // Total Commander-style status footer (v0.3 WK-125) — same visual
+    // language (border + text row) as the address bar's own separator,
+    // read-only (nothing here is meant to be typed into, unlike the
+    // address bar above).
+    const footerEl = document.createElement('div');
+    footerEl.className = 'folder-file-list-footer';
+
+    element.append(header, statusEl, listContainer, footerEl);
 
     // Same row visuals as the Explorer tree (.tree-list/.tree-row/
     // .tree-icon), just flat — no expand/collapse, no root row (see
@@ -173,6 +211,10 @@ export function registerFolderPreset(registry: ResourceKindRegistry, deps: Folde
     let entriesByPath = new Map<string, HostDirectoryEntry>();
     let sortColumn: SortColumn = 'name';
     let sortDirection: RowListSortDirection = 'asc';
+    /** Recursive folder sizes computed on mark (WK-125) — reset on every navigation, not carried between folders. */
+    let folderSizeCache = new Map<string, number>();
+    let foldersCalculating = new Set<string>();
+    let driveTotalBytes = 0;
 
     const toRowItem = (entry: HostDirectoryEntry): RowListItem => ({
       id: entry.path,
@@ -180,7 +222,11 @@ export function registerFolderPreset(registry: ResourceKindRegistry, deps: Folde
       isContainer: entry.isContainer,
       columns: {
         ext: entry.isContainer ? '' : extractExt(entry.name),
-        size: formatSize(entry.size),
+        size: entry.isContainer
+          ? (foldersCalculating.has(entry.path)
+            ? 'Calculating…'
+            : (folderSizeCache.has(entry.path) ? formatSize(folderSizeCache.get(entry.path)!) : ''))
+          : formatSize(entry.size),
         date: formatDate(entry.mtimeMs),
       },
     });
@@ -197,16 +243,45 @@ export function registerFolderPreset(registry: ResourceKindRegistry, deps: Folde
       }
     };
 
+    /** Total Commander's own bottom-bar format (v0.3 WK-125, user request): `<marked>/<drive total> in <marked>/<total> file(s), <marked>/<total> dir(s)`. */
+    const updateFooter = () => {
+      const markedIds = rowList.getMarkedIds();
+      let markedBytes = 0;
+      let markedFileCount = 0;
+      let markedDirCount = 0;
+      let totalFileCount = 0;
+      let totalDirCount = 0;
+      for (const entry of entriesByPath.values()) {
+        if (entry.isContainer) totalDirCount++;
+        else totalFileCount++;
+      }
+      for (const id of markedIds) {
+        const entry = entriesByPath.get(id);
+        if (!entry) continue;
+        if (entry.isContainer) {
+          markedDirCount++;
+          markedBytes += folderSizeCache.get(entry.path) ?? 0;
+        } else {
+          markedFileCount++;
+          markedBytes += entry.size ?? 0;
+        }
+      }
+      footerEl.textContent =
+        `${formatSize(markedBytes)} / ${formatSize(driveTotalBytes)} in ` +
+        `${markedFileCount} / ${totalFileCount} file(s), ${markedDirCount} / ${totalDirCount} dir(s)`;
+    };
+
     /** Applies the current sort to already-fetched entries and re-renders — no directory re-read needed (a header click alone never touches disk). */
     const applyEntries = (entries: HostDirectoryEntry[]) => {
       const sorted = sortEntries(entries, sortColumn, sortDirection);
       entriesByPath = new Map(sorted.map((e) => [e.path, e]));
       const parent = parentOf(currentPath);
       const rows: RowListItem[] = parent !== null
-        ? [{ id: PARENT_ENTRY_ID, label: '..', isContainer: true, columns: { ext: '', size: '', date: '' } }, ...sorted.map(toRowItem)]
+        ? [{ id: PARENT_ENTRY_ID, label: '..', isContainer: true, markable: false, columns: { ext: '', size: '', date: '' } }, ...sorted.map(toRowItem)]
         : sorted.map(toRowItem);
       rowList.setItems(rows);
       rowList.setSortState(sortColumn, sortDirection);
+      updateFooter();
     };
 
     // Codex A22 R1 (Major, carried over from WK-113): a slow earlier
@@ -221,9 +296,15 @@ export function registerFolderPreset(registry: ResourceKindRegistry, deps: Folde
       currentPath = path;
       title.value = path;
       setStatus('Loading...');
+      // A fresh folder starts with no known folder sizes — carrying stale
+      // ones over from the PREVIOUS folder shown here would be wrong (a
+      // same-named subfolder is not the same directory).
+      folderSizeCache = new Map();
+      foldersCalculating = new Set();
       try {
-        const entries = await readDirectory(path);
+        const [entries, driveBytes] = await Promise.all([readDirectory(path), getDriveTotalBytes(path)]);
         if (disposed || generation !== loadGeneration) return;
+        driveTotalBytes = driveBytes;
         applyEntries(entries);
         setStatus(null);
       } catch (error) {
@@ -249,6 +330,27 @@ export function registerFolderPreset(registry: ResourceKindRegistry, deps: Folde
       sortColumn = columnId as SortColumn;
       sortDirection = direction;
       applyEntries([...entriesByPath.values()]);
+    });
+
+    rowList.onMarkChange((markedIds) => {
+      updateFooter();
+      let needsRerender = false;
+      for (const id of markedIds) {
+        const entry = entriesByPath.get(id);
+        if (!entry?.isContainer || folderSizeCache.has(entry.path) || foldersCalculating.has(entry.path)) continue;
+        foldersCalculating.add(entry.path);
+        needsRerender = true;
+        const generation = loadGeneration;
+        void computeFolderSize(entry.path).then((size) => {
+          foldersCalculating.delete(entry.path);
+          if (disposed || generation !== loadGeneration) return;
+          folderSizeCache.set(entry.path, size);
+          applyEntries([...entriesByPath.values()]);
+        });
+      }
+      // Show "Calculating…" immediately for any newly marked folder —
+      // the resolved value above re-renders again once known.
+      if (needsRerender) applyEntries([...entriesByPath.values()]);
     });
 
     // Focus selects the whole path (copy with Ctrl+C, or start typing to

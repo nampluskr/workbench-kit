@@ -199,6 +199,16 @@ ipcMain.handle('fs:list-drives', async () => {
   });
 });
 
+ipcMain.handle('fs:drive-total-bytes', async (_e, targetPath) => {
+  try {
+    const driveRoot = path.parse(targetPath).root;
+    const stat = await fs.promises.statfs(driveRoot);
+    return stat.blocks * stat.bsize;
+  } catch {
+    return 0;
+  }
+});
+
 const INSPECTION_EXPRESSION = `
 JSON.stringify({
   href: window.location.href,

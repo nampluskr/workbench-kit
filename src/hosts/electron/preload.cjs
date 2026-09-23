@@ -25,6 +25,7 @@ contextBridge.exposeInMainWorld('workbenchHost', {
     return () => ipcRenderer.removeListener('terminal:exit', listener);
   },
   listDrives: () => ipcRenderer.invoke('fs:list-drives'),
+  getDriveTotalBytes: (targetPath) => ipcRenderer.invoke('fs:drive-total-bytes', targetPath),
   // Real window state, pushed from main.cjs's native 'maximize'/'unmaximize'
   // listeners — covers the button AND a titlebar double-click/OS Snap
   // (user request, 2026-09-15).

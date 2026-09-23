@@ -25,6 +25,9 @@ export interface HostFileSystemBridge {
   read_dir?: (dirPath: string) => Promise<HostDirectoryEntry[]>;
   listDrives?: () => Promise<HostDriveEntry[]>;
   list_drives?: () => Promise<HostDriveEntry[]>;
+  /** Total byte capacity of the drive containing `path` (v0.3 WK-125). */
+  getDriveTotalBytes?: (path: string) => Promise<number>;
+  get_drive_total_bytes?: (path: string) => Promise<number>;
   readTextFile?: (path: string) => Promise<string>;
   writeTextFile?: (path: string, contents: string) => Promise<boolean>;
   read_text_file?: (path: string) => Promise<string>;
@@ -189,6 +192,18 @@ export async function listDrives(): Promise<HostDriveEntry[]> {
     return await host.list_drives();
   }
   return [];
+}
+
+/**
+ * Total byte capacity of the drive containing `path` (v0.3 WK-125, user
+ * request) — the folder file-list tab's status footer shows this as the
+ * "out of" figure, not the sum of the current folder's own contents.
+ */
+export async function getDriveTotalBytes(path: string): Promise<number> {
+  const host = getHostFsBridge();
+  if (host?.getDriveTotalBytes) return host.getDriveTotalBytes(path);
+  if (host?.get_drive_total_bytes) return host.get_drive_total_bytes(path);
+  return 0;
 }
 
 /**

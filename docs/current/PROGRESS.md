@@ -863,6 +863,80 @@
     (`mode: "editor"`)으로 열림.
   - 사용자가 직접 수동 테스트한다.
 
+- **폴더 file-list 탭에 Total Commander 스타일 스페이스바 마크·용량 계산·
+  하단 상태줄 추가 (WK-125)** (2026-09-23, 사용자 요청)
+  - 요청: 스페이스바로 행 마크 토글(빨간 글씨, 포커스는 그대로), 마크된
+    폴더는 그 자리에서 재귀 용량 계산해 Size 칸에 표시, 목록 하단에
+    구분선 + Total Commander 스타일 상태줄(`<마크된 용량> / <드라이브
+    전체 용량> in <마크>/<전체> file(s), <마크>/<전체> dir(s)`) 추가.
+    실제 Total Commander를 웹 검색으로 확인해 정확한 동작을 파악한 뒤
+    진행했다 — Space는 **포커스를 옮기지 않고** 마크만 토글하고(다음
+    항목으로 넘어가는 건 `Insert` 키의 몫, 이번 요청 범위 밖), 폴더를
+    마크하면 그 자리에서 용량을 계산한다는 것, 상태줄의 "전체 용량"이
+    폴더 안의 총합이 아니라 **드라이브 자체의 전체 용량**이라는 것까지
+    사용자가 직접 확인해줬다.
+  - `src/core/rowlist.ts`: 기존 `selectedId`(단일 선택/포커스)와 완전히
+    별개인 `markedIds: Set<string>`을 신설했다 — Total Commander의 마크는
+    "커서가 어디 있나"와 "무엇이 마크됐나"가 서로 다른 축이라, 기존
+    단일-선택 모델을 확장하는 대신 새 상태로 분리했다. `Space` 키 핸들러가
+    포커스된 행의 마크만 토글하고(포커스 인덱스 불변), `onMarkChange(cb)`
+    로 호출자에 알린다. `RowListItem`에 `markable?: boolean`(기본
+    `true`)을 추가해 `folder-preset.ts`의 합성 `..` 행이 마크 대상에서
+    빠지게 했다 — 문자열 sentinel(`PARENT_ENTRY_ID`)을 이 파일이 알 필요
+    없이, 명시적 필드로 표현했다. `setItems()`가 새 항목 목록과 대조해
+    더 이상 없는 마크만 지운다 — 같은 폴더 재정렬(같은 id, 순서만 바뀜)은
+    마크가 살아남고, 실제 다른 폴더로 이동(id가 통째로 바뀜)만 결과적으로
+    마크를 비운다.
+  - `src/style.css`: `.tree-row.rowlist-row.marked`에 기존
+    `--statusbar-error-fg`(`.foldertabs-tab.error`가 이미 쓰던 것과 동일
+    빨강)를 적용했다 — 새 색을 만들지 않았다. 클래스 3개(`.tree-row
+    .rowlist-row.marked`)가 `.tree-row.selected`(클래스 2개)보다
+    명시도가 높아, 마크+선택이 겹쳐도 `!important` 없이 빨간 글씨가
+    이긴다.
+  - **드라이브 전체 용량 — 호스트 네이티브 코드 신설**: `HostFileSystemBridge`
+    에 `getDriveTotalBytes`/`get_drive_total_bytes`를 추가했다.
+    Electron(`main.cjs`)은 Node 22(Electron 44 번들)의
+    `fs.promises.statfs()`(`blocks * bsize`)로, pywebview(`main.py`)는
+    이미 있던 `shutil`의 `disk_usage(path).total`로 구현했다 — 둘 다
+    새 의존성 없이 표준 런타임 API만 썼다. 같은 D: 드라이브를 두 갈래
+    양쪽에서 직접 호출해 **바이트 단위까지 정확히 같은 값**
+    (254174568448)이 나오는 것을 확인했다. `preload.cjs`에 브리지
+    노출을 추가했다.
+  - **재귀 폴더 용량 계산**: 새 호스트 코드 없이 `readDirectory()`를
+    재귀 호출하는 `computeFolderSize()`를 추가했다(하위 폴더들은
+    `Promise.all`로 병렬). 읽기 실패한 하위 폴더는 0으로 치고 전체를
+    실패시키지 않는다(이 파일이 이미 다른 곳에서 쓰던 "한 항목 실패가
+    전체를 막지 않는다" 원칙과 동일). WK-118이 "폴더 크기는 재귀 계산
+    안 함"이라고 의도적으로 뺐던 것과 모순되지 않는다 — 이번에도 매
+    폴더마다 계산하는 게 아니라 **마크했을 때만** 계산한다.
+  - `folder-preset.ts`: `folderSizeCache`/`foldersCalculating`을 폴더
+    이동(`load()`)마다 초기화한다(다른 폴더의 캐시를 이어받지 않음).
+    `onMarkChange`에서 새로 마크된 폴더마다 계산을 걸고, 계산 중엔 Size
+    칸에 "Calculating…"을 즉시 보여준 뒤 완료되면 실제 값으로 다시
+    그린다. 계산이 끝났을 때 `loadGeneration`이 그 사이 바뀌었으면
+    (다른 폴더로 이동함) 결과를 버린다 — WK-113부터 이어진 stale-response
+    가드와 같은 패턴.
+  - `src/style.css`: `.folder-file-list-footer` 신설 — 위쪽 구분선
+    (`border-top`, 주소줄의 `border-bottom`과 같은 무게), 읽기 전용
+    한 줄 텍스트(주소줄과 달리 `<input>`이 아니라 `<div>` — 타이핑 대상이
+    아니므로).
+  - `검증`: `npx tsc --noEmit`·`npm run build`·`npm run verify:dist`(0
+    differences, D-29 포함) 통과. `npm run verify:phase2`·
+    `npm run verify:v03-phase1` 재확인 — 기존에 이미 기록된 WK-115
+    헤더 버튼 실패 외에 새로 깨진 것 없음. 임시 Electron 스모크
+    스크립트(작업용, 커밋하지 않고 삭제)로 실제 창을 띄워: 파일 한 개를
+    스페이스로 마크하면 빨간 글씨(`marked` 클래스)로 바뀌고 포커스는
+    그대로이며(`focused` 클래스 유지) 하단 상태줄이
+    `"1000 B / 930.6 GB in 1 / 1 file(s), 0 / 1 dir(s)"`로 정확히
+    갱신됨; 다시 스페이스를 누르면 마크 해제되고 상태줄도
+    `"0 B / ..."`로 되돌아감; 5000바이트(2000+3000)짜리 하위파일을 가진
+    폴더를 마크하면 그 폴더의 Size 칸이 정확히 "4.9 KB"로 계산되고
+    상태줄도 그만큼 반영됨; 합성 `..` 행은 스페이스를 눌러도 전혀
+    마크되지 않음(`markable: false` 확인). pywebview의
+    `get_drive_total_bytes()`도 실제 winpython 인터프리터로 직접 호출해
+    Electron 쪽과 바이트 단위까지 동일한 값을 반환하는 것을 확인했다.
+  - 사용자가 직접 수동 테스트한다.
+
 ---
 
 ## Phase 1 — Folder Tabs 레일과 폴더 추가 (WK-083 ~ WK-087) — done, 2026-09-16

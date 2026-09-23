@@ -56,6 +56,8 @@ export interface RowListItem {
   isContainer?: boolean;
   /** Pre-formatted display text for every column after the first (Name), keyed by column id. */
   columns?: Record<string, string>;
+  /** `false` excludes this row from Space-bar marking (v0.3 WK-125) — the caller's synthetic `..` row, say. Defaults to `true`. */
+  markable?: boolean;
 }
 
 export class RowListController {
@@ -72,11 +74,22 @@ export class RowListController {
   private focusedId: string | null = null;
   private sortColumn: string;
   private sortDirection: RowListSortDirection = 'asc';
+  /**
+   * Total Commander-style marks (v0.3 WK-125, user request) — deliberately
+   * NOT the same thing as `selectedId`/`focusedId` above. Space toggles a
+   * row's membership here WITHOUT moving focus; multiple rows can be
+   * marked at once, shown via a distinct style (red text, not the
+   * focus/selection background). The caller (`folder-preset.ts`) reads
+   * this set to total up marked size/count for its own status footer.
+   */
+  private markedIds: Set<string> = new Set();
 
   /** Fires on dblclick and on Enter alike — the caller decides what "activating" a row means. */
   private onActivateCallbacks: ((item: RowListItem) => void)[] = [];
   /** Fires when a header is clicked — the caller re-sorts `items` and calls `setItems()`/`setSortState()` back. */
   private onSortRequestCallbacks: ((columnId: string, direction: RowListSortDirection) => void)[] = [];
+  /** Fires whenever Space toggles a mark — the caller re-derives whatever depends on the marked set (v0.3 WK-125). */
+  private onMarkChangeCallbacks: ((markedIds: ReadonlySet<string>) => void)[] = [];
   private unsubscribeIconTheme: () => void;
   private unsubscribeColorTheme: () => void;
 
@@ -124,6 +137,14 @@ export class RowListController {
     if (this.selectedId && !items.some((it) => it.id === this.selectedId)) {
       this.selectedId = null;
     }
+    // Marks survive a re-sort (same ids, just reordered — every id is
+    // still present) but not an actual navigation to a different folder
+    // (entirely different ids) — filtering, not clearing, handles both
+    // correctly without `folder-preset.ts` having to tell this apart.
+    const stillPresent = new Set(items.map((it) => it.id));
+    for (const id of this.markedIds) {
+      if (!stillPresent.has(id)) this.markedIds.delete(id);
+    }
     // Parity with `TreeController.setRoot()`, which always leaves a node
     // focused: without this, Tab-ing into a freshly loaded list and
     // pressing an arrow key/Enter does nothing until the user clicks a row
@@ -165,6 +186,15 @@ export class RowListController {
   public onSortRequest(cb: (columnId: string, direction: RowListSortDirection) => void): () => void {
     this.onSortRequestCallbacks.push(cb);
     return () => { this.onSortRequestCallbacks = this.onSortRequestCallbacks.filter((c) => c !== cb); };
+  }
+
+  public onMarkChange(cb: (markedIds: ReadonlySet<string>) => void): () => void {
+    this.onMarkChangeCallbacks.push(cb);
+    return () => { this.onMarkChangeCallbacks = this.onMarkChangeCallbacks.filter((c) => c !== cb); };
+  }
+
+  public getMarkedIds(): ReadonlySet<string> {
+    return this.markedIds;
   }
 
   /**
@@ -216,6 +246,22 @@ export class RowListController {
       e.stopPropagation();
       const item = curIdx >= 0 ? this.items[curIdx] : undefined;
       if (item) this.onActivateCallbacks.forEach((cb) => cb(item));
+      return;
+    }
+    if (e.key === ' ') {
+      e.preventDefault();
+      e.stopPropagation();
+      const item = curIdx >= 0 ? this.items[curIdx] : undefined;
+      // Toggles the mark WITHOUT moving focus (Total Commander's own Space
+      // behaviour, confirmed 2026-09-23 — Insert is the "toggle and move
+      // on" key; this view doesn't bind Insert, only Space, since that's
+      // all the user asked for).
+      if (item && item.markable !== false) {
+        if (this.markedIds.has(item.id)) this.markedIds.delete(item.id);
+        else this.markedIds.add(item.id);
+        this.render();
+        this.onMarkChangeCallbacks.forEach((cb) => cb(this.markedIds));
+      }
     }
   }
 
@@ -354,6 +400,7 @@ export class RowListController {
     for (const item of this.items) {
       const isSelected = item.id === this.selectedId;
       const isFocused = item.id === this.focusedId;
+      const isMarked = this.markedIds.has(item.id);
       // Icon resolution always uses the raw name (e.g. a special-named
       // folder like "node_modules" or ".git" keys an icon theme's own
       // lookup) — the `[brackets]` below are a display-only convention for
@@ -371,7 +418,7 @@ export class RowListController {
         cellsHtml += `<span class="rowlist-cell">${escapeHtml(item.columns?.[col.id] ?? '')}</span>`;
       }
       html += `
-        <div class="tree-row rowlist-row ${isSelected ? 'selected' : ''} ${isFocused ? 'focused' : ''}"
+        <div class="tree-row rowlist-row ${isSelected ? 'selected' : ''} ${isFocused ? 'focused' : ''} ${isMarked ? 'marked' : ''}"
              data-id="${escapeHtml(item.id)}"
              role="option"
              aria-selected="${isSelected}">
