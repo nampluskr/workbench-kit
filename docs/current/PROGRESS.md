@@ -15,6 +15,19 @@
 
 사람이 구현 중 요청한, backlog에 없는 작업을 요청 건마다 남긴다.
 
+- **`verify:rowlist` 스크립트를 현재 file-list 계약에 맞게 재작성** (2026-09-23, 사용자 요청)
+  - `scripts/verify-rowlist-electron.cjs`는 WK-113 시점 계약(클릭 = 미리보기 열기,
+    더블클릭 = 고정 열기, 우클릭 메뉴)을 단언하고 Add Folder로 탭을 열고 있어서,
+    WK-114~116 이후 목록을 찾지 못하고 실패하고 있었다.
+  - Add Folder 대신 `editor.openItem(..., { kind: 'folder', mode: 'file-list' })`로
+    탭을 열고, 현재 계약 20개를 단언하도록 바꿨다: 아이콘·폴더 우선 정렬(`..`
+    포함), 클릭은 선택·포커스만 하고 아무것도 열지 않음, 파일 더블클릭 무동작,
+    방향키 포커스 이동, Space 표시(`..` 제외), 우클릭 메뉴 없음, 폴더 더블클릭
+    진입·`..` Enter 복귀, 헤더·행 열 폭 일치(Ext/Size/Date 55/76/125), Name 500px
+    상한, Name만 드래그 가능, Size 오른쪽 정렬, Name 확장 시 헤더 스크롤 동기화,
+    조상 요소 넘침 0건, 더블클릭 복귀. 창 크기는 앱 기본값 1280×800으로 맞췄다.
+  - 검증: `npm run verify:rowlist` 20/20 통과(exit 0).
+
 - **file-list Ext·Size·Date 열 시작 너비 축소** (2026-09-23, 사용자 요청)
   - `src/presets/folder-preset.ts`의 시작 너비를 Ext `60→55`, Size `90→85`,
     Date `150→125`px로 줄였다. 13px system-ui(Segoe UI) 실측 최대 표시값

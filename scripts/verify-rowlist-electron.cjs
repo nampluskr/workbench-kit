@@ -1,8 +1,14 @@
-// Regression coverage for the folder file-list row parity with the
-// Explorer tree (WK-113, user request, 2026-09-21): icon rendering, click
-// = preview / dblclick = pinned, ArrowDown/Up keyboard focus, and the
-// right-click menu offering the same items the Explorer tree does. Modeled
-// on scripts/verify-open-modes-electron.cjs's fixture/IPC-stub pattern.
+// Regression coverage for the folder file-list view's current contract
+// (src/core/rowlist.ts + src/presets/folder-preset.ts): icons and
+// folder-first order (WK-113/WK-118), click = select only and a file row
+// never activates (WK-116), dblclick/Enter on a folder steps in and `..`
+// steps back up (WK-116), no right-click menu (WK-115), Space marks
+// (WK-125), and the column layout (user request, 2026-09-23 — Name fills
+// 150-500px and is the only draggable column; Ext/Size/Date fixed; Size
+// right-aligned; the header follows the list's horizontal scroll so no
+// ancestor overflows). Rewritten 2026-09-23: the WK-113 version asserted
+// preview/pinned opening and a context menu that WK-115/WK-116 removed, and
+// opened its tab through Add Folder, which no longer opens a file list.
 const { app, BrowserWindow, ipcMain } = require('electron');
 const fs = require('fs');
 const os = require('os');
@@ -12,7 +18,7 @@ app.commandLine.appendSwitch('disable-gpu');
 app.commandLine.appendSwitch('no-sandbox');
 // Separate from `fixture` on purpose: `fixture` is the folder the test
 // opens and lists, and it must contain ONLY the 3 planted entries below —
-// Electron's own userData dir living inside it would show up as a 4th row
+// Electron's own userData dir living inside it would show up as an extra row
 // and break the exact-order assertions.
 const profileDir = fs.mkdtempSync(path.join(os.tmpdir(), 'wb-rowlist-profile-'));
 const fixture = fs.mkdtempSync(path.join(os.tmpdir(), 'wb-rowlist-'));
@@ -32,8 +38,15 @@ fs.writeFileSync(path.join(fixture, 'beta.txt'), 'beta', 'utf8');
 fs.mkdirSync(path.join(fixture, 'sub-folder'));
 
 ipcMain.handle('fs:list-drives', () => []);
-ipcMain.handle('fs:read-dir', async (_e, dir) => (await fs.promises.readdir(dir, { withFileTypes: true }))
-  .map((entry) => ({ name: entry.name, path: path.join(dir, entry.name), isContainer: entry.isDirectory() })));
+ipcMain.handle('fs:drive-total-bytes', () => 0);
+ipcMain.handle('fs:path-exists', () => true);
+ipcMain.handle('fs:read-dir', async (_e, dir) => Promise.all((await fs.promises.readdir(dir, { withFileTypes: true }))
+  .map(async (entry) => {
+    const full = path.join(dir, entry.name);
+    const st = await fs.promises.stat(full);
+    return { name: entry.name, path: full, isContainer: entry.isDirectory(),
+      size: entry.isDirectory() ? null : st.size, mtimeMs: st.mtimeMs };
+  })));
 ipcMain.handle('fs:read-text-file', async (_e, file) => fs.promises.readFile(file, 'utf8'));
 ipcMain.handle('fs:write-text-file', async (_e, file, content) => {
   await fs.promises.writeFile(file, content, 'utf8');
@@ -46,8 +59,10 @@ ipcMain.handle('terminal:resize', () => {});
 ipcMain.handle('terminal:close', () => {});
 
 app.whenReady().then(async () => {
+  // The app's own default window size (main.cjs), so the column widths
+  // measured below are the ones a user actually sees.
   const win = new BrowserWindow({
-    width: 1000, height: 700, show: true,
+    width: 1280, height: 800, show: true,
     webPreferences: {
       preload: path.join(__dirname, '../src/hosts/electron/preload.cjs'),
       contextIsolation: true, nodeIntegration: false, sandbox: true,
@@ -55,8 +70,7 @@ app.whenReady().then(async () => {
   });
   // Without this, this sandboxed test host never grants the window real OS
   // focus, so document.activeElement checks are meaningless — every
-  // .focus() call silently no-ops and even a correctly-implemented
-  // selectAndFocus() would read back as never-focused.
+  // .focus() call silently no-ops.
   win.focus();
   try {
     await win.loadFile(path.join(__dirname, '../dist/index.html'));
@@ -64,64 +78,37 @@ app.whenReady().then(async () => {
       const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
       const app = window.__workbenchApp;
       app.editor.clear();
-      await app.handleOpenFolderDialog(${JSON.stringify(fixture)});
+      // Add Folder only adds a rail tab now (WK-114); the file list is its
+      // own editor tab, opened the way the rail's "Open File List" does.
+      await app.editor.openItem(${JSON.stringify(fixture)}, 'fixture', { meta: { kind: 'folder', mode: 'file-list' } });
       await wait(600);
       const folderPanel = app.editor.getActivePanel();
-      const listEl = document.querySelector('.folder-file-list-items .tree-list');
+      const root = document.querySelector('.folder-file-list');
+      const listEl = root.querySelector('.folder-file-list-items .tree-list');
+      const header = root.querySelector('.rowlist-header');
+      // Every click/keydown re-renders every row (innerHTML reset), so rows
+      // are always re-queried rather than held across an interaction.
       const rows = () => [...listEl.querySelectorAll('.tree-row[data-id]')];
-      // Each click/keydown triggers a fresh render() that replaces every
-      // row's DOM node (RowListController.render() resets innerHTML), so
-      // every check below re-queries by suffix rather than reusing an
-      // earlier reference — a stale node reads back as never-selected/
-      // -focused, and a detached node's dispatched event never bubbles to
-      // the (now different) listEl it would need to reach.
       const findRow = (suffix) => rows().find((r) => r.getAttribute('data-id').endsWith(suffix));
+      const labels = () => rows().map((r) => r.querySelector('.tree-label').textContent);
 
-      // Icon: every row carries the same .tree-icon markup the Explorer
-      // tree uses (renderIconMarkup(), src/core/rowlist.ts).
-      const iconsPresent = rows().length === 3 && rows().every((r) => r.querySelector('.tree-icon'));
+      // The fixture is not a drive root, so a synthetic ".." row leads.
+      const iconsPresent = rows().length === 4 && rows().every((r) => r.querySelector('.tree-icon'));
+      const sortOrder = labels().join('|') === '[..]|[sub-folder]|alpha.txt|beta.txt';
 
-      // Sorted container-first then name (existing contract, unchanged):
-      // sub-folder, alpha.txt, beta.txt.
-      const order = rows().map((r) => r.getAttribute('data-id').split(/[\\\\/]/).pop());
-      const sortOrder = order.length === 3 && order[0] === 'sub-folder' && order[1] === 'alpha.txt' && order[2] === 'beta.txt';
-
-      // Click alpha.txt: selects the row AND opens it as the group's
-      // preview panel (single click = browsing, v0.2 FR-P1 — the same rule
-      // openFromEntry gives the Explorer tree, src/main.ts).
+      // Click selects and focuses the list, and opens nothing (WK-116).
       findRow('alpha.txt').click();
-      await wait(200);
-      const clickSelectsRow = findRow('alpha.txt').classList.contains('selected');
-      const activeGroup = app.editor.getActiveGroup();
-      const previewPanel = app.editor.getPreviewPanel(activeGroup);
-      const clickOpenedAsPreview = previewPanel?.params?.targetId?.endsWith('alpha.txt') &&
-        previewPanel?.params?.isPreview === true;
-
-      // Double click beta.txt: opens it PINNED (not the preview slot) —
-      // same v0.2 FR-P4 rule as the Explorer tree's dblclick. A real
-      // physical double click delivers click, click, THEN dblclick
-      // (Codex A22 R1, Minor) — each click() call here triggers its own
-      // synchronous render() that replaces every row's DOM node, so the
-      // row is re-queried before each dispatch, same as main.ts's
-      // openFromEntry pendingOpen-coalescing (A9 R3) was hardened
-      // against exactly this sequence for the Explorer tree.
-      folderPanel.api.setActive();
       await wait(100);
-      const betaId = findRow('beta.txt').getAttribute('data-id');
-      findRow('beta.txt').click();
-      findRow('beta.txt').click();
+      const clickSelectsRow = findRow('alpha.txt').classList.contains('selected');
+      const clickFocusesList = document.activeElement === listEl;
+      const clickOpensNothing = app.editor.getActivePanel() === folderPanel;
+
+      // A file row's dblclick does nothing either.
       findRow('beta.txt').dispatchEvent(new MouseEvent('dblclick', { bubbles: true }));
       await wait(200);
-      const betaPanel = app.editor.getActivePanel();
-      const dblclickPinned = betaPanel?.params?.targetId === betaId && betaPanel?.params?.isPreview !== true;
+      const fileDblclickInert = app.editor.getActivePanel() === folderPanel && labels().includes('beta.txt');
 
-      // ArrowDown/ArrowUp move focus across rows within the list
-      // (src/core/rowlist.ts's own keyboard handling, not the Explorer's).
-      // No manual listEl.focus() call here (Codex A22 R1, Minor) — the
-      // click itself must focus the list, same as the Explorer tree's
-      // click does (RowListController.selectAndFocus()'s own call).
-      folderPanel.api.setActive();
-      await wait(100);
+      // ArrowDown/ArrowUp move focus between rows.
       findRow('sub-folder').click();
       await wait(50);
       listEl.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true, cancelable: true }));
@@ -130,48 +117,78 @@ app.whenReady().then(async () => {
         !findRow('sub-folder').classList.contains('focused');
       listEl.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowUp', bubbles: true, cancelable: true }));
       await wait(50);
-      const arrowUpMovesFocusBack = findRow('sub-folder').classList.contains('focused') &&
-        !findRow('alpha.txt').classList.contains('focused');
+      const arrowUpMovesFocusBack = findRow('sub-folder').classList.contains('focused');
 
-      // The sub-folder click above (like alpha/beta's before it) opened a
-      // NEW active panel (its own file-list view), leaving folderPanel
-      // inactive/hidden again — a hidden panel's .focus() call is silently
-      // dropped by the browser, so document.activeElement checks below
-      // would read false regardless of whether selectAndFocus() ran.
-      // Re-activate folderPanel first, same as every prior block did.
-      folderPanel.api.setActive();
-      await wait(100);
+      // Space marks a file row without moving focus; ".." is never markable.
+      findRow('alpha.txt').click();
+      await wait(50);
+      listEl.dispatchEvent(new KeyboardEvent('keydown', { key: ' ', bubbles: true, cancelable: true }));
+      await wait(50);
+      const spaceMarksRow = findRow('alpha.txt').classList.contains('marked') &&
+        findRow('alpha.txt').classList.contains('focused');
+      rows()[0].click();
+      await wait(50);
+      listEl.dispatchEvent(new KeyboardEvent('keydown', { key: ' ', bubbles: true, cancelable: true }));
+      await wait(50);
+      const parentRowNotMarkable = !rows()[0].classList.contains('marked');
 
-      // Right-click a file row: same 2-item menu the Explorer tree offers
-      // a file (Open as Viewer / Open as Editor — src/main.ts
-      // buildResourceContextMenuItems, shared with the tree). Right-click
-      // does not navigate away (unlike a plain click, which immediately
-      // opens the target and switches the active panel), so this is where
-      // a real document.activeElement check actually proves something
-      // (Codex A22 R2, Minor — R1's fix made selectAndFocus() call
-      // listEl.focus(), but the R1 regression test only dispatched
-      // keydown straight at listEl without ever checking real DOM focus,
-      // so a regression here would have kept passing).
+      // No right-click menu on a row (WK-115).
       findRow('alpha.txt').dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, clientX: 50, clientY: 50 }));
       await wait(50);
-      const rightClickActuallyFocusedList = document.activeElement === listEl;
-      const menuLabels = [...document.querySelectorAll('.context-menu-item-row')].map((r) => r.textContent.trim());
-      const contextMenuMatchesTree = menuLabels.includes('Open as Viewer') && menuLabels.includes('Open as Editor') && menuLabels.length === 2;
-      document.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
-      await wait(50);
-
-      // Right-click sub-folder: same 3-item menu the tree offers a folder.
-      findRow('sub-folder').dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, clientX: 50, clientY: 80 }));
-      await wait(50);
-      const folderMenuLabels = [...document.querySelectorAll('.context-menu-item-row')].map((r) => r.textContent.trim());
-      const contextMenuFolderMatchesTree = folderMenuLabels.includes('Open File List') &&
-        folderMenuLabels.includes('Open Command Prompt') && folderMenuLabels.includes('Open PowerShell') &&
-        folderMenuLabels.length === 3;
+      const noContextMenu = document.querySelectorAll('.context-menu-item-row').length === 0;
       document.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
 
-      return { iconsPresent, sortOrder, clickSelectsRow, clickOpenedAsPreview, dblclickPinned,
-        arrowDownMovesFocus, arrowUpMovesFocusBack, rightClickActuallyFocusedList,
-        contextMenuMatchesTree, contextMenuFolderMatchesTree };
+      // dblclick a folder steps into it in the same panel; Enter on ".."
+      // steps back up.
+      findRow('sub-folder').dispatchEvent(new MouseEvent('dblclick', { bubbles: true }));
+      await wait(400);
+      const folderDblclickStepsIn = app.editor.getActivePanel() === folderPanel && labels().join('|') === '[..]';
+      rows()[0].click();
+      await wait(50);
+      listEl.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }));
+      await wait(400);
+      const enterOnParentStepsUp = labels().includes('alpha.txt') && labels().includes('[sub-folder]');
+
+      // Columns: header and rows share the same tracks, Name fills up to
+      // 500px, only Name has a drag handle, Size is right-aligned.
+      const trackWidths = (el) => [...el.children].map((c) => Math.round(c.getBoundingClientRect().width));
+      const headerTracks = trackWidths(header);
+      const rowTracks = trackWidths(rows()[1]);
+      const columnsMatch = headerTracks.join() === rowTracks.join() &&
+        headerTracks.slice(1).join() === '55,76,125';
+      const nameCappedAt500 = headerTracks[0] === 500;
+      const onlyNameResizable = header.querySelectorAll('.rowlist-resize-handle').length === 1 &&
+        header.children[0].querySelector('.rowlist-resize-handle') !== null;
+      const sizeRightAligned = getComputedStyle(findRow('alpha.txt').children[2]).textAlign === 'right';
+
+      // Dragging Name past the list scrolls the list, the header follows,
+      // and nothing above the list overflows (no second, unthemed scrollbar).
+      const handle = header.querySelector('.rowlist-resize-handle');
+      const hr = handle.getBoundingClientRect();
+      const x0 = hr.left + 2;
+      const y0 = hr.top + 5;
+      handle.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, button: 0, clientX: x0, clientY: y0, pointerId: 1 }));
+      window.dispatchEvent(new PointerEvent('pointermove', { clientX: x0 + 900, clientY: y0, pointerId: 1 }));
+      window.dispatchEvent(new PointerEvent('pointerup', { clientX: x0 + 900, clientY: y0, pointerId: 1 }));
+      await wait(100);
+      listEl.scrollLeft = 10000;
+      await wait(100);
+      const headerFollowsScroll = listEl.scrollLeft > 0 && header.scrollLeft === listEl.scrollLeft;
+      let ancestorOverflow = 0;
+      for (let el = root; el && el !== document.body; el = el.parentElement) {
+        if (el.scrollWidth > el.clientWidth + 1) ancestorOverflow++;
+      }
+      const noOuterOverflow = ancestorOverflow === 0;
+      listEl.scrollLeft = 0;
+      handle.dispatchEvent(new MouseEvent('dblclick', { bubbles: true }));
+      await wait(100);
+      const dblclickRefits = Math.round(header.children[0].getBoundingClientRect().width) === 500;
+
+      return { iconsPresent, sortOrder, clickSelectsRow, clickFocusesList, clickOpensNothing,
+        fileDblclickInert, arrowDownMovesFocus, arrowUpMovesFocusBack, spaceMarksRow,
+        parentRowNotMarkable, noContextMenu, folderDblclickStepsIn, enterOnParentStepsUp,
+        columnsMatch, nameCappedAt500, onlyNameResizable, sizeRightAligned,
+        headerFollowsScroll, noOuterOverflow, dblclickRefits };
     })()`);
     console.log(JSON.stringify(result));
     const allPass = Object.values(result).every(Boolean);
