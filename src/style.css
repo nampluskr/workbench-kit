@@ -1530,8 +1530,8 @@ body.is-resizing-sidebar {
  * codepoint (U+005C) with a won-sign (￦) glyph — a legacy code-page-949
  * convention it keeps for compatibility. The character itself is a real "\"
  * the whole way through (host, bridge, DOM text); only the glyph is wrong.
- * statusbar-path and the preset-info item are the two statusbar spots that
- * show Windows paths, so they get an explicit non-substituting font stack
+ * statusbar-path and any app status bar item are the statusbar spots that
+ * can show Windows paths, so they get an explicit non-substituting font stack
  * instead of inheriting --font-family (user report, 2026-09-15).
  */
 .statusbar-path,
@@ -1549,7 +1549,11 @@ body.is-resizing-sidebar {
 }
 
 .statusbar-left {
-  flex: 1;
+  /* The path gets up to half the status bar (user request, 2026-09-23) —
+     under the old 1:2:1 split it was clipped at a quarter even while the
+     centre message slot sat empty. Past half, it elides from the start. */
+  flex: 0 1 auto;
+  max-width: 50%;
   justify-content: flex-start;
   /* Lets #statusbar-path actually shrink below its own content width inside
      this flex row — without it, a flex item's default min-width: auto
@@ -1582,13 +1586,29 @@ body.is-resizing-sidebar {
   text-align: left;
 }
 
+/*
+ * The rtl trick above has one catch: characters with no direction of their
+ * own (`_`, `.`, `/`, `\`, space) at either END of the path take the
+ * paragraph's rtl direction and jump to the other side — a `__pycache__`
+ * folder rendered as `__D:\...\__pycache` (user report, 2026-09-23). A
+ * left-to-right mark (U+200E) at both ends gives those characters a strong
+ * LTR neighbour on each side, so the path renders exactly as written. The
+ * marks are pseudo-element content, so they never reach textContent or a
+ * copy.
+ */
+.statusbar-path::before,
+.statusbar-path::after {
+  content: '\200E';
+}
+
 .statusbar-center {
-  flex: 2;
+  flex: 1 1 0;
+  min-width: 0;
   justify-content: center;
 }
 
 .statusbar-right {
-  flex: 1;
+  flex: 0 0 auto;
   justify-content: flex-end;
 }
 
@@ -1947,6 +1967,40 @@ body.is-resizing-sidebar {
 }
 
 /* 6. Hamburger Menu Dropdown */
+/*
+ * Themed hover text (user request, 2026-09-23) — src/core/tooltip.ts draws
+ * this in place of the OS tooltip for every `title`, which ignored the
+ * colour theme and read as a white, heavily outlined box. Same ground,
+ * border and shadow family as the menu dropdown below, lighter.
+ */
+.workbench-tooltip {
+  position: fixed;
+  z-index: 10000;
+  max-width: 700px;
+  padding: 3px 7px;
+  background-color: var(--menu-bg);
+  color: var(--sidebar-fg);
+  border: 1px solid var(--border-color);
+  border-radius: 3px;
+  box-shadow: 0 2px 7px rgba(0, 0, 0, 0.25);
+  /* Hover text often carries a Windows path. system-ui resolves to a Korean
+     UI font on a Korean Windows, which draws "\" as a won sign (see the
+     statusbar-path note above); a Latin font first keeps a real backslash,
+     and Hangul still falls through to the system font. Arial is already the
+     app stack's own fallback (--font-family), and D-29 rules out the usual
+     Windows UI face. */
+  font-family: Arial, var(--font-family);
+  font-size: 11px;
+  line-height: 1.4;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  pointer-events: none;
+}
+
+.workbench-tooltip[hidden] {
+  display: none;
+}
+
 .workbench-menu-dropdown {
   position: absolute;
   top: var(--titlebar-height);
@@ -2537,6 +2591,45 @@ body.is-resizing-sidebar {
   height: auto;
   border-radius: 0;
   background-color: transparent;
+}
+
+/*
+ * Tab icon (user request, 2026-09-23) — the same icon markup the Explorer
+ * tree draws for a row (`renderIconMarkup()`), placed before the title by
+ * editor.ts's applyTabDecoration(). The tab's own 5px gap spaces it from
+ * the title, so the tree row's margin is dropped here.
+ */
+.dv-tab .workbench-tab-icon {
+  display: flex;
+  align-items: center;
+  flex: 0 0 auto;
+}
+
+.dv-tab .workbench-tab-icon .tree-icon {
+  margin-right: 0;
+}
+
+/*
+ * Close-button marker (user request, 2026-09-23) — a Viewer tab's lock sits
+ * where the × is, the same way the dirty ● does above: shown at rest on
+ * active and inactive tabs alike, swapped for the real × while the pointer
+ * is over the button. A dirty tab's ● wins over the marker.
+ */
+.dv-tab.workbench-rest-icon-tab .dv-default-tab-action {
+  visibility: visible;
+}
+
+.dv-tab.workbench-rest-icon-tab:not(.workbench-dirty-tab) .dv-default-tab-action:not(:hover)::before {
+  content: none;
+}
+
+.dv-tab .dv-default-tab-action .workbench-tab-rest-icon.codicon {
+  font-size: 13px;
+}
+
+.dv-tab.workbench-dirty-tab .workbench-tab-rest-icon,
+.dv-tab .dv-default-tab-action:hover .workbench-tab-rest-icon {
+  display: none;
 }
 
 .dv-groupview.dv-active-group > .dv-tabs-and-actions-container .dv-tabs-container > .dv-tab.dv-active-tab {

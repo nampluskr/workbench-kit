@@ -88,6 +88,20 @@ export function closeTerminalSession(key: string): void {
 }
 
 export function registerTerminalPreset(registry: ResourceKindRegistry): void {
+  // Tab look (user request, 2026-09-23): VS Code's own shell glyphs for a
+  // terminal opened in the editor area, so a folder's File List, Command
+  // Prompt and PowerShell tabs no longer read the same.
+  registry.registerTabDecorator(TERMINAL_KIND, (params, title) => {
+    const targetId = typeof params.targetId === 'string' ? params.targetId : title;
+    const cmd = params.mode === 'cmd';
+    return {
+      // A codicon glyph is the same under every icon theme — `theme` is
+      // required by the type but never read for a codicon, and no `color`
+      // lets it follow the tab's own text colour.
+      icon: { theme: 'seti', kind: 'codicon', cssClass: cmd ? 'codicon-terminal-cmd' : 'codicon-terminal-powershell' },
+      tooltip: `${targetId} — ${cmd ? 'Command Prompt' : 'PowerShell'}`,
+    };
+  });
   registry.register(TERMINAL_KIND, (cwd, { params, updateParams }) => {
     const key = typeof params.terminalSessionKey === 'string'
       ? params.terminalSessionKey : crypto.randomUUID();

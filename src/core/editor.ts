@@ -12,6 +12,29 @@ import {
   SerializedDockview,
 } from 'dockview-core';
 import { ConfirmDialogController } from './dialog';
+import type { IconDescriptor } from './icontheme';
+import { renderIconMarkup } from './tree';
+
+/**
+ * How a tab dresses itself beyond its title (user request, 2026-09-23). The
+ * shell only renders what it is handed — it never decides what a tab shows,
+ * so it stays kind-agnostic (D-4): whoever registers a decorator (the app's
+ * presets) maps a panel's params to this.
+ */
+export interface TabDecoration {
+  /** Drawn before the title, the same way the Explorer tree draws a row's icon. */
+  icon?: IconDescriptor | null;
+  /**
+   * A codicon name (`lock`, say) shown in the close button's place while the
+   * pointer is not over it — hovering still reveals the ×, so the tab stays
+   * closable. A dirty tab's ● takes the spot instead (FR-L1 comes first).
+   */
+  restIcon?: string | null;
+  /** Hover text for the whole tab. */
+  tooltip?: string | null;
+}
+
+export type TabDecorator = (params: Record<string, unknown>, title: string) => TabDecoration | null;
 
 /**
  * Returns whether the save succeeded. On a falsy result the shell keeps the
@@ -311,6 +334,7 @@ export class EditorController {
   private activePanelChangeListeners: ((panel: IDockviewPanel | undefined) => void)[] = [];
   private layoutChangeListeners: (() => void)[] = [];
   private customComponentFactory: EditorComponentFactory | null = null;
+  private tabDecorator: TabDecorator | null = null;
   private saveHandler: SaveHandler | null = null;
   private panelClosedHandler: ((panel: IDockviewPanel) => void) | null = null;
   private dialogController: ConfirmDialogController | null = null;
@@ -452,6 +476,19 @@ export class EditorController {
     // same closure.
     this.api.onDidAddPanel((panel) => {
       this.wirePanelClose(panel);
+      // A mode switch (a file tab going Viewer -> Editor, say) or a preview
+      // tab taking a new target arrives as a params change — redraw the
+      // tab's icon and close-button marker from the new params right away.
+      // dockview's own `onDidParametersChange` only fires for
+      // `api.updateParameters()`, not for `panel.update()`, which is what
+      // every caller here uses — so the redraw rides on `update` itself.
+      const update = panel.update.bind(panel);
+      panel.update = (event) => {
+        update(event);
+        this.applyTabDecoration(panel);
+      };
+      this.applyTabDecoration(panel);
+      queueMicrotask(() => this.applyTabDecoration(panel));
     });
 
     this.api.onDidLayoutChange(() => {
@@ -461,6 +498,7 @@ export class EditorController {
       // (user request, 2026-09-15) rides along for the same reason.
       this.refreshPreviewClasses();
       this.refreshDirtyClasses();
+      this.refreshTabDecorations();
       // Safety net only. A drag between groups is resolved above by confirming
       // the moved tab, so this should find nothing. It runs after the current
       // event turn so that the move handler always gets there first — run
@@ -470,6 +508,7 @@ export class EditorController {
         this.reconcilePreviewUniqueness();
         this.refreshPreviewClasses();
         this.refreshDirtyClasses();
+        this.refreshTabDecorations();
       });
       this.layoutChangeListeners.forEach((cb) => cb());
     });
@@ -1263,6 +1302,80 @@ export class EditorController {
   private refreshDirtyClasses(): void {
     for (const panel of this.api.panels) {
       this.applyDirtyClass(panel);
+    }
+  }
+
+  /** Registers what each tab shows beside its title (see `TabDecoration`). */
+  public setTabDecorator(fn: TabDecorator | null): void {
+    this.tabDecorator = fn;
+    this.refreshTabDecorations();
+  }
+
+  /** Redraws every tab's decoration — after dockview rebuilds tabs, or when the icon or color theme changes. */
+  public refreshTabDecorations(): void {
+    for (const panel of this.api.panels) {
+      this.applyTabDecoration(panel);
+    }
+  }
+
+  /**
+   * Draws a panel's `TabDecoration` into dockview's own default tab: an icon
+   * slot before the title, a marker inside the close button, and the tab's
+   * hover text. Same approach as the preview/dirty classes above — dockview
+   * owns and rebuilds the tab element, so this patches it in place and is
+   * re-run whenever it may have been rebuilt, rather than replacing the tab
+   * component (which would mean re-implementing close, ● and preview).
+   */
+  private applyTabDecoration(panel: IDockviewPanel): void {
+    const el = document.querySelector(`.dv-tab[data-tab-panel-id="${panel.id}"]`) as HTMLElement | null;
+    if (!el) return;
+    const decoration = this.tabDecorator?.((panel.params || {}) as Record<string, unknown>, panel.title || '') ?? null;
+
+    const tab = el.querySelector('.dv-default-tab');
+    if (tab) {
+      let slot = tab.querySelector(':scope > .workbench-tab-icon') as HTMLElement | null;
+      const markup = decoration?.icon ? renderIconMarkup(decoration.icon) : '';
+      if (markup) {
+        if (!slot) {
+          slot = document.createElement('span');
+          slot.className = 'workbench-tab-icon';
+          tab.insertBefore(slot, tab.firstChild);
+        }
+        if (slot.dataset.markup !== markup) {
+          slot.innerHTML = markup;
+          slot.dataset.markup = markup;
+          // Icon colour rides in on `data-fg` and is painted through the
+          // CSSOM, the same CSP-safe path the Explorer tree uses (D-20).
+          slot.querySelectorAll<HTMLElement>('[data-fg]').forEach((icon) => {
+            icon.style.color = icon.getAttribute('data-fg') || '';
+          });
+        }
+      } else {
+        slot?.remove();
+      }
+    }
+
+    const action = el.querySelector('.dv-default-tab-action');
+    let rest = action?.querySelector(':scope > .workbench-tab-rest-icon') as HTMLElement | null;
+    const restIcon = decoration?.restIcon || '';
+    if (restIcon && action) {
+      if (!rest) {
+        rest = document.createElement('i');
+        action.appendChild(rest);
+      }
+      rest.className = `codicon codicon-${restIcon} workbench-tab-rest-icon`;
+    } else {
+      rest?.remove();
+    }
+    el.classList.toggle('workbench-rest-icon-tab', Boolean(restIcon && action));
+
+    // Only ever clears a title this method itself set, never dockview's own.
+    if (decoration?.tooltip) {
+      el.title = decoration.tooltip;
+      el.dataset.decoratedTitle = 'true';
+    } else if (el.dataset.decoratedTitle) {
+      el.removeAttribute('title');
+      delete el.dataset.decoratedTitle;
     }
   }
 

@@ -15,6 +15,119 @@
 
 사람이 구현 중 요청한, backlog에 없는 작업을 요청 건마다 남긴다.
 
+- **OS 툴팁을 테마 툴팁으로 교체** (2026-09-23, 사용자 요청)
+  - 배경: 탭·버튼 등 37곳의 `title` 툴팁을 OS가 그려 테마를 무시하고, 어두운
+    테마에서 흰 바탕과 굵은 테두리가 튀었다. CSS로는 바꿀 수 없다.
+  - `src/core/tooltip.ts`(신규) `TooltipController`: 문서 전체에서 마우스 올림을
+    한 곳에서 받아, 마우스가 올라간 동안만 그 요소의 `title`을 떼어 두고(OS 툴팁이
+    뜨지 않게) 같은 문구를 테마 상자로 그린다. 벗어나면 `title`을 되돌리므로
+    `title`을 설정하는 37곳은 고치지 않았고, 이를 읽는 코드·검사와 접근성 이름도
+    그대로다. 올라가 있는 동안 앱이 `title`을 바꾸면(탭 모드 전환 등) 새 문구를
+    따른다. 0.5초 뒤 표시, 닫힌 직후 0.3초 안에 다른 요소로 옮기면 바로 표시,
+    클릭·키 입력·휠·스크롤·창 비활성화 시 닫힘. 요소 아래에 띄우고 공간이 없으면
+    위로, 좌우는 창 안으로 당긴다. 위치는 CSSOM으로 지정한다(D-20).
+  - `src/style.css` `.workbench-tooltip`: 메뉴 배경색, 테마 테두리색 1px, 둥글기
+    3px, 약한 그림자, 최대 폭 700px. 글자 크기는 처음 13px(VS Code 일반 호버와
+    같음)로 했다가 "너무 크다"는 요청으로 11px로 줄였다. 설치된 VS Code 1.136.1의
+    CSS 실측으로 일반 호버 13px, 짧은 설명용 compact 호버 12px를 확인했으나 12px는
+    D-29 금지값이라 11px를 골랐다(사용자 결정). 경로의 `\`가
+    한국어 Windows 기본 글꼴에서 `₩`로 그려져 라틴 글꼴 `Arial`을 글꼴 목록 맨
+    앞에 뒀다(처음엔 `Segoe UI`를 썼으나 D-29 금지 글꼴이라 `verify:dist`·
+    `verify:phase3/4/5`가 잡아 바꿨다).
+  - `src/main.ts`: 시작 시 `TooltipController`를 켠다.
+  - 검증: `npm run typecheck`, `npm run build`, `npm run verify:phase2` 통과.
+    Electron 실측: 0.2초에는 숨김·`title` 떼어짐, 0.7초에 표시, 올라간 채 모드
+    전환 시 문구 갱신, 옆 버튼으로 옮기면 즉시 표시, 벗어나거나 클릭하면 닫히고
+    `title` 복원. Dark/Gray/Light 세 테마에서 배경·테두리·글자색이 각 테마를
+    따르고 `\`가 제대로 그려지는 것을 스크린샷으로 확인했다.
+  - 회귀 대조: `verify:*` 22개 스위트를 이번 변경 전(HEAD `8bc8420`) 결과와
+    비교해 새 실패 0건(남은 차이는 앞 항목과 같은 출력 차이·임시 폴더 정리 메시지).
+  - 반대 벤더 적대적 검증은 사용자 결정으로 생략하고 사용자 직접 테스트로
+    대신한다(공통 코어 `tooltip.ts` 신규 포함).
+
+- **에디터 탭 아이콘과 Viewer 모드 자물쇠 표시** (2026-09-23, 사용자 요청)
+  - 배경: 같은 대상이 모드별로 별도 탭(파일 Editor/Viewer, 폴더 File List/
+    Command Prompt/PowerShell)으로 열리는데 탭 이름이 같아 구분이 안 됐다.
+  - `src/core/editor.ts`: 범용 `TabDecoration`(`icon`·`restIcon`·`tooltip`)과
+    `setTabDecorator()`/`refreshTabDecorations()`를 추가했다. dockview 기본 탭을
+    그대로 두고, 제목 앞에 아이콘 자리(`.workbench-tab-icon`, 트리와 같은
+    `renderIconMarkup()`)를, 닫기 버튼 안에 평소 표시(`.workbench-tab-rest-icon`)를
+    끼워 넣는다. 코어는 무엇을 보일지 모르고 받은 것만 그린다(D-4). dockview의
+    `onDidParametersChange`는 `api.updateParameters()`에서만 불리고 이 코드가 쓰는
+    `panel.update()`에서는 불리지 않아, 패널마다 `update`를 감싸 params가 바뀔
+    때마다 다시 그린다. 레이아웃 재구성 뒤에는 ●·미리보기 클래스와 함께 다시
+    적용한다.
+  - `src/registry/kind-registry.ts`: 종류별 `registerTabDecorator()`와
+    `describeTab()`을 추가했다. 탭의 params만 받으므로 한 번도 그려지지 않은
+    비활성 탭도 꾸며진다.
+  - 프리셋: 파일은 현재 아이콘 테마의 파일 아이콘, Viewer 모드일 때 닫기 자리에
+    `lock`(마우스를 올리면 ×). 폴더(File List)는 테마의 폴더 아이콘. 터미널은
+    `codicon-terminal-cmd`/`codicon-terminal-powershell`. 툴팁은 `<경로> — <모드>`.
+    `registerFilePreset()`은 `deps`를 선택 인자로 받아 기존 호출과 호환된다.
+  - `src/main.ts`: 데코레이터를 등록하고 아이콘·색 테마가 바뀌면 탭을 다시 그린다.
+  - `src/style.css`: 아이콘 자리와 닫기 자리 표시 규칙. ●가 자물쇠보다 우선한다.
+  - 아이콘 선택: 눈(`eye`)은 둥근 모양이라 ●와 헷갈릴 수 있어 13px 실측 비교 후
+    사용자가 자물쇠를 골랐다.
+  - 검증: `npm run typecheck`, `npm run build` 통과. Electron 실측: 다섯 가지 탭
+    모두 아이콘 표시, 자물쇠는 Viewer 탭에만, 상태표시줄 경로(`setActivePanelMode`)
+    로 Editor 전환 시 자물쇠 사라짐·Viewer 복귀 시 다시 나타남, 마우스를 올리면
+    자물쇠 숨김·× 표시, Viewer+수정 시 ● 우선, 분할 뒤에도 유지, 아이콘 테마 전환 시
+    다시 그림.
+  - 회귀 대조: `verify:*` 22개 스위트를 이번 변경 전(HEAD `8bc8420`)과 후에 각각
+    돌려 실패 목록을 비교했다. 새 실패는 0건이다. 차이 난 두 건은 재실행으로
+    기존과 같음을 확인했다(`verify:v02-phase5`는 간헐적 Electron 러너 실패,
+    `verify:v02-phase7`은 기존 한글 주석·`docs/current/SPEC.md` 부재 실패).
+    레거시 스위트의 기존 실패(메뉴 구성 변경, Preset Info 제거, WK-114 이후 트리
+    폴더 열기 등)는 이번 변경과 무관하게 그대로 남아 있다.
+  - 반대 벤더 적대적 검증은 사용자 결정으로 생략하고 사용자 직접 테스트로
+    대신한다(공통 코어 `editor.ts` 변경 포함).
+
+- **상태표시줄 경로 칸을 창 너비의 50%까지** (2026-09-23, 사용자 요청)
+  - 원인: 왼쪽(경로)·가운데(메시지)·오른쪽 칸을 `flex` 1 : 2 : 1로 나눠, 경로
+    칸이 가운데가 비어 있어도 상태표시줄의 1/4(기본 창에서 311px)에서 잘렸다.
+    앞부분이 `…`로 잘리는 것은 09-17 요청으로 넣은 `direction: rtl` 동작이다.
+  - `src/style.css`: 경로 칸은 내용만큼 차지하되 `max-width: 50%`, 가운데는
+    남는 폭을 채우고, 오른쪽은 내용만큼만 차지하게 바꿨다. 50%를 넘는 경로는
+    지금처럼 앞부분이 `…`로 잘린다.
+  - 검증: `npm run build`, `npm run verify:dist`, `npm run verify:phase2` 통과.
+    Electron 1280×800 실측(상태표시줄 1264px): 11자 경로 73px, 82자 경로 541px
+    잘림 없음, 168자 경로 622px(50%)에서 앞부분 잘림.
+  - 부수 효과: 가운데 메시지는 창 가운데가 아니라 경로 칸 오른쪽에 남은 영역의
+    가운데에 놓이므로, 경로 길이에 따라 위치가 움직인다.
+
+- **상태표시줄 경로 끝의 `__` 등이 앞으로 옮겨 표시되던 문제 수정** (2026-09-23, 사용자 보고)
+  - 증상: `__pycache__` 폴더를 선택하면 경로가 `__D:\...\__pycache`로 보였다.
+  - 원인: 앞부분 잘림을 위해 넣은 `direction: rtl`(09-17) 때문에, 방향성이 없는
+    문자(`_` `.` `/` `\` 공백)가 경로 양 끝에 오면 오른쪽→왼쪽 문맥을 따라 반대쪽
+    끝으로 옮겨 그려졌다. 끝이 `.`인 이름, `\\server` 같은 UNC 경로, `/`로
+    시작하는 경로, 끝이 `_`인 한글 이름도 같은 증상이었다.
+  - `src/style.css`: `.statusbar-path::before`/`::after`에 왼쪽→오른쪽 표시
+    문자(U+200E)를 넣어 양 끝 문자가 LTR로 해석되게 했다. 가상 요소라
+    `textContent`와 복사 내용에는 들어가지 않는다.
+  - 검증: `npm run build`, `npm run verify:dist`, `npm run verify:phase2` 통과.
+    Electron에서 글자별 화면 위치를 재어 9가지 경로(`__pycache__`, `__init__.py`,
+    `(copy)`, `[a]`, UNC, `/usr/lib/__x__`, `a.`, `1.2.3`, `한글 폴더_`)가 모두 쓴
+    순서대로 그려짐을 확인했다(수정 전 5가지 실패). 50%를 넘는 긴 경로도 마지막
+    글자가 오른쪽 끝에 보이고 앞부분만 잘린다.
+
+- **상태표시줄 `Presets: file, folder` 항목 제거** (2026-09-23, 사용자 요청)
+  - `src/main.ts`에서 앱 예시 항목(WK-029, FR-N10 증명용)을 없앴다. 앱 항목
+    자리(`#statusbar-app-items`)는 그대로 열려 있다.
+  - 이 항목에 기대던 검사 둘을 고쳤다. `scripts/phase5-suite.js`의
+    `P5-FR-N10-APPEND`는 검사가 앱 역할을 맡아 자기 항목을 붙인 뒤 보이는지
+    확인하고 떼어 낸다(FR-N10 계속 보장). `scripts/v02-phase3-suite.js`의
+    `V2P3-FR-C10`은 "Presets" 문구 요구만 빼고 "껍데기가 오른쪽에 프로그램·버전·
+    호스트 정보를 두지 않는다"는 본래 단언은 유지했다. `v02-phase4-suite.js`의
+    `V2P4-FR-M12`(View > Preset Info)는 09-19에 메뉴가 제거된 뒤로 이미 실패하던
+    것이라 건드리지 않았다.
+  - 검증: `npm run typecheck`, `npm run build`, `npm run verify:dist` 통과.
+    `verify:v02-phase3` 전건 통과. `verify:phase5`는 `P5-FR-N10-APPEND`·`SLOTS`
+    양 갈래 통과, 남은 실패 3건(`P5-FR-I3`·`P5-FR-G5-DEFAULT-OFF`·
+    `P5-WK030-KEYBOARD`)은 변경 전에도 같았다.
+  - 관찰: `verify:v02-phase3` 첫 실행에서 pywebview만 옛 빌드 문구
+    (`Presets: file, folder`)를 읽었고, 다시 돌리자 새 빌드를 읽었다. 영구
+    WebView2 프로필의 캐시가 원인일 수 있으나 재현·확인하지 않았다.
+
 - **`verify:rowlist` 스크립트를 현재 file-list 계약에 맞게 재작성** (2026-09-23, 사용자 요청)
   - `scripts/verify-rowlist-electron.cjs`는 WK-113 시점 계약(클릭 = 미리보기 열기,
     더블클릭 = 고정 열기, 우클릭 메뉴)을 단언하고 Add Folder로 탭을 열고 있어서,

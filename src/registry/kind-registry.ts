@@ -1,5 +1,5 @@
 import type { IContentRenderer, GroupPanelPartInitParameters } from 'dockview-core';
-import type { EditorComponentFactory, EditorController } from '../core/editor';
+import type { EditorComponentFactory, EditorController, TabDecoration, TabDecorator } from '../core/editor';
 
 // NOT part of the common core (src/core/**). This module is free to know
 // about resource kinds; the shell it plugs into never imports it (FR-I1,
@@ -74,6 +74,7 @@ export class ResourceKindRegistry {
   private modeHandlers = new Map<string, (mode: string) => void>();
   private focusHandlers = new Map<string, () => void>();
   private refreshHandlers = new Map<string, () => void>();
+  private tabDecorators = new Map<string, TabDecorator>();
   /** Test-support only: the live inner view per panel, so a test script can drive/read real content without reaching into dockview internals. */
   private innerForTest = new Map<string, ReturnType<KindRendererFactory>>();
 
@@ -94,6 +95,23 @@ export class ResourceKindRegistry {
 
   public register(kind: string, factory: KindRendererFactory): void {
     this.factories.set(kind, factory);
+  }
+
+  /**
+   * How a kind's tabs look beside their title — icon, close-button marker,
+   * hover text (user request, 2026-09-23). Keyed by kind, and fed only the
+   * panel's own params, so an inactive tab whose view was never rendered
+   * still gets decorated.
+   */
+  public registerTabDecorator(kind: string, fn: TabDecorator): void {
+    this.tabDecorators.set(kind, fn);
+  }
+
+  /** The single decorator `main.ts` hands to `editor.setTabDecorator()`; dispatches on `params.kind`. */
+  public describeTab(params: Record<string, unknown>, title: string): TabDecoration | null {
+    const kind = typeof params.kind === 'string' ? params.kind : undefined;
+    const fn = kind ? this.tabDecorators.get(kind) : undefined;
+    return fn ? fn(params, title) : null;
   }
 
   public has(kind: string): boolean {

@@ -2,6 +2,7 @@ import type { ResourceKindRegistry } from '../registry/kind-registry';
 import type { AppEditorSurface, EditorOpenOptions } from '../core/editor';
 import { TextEditorView } from '../core/texteditor';
 import { readTextFile, writeTextFile } from '../providers/filesystem';
+import type { IconThemeManager } from '../core/icontheme';
 
 // The file preset owns disk I/O and mode behavior; the editor shell remains
 // independent of resource kinds and filesystem paths.
@@ -77,11 +78,38 @@ export function detectLanguage(filePath: string): string {
   }
 }
 
-export function registerFilePreset(registry: ResourceKindRegistry): void {
+export interface FilePresetDeps {
+  iconTheme: IconThemeManager;
+}
+
+/** Same default the view itself applies below: a file tab without a mode opens read-only. */
+function resolveFileMode(params: Record<string, unknown>): string {
+  return typeof params.mode === 'string' ? params.mode : 'viewer';
+}
+
+/**
+ * `deps` is optional so a caller registering the preset the old way, with
+ * the registry alone, keeps working — its tabs just go undecorated.
+ */
+export function registerFilePreset(registry: ResourceKindRegistry, deps?: FilePresetDeps): void {
+  // Tab look (user request, 2026-09-23): the file-type icon from the current
+  // icon theme, as in the Explorer tree; a Viewer tab also shows a lock in
+  // its close button's place until hovered.
+  if (deps) {
+    registry.registerTabDecorator(FILE_KIND, (params, title) => {
+      const targetId = typeof params.targetId === 'string' ? params.targetId : title;
+      const viewer = resolveFileMode(params) === 'viewer';
+      return {
+        icon: deps.iconTheme.resolveIcon(title || targetId, false),
+        restIcon: viewer ? 'lock' : null,
+        tooltip: `${targetId} — ${viewer ? 'Viewer (read-only)' : 'Editor'}`,
+      };
+    });
+  }
   registry.register(FILE_KIND, (targetId, { params, updateParams }) => {
     // Dockview serializes params, so both the live buffer and saved baseline
     // must be carried through a Folder Workspace layout switch.
-    const initialMode = typeof params.mode === 'string' ? params.mode : 'viewer';
+    const initialMode = resolveFileMode(params);
     const hasSnapshot = typeof params.value === 'string';
     const initialValue = hasSnapshot ? params.value as string : '';
     const initialSavedValue = typeof params.savedValue === 'string' ? params.savedValue : initialValue;

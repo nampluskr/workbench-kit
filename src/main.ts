@@ -26,6 +26,7 @@ import { AppEditorSurface, createAppEditorSurface } from './core/editor';
 import { MenuItem } from './core/menu';
 import { ActivityBarItem } from './core/activitybar';
 import { ViewAction } from './core/sidebar';
+import { TooltipController } from './core/tooltip';
 
 /** Injected at build time by vite.config.ts (v0.2 FR-C7, FR-C8). */
 declare const __WB_VERSION__: string;
@@ -116,6 +117,7 @@ export class WorkbenchApp {
   public explorerTitlebar: ExplorerTitlebarController;
   public fsProvider: FileSystemTreeProvider;
   public editor: EditorController;
+  public tooltip: TooltipController;
   public kindRegistry: ResourceKindRegistry;
   public contextMenu: ContextMenuController;
   public confirmDialog: ConfirmDialogController;
@@ -172,13 +174,22 @@ export class WorkbenchApp {
     // Initialize EditorController layout engine (FR-C, FR-D, FR-E, FR-J, WK-019 ~ WK-024)
     this.editor = new EditorController(this.layout.editorContainer);
 
+    // Themed hover text in place of the OS tooltip for every `title` (user
+    // request, 2026-09-23) — see src/core/tooltip.ts.
+    this.tooltip = new TooltipController();
+
     // Resource kind registration slot + minimal example presets (FR-I1, FR-I2, FR-I3, WK-025, WK-026)
     this.kindRegistry = new ResourceKindRegistry();
-    registerFilePreset(this.kindRegistry);
+    registerFilePreset(this.kindRegistry, { iconTheme: this.iconTheme });
     registerFolderPreset(this.kindRegistry, { iconTheme: this.iconTheme });
     registerTerminalPreset(this.kindRegistry);
     this.editor.setComponentFactory(this.kindRegistry.createComponentFactory(this.editor));
     this.editor.setSaveHandler((panelId) => this.kindRegistry.save(panelId));
+    // Tab icons and the Viewer lock come from each kind's own decorator; an
+    // icon or color theme switch redraws them like the Explorer tree's rows.
+    this.editor.setTabDecorator((params, title) => this.kindRegistry.describeTab(params, title));
+    this.iconTheme.onThemeChange(() => this.editor.refreshTabDecorations());
+    this.iconTheme.onColorThemeChange(() => this.editor.refreshTabDecorations());
     this.editor.setPanelClosedHandler((panel) => {
       if (panel.params?.kind === TERMINAL_KIND && typeof panel.params.terminalSessionKey === 'string') {
         closeTerminalSession(panel.params.terminalSessionKey);
@@ -726,16 +737,12 @@ export class WorkbenchApp {
     this.menu.setAction('file:split-right', () => this.editor.splitActiveGroup('right'));
     this.menu.setAction('file:split-down', () => this.editor.splitActiveGroup('below'));
 
-    // Minimal example wiring proving one app-facing extension slot (WK-029):
-    // a status bar item beside the shell's slots (FR-N10). Preset Info is not
-    // part of the current menu contract. FR-I10's view-titlebar app-action
-    // slot stays open; a real app registers through addSidebarViewAction.
-    if (this.layout.statusbarAppItems) {
-      const presetInfoEl = document.createElement('span');
-      presetInfoEl.className = 'statusbar-app-item';
-      presetInfoEl.textContent = 'Presets: file, folder';
-      this.layout.statusbarAppItems.appendChild(presetInfoEl);
-    }
+    // The status bar's app-item slot (FR-N10, WK-029) stays open but empty:
+    // the "Presets: file, folder" example item was removed (user request,
+    // 2026-09-23). An app appends its own `.statusbar-app-item` to
+    // `layout.statusbarAppItems`; phase5-suite.js proves the slot with a
+    // test item. FR-I10's view-titlebar app-action slot stays open too; a
+    // real app registers through addSidebarViewAction.
 
     // Focus areas — F6 / Shift+F6 between the tree and each group, Ctrl+Tab
     // inside a group, and a press on the explorer's empty space (v0.2 D-10,

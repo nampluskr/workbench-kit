@@ -178,6 +178,15 @@ async function computeFolderSize(path: string): Promise<number> {
  * <marked>/<total> dir(s)`.
  */
 export function registerFolderPreset(registry: ResourceKindRegistry, deps: FolderPresetDeps): void {
+  // Tab look (user request, 2026-09-23): the folder icon from the current
+  // icon theme, as in the Explorer tree.
+  registry.registerTabDecorator(FOLDER_KIND, (params, title) => {
+    const targetId = typeof params.targetId === 'string' ? params.targetId : title;
+    return {
+      icon: deps.iconTheme.resolveIcon(title || targetId, true),
+      tooltip: `${targetId} — File List`,
+    };
+  });
   registry.register(FOLDER_KIND, (targetId) => {
     const element = document.createElement('div');
     element.className = 'preset-folder-view folder-file-list';
