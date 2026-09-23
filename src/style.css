@@ -1638,7 +1638,9 @@ body.is-resizing-sidebar {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 10px;
+  /* No top padding (v0.3 WK-121, user request) — the address bar sits
+     flush against the panel's top edge; left/right/bottom unchanged. */
+  padding: 0 10px 10px;
   border-bottom: 1px solid var(--vscode-panel-border);
   gap: 10px;
   flex: 0 0 auto;
@@ -1713,6 +1715,8 @@ body.is-resizing-sidebar {
   white-space: nowrap;
   color: var(--sidebar-fg);
   opacity: 0.85;
+  /* Anchors `.rowlist-resize-handle` to this cell's own right edge. */
+  position: relative;
 }
 
 .rowlist-header-cell:hover {
@@ -1724,13 +1728,35 @@ body.is-resizing-sidebar {
   flex: 0 0 auto;
 }
 
+/* A thin drag strip on a header cell's right edge (v0.3 WK-121) — widens/
+   narrows this column and its neighbour in tandem (rowlist.ts's own
+   comment on `beginColumnResize` explains why the pair, not the whole
+   grid, absorbs the drag). */
+.rowlist-resize-handle {
+  position: absolute;
+  top: 0;
+  right: -2px;
+  bottom: 0;
+  width: 5px;
+  cursor: col-resize;
+  z-index: 1;
+}
+
+.rowlist-resize-handle:hover,
+.rowlist-resize-handle:active {
+  background-color: var(--focus-ring);
+}
+
 /* `.tree-row`'s own `padding-left` is a tree-indent affordance this grid
    layout does not use — each cell below carries its own 10px gutter
-   instead, so the header's and a row's grid tracks start at the same x. */
+   instead, so the header's and a row's grid tracks start at the same x.
+   `width`/`min-width` are left to the base `.tree-row` rule (max-content,
+   min 100%) rather than forced to 100% here, so a panel narrower than the
+   four columns' combined width gets a real horizontal scrollbar instead of
+   silently clipping content (v0.3 WK-121). */
 .tree-row.rowlist-row {
   display: grid;
   grid-template-columns: var(--rowlist-grid);
-  width: 100%;
   padding-left: 0;
 }
 

@@ -44,8 +44,8 @@ import { renderIconMarkup, escapeHtml } from './tree';
 export interface RowListColumn {
   id: string;
   label: string;
-  /** A CSS grid track size for this column (e.g. `'1fr'`, `'90px'`). */
-  width: string;
+  /** Starting width in pixels — mutable after that, via the header's own drag handles (v0.3 WK-121). */
+  width: number;
 }
 
 export type RowListSortDirection = 'asc' | 'desc';
@@ -64,6 +64,8 @@ export class RowListController {
   private headerEl: HTMLElement;
   private listEl: HTMLElement;
   private columns: RowListColumn[];
+  /** Live per-column pixel widths, mutable via drag (v0.3 WK-121) — starts as each column's own `width`. */
+  private columnWidths: number[];
 
   private items: RowListItem[] = [];
   private selectedId: string | null = null;
@@ -82,16 +84,11 @@ export class RowListController {
     this.container = container;
     this.iconThemeManager = iconThemeManager;
     this.columns = columns;
+    this.columnWidths = columns.map((c) => c.width);
     this.sortColumn = columns[0]?.id ?? 'name';
 
     this.container.classList.add('rowlist-container');
-    // Set once via the DOM API (not baked into an HTML template string —
-    // .claude/rules/dockview-css.md's "don't hand-place things with a
-    // literal `style="..."` in rendered HTML" applies to this file too),
-    // as a CSS custom property every column cell below inherits — the same
-    // "set a dynamic value through element.style, let CSS classes do the
-    // rest" pattern `foldertabs.ts` already uses for its tab accent colour.
-    this.container.style.setProperty('--rowlist-grid', columns.map((c) => c.width).join(' '));
+    this.updateGridTemplate();
 
     this.headerEl = document.createElement('div');
     this.headerEl.className = 'rowlist-header';
@@ -234,9 +231,14 @@ export class RowListController {
     rowEl?.scrollIntoView({ block: 'nearest' });
   }
 
+  /** Sets `--rowlist-grid` once via the DOM API (not baked into an HTML template string — .claude/rules/dockview-css.md's "no literal `style=` in rendered HTML" applies to this file too) as a CSS custom property every column cell inherits, the same pattern `foldertabs.ts` already uses for its tab accent colour. */
+  private updateGridTemplate(): void {
+    this.container.style.setProperty('--rowlist-grid', this.columnWidths.map((w) => `${w}px`).join(' '));
+  }
+
   private renderHeader(): void {
     this.headerEl.innerHTML = '';
-    for (const col of this.columns) {
+    this.columns.forEach((col, index) => {
       const cell = document.createElement('div');
       cell.className = 'rowlist-header-cell';
       cell.setAttribute('role', 'columnheader');
@@ -267,8 +269,75 @@ export class RowListController {
           activate();
         }
       });
+
+      // A drag handle on the right edge of every column but the last
+      // (v0.3 WK-121, user request) — dragging resizes THIS column only,
+      // same as Explorer's own Details-view header.
+      if (index < this.columns.length - 1) {
+        const handle = document.createElement('div');
+        handle.className = 'rowlist-resize-handle';
+        // A click landing on the handle (drag or not) must never reach the
+        // cell's own `activate` (sort) click listener above.
+        handle.addEventListener('click', (e) => e.stopPropagation());
+        handle.addEventListener('pointerdown', (e) => this.beginColumnResize(index, e));
+        cell.appendChild(handle);
+      }
+
       this.headerEl.appendChild(cell);
+    });
+  }
+
+  private static readonly MIN_COLUMN_WIDTH = 40;
+
+  /**
+   * Dragging the handle between column `colIndex` and the next one shifts
+   * width between exactly that pair, holding their COMBINED width fixed —
+   * deliberately not "grow the whole grid past the container", which would
+   * need the header and the scrollable row list below to scroll in sync
+   * (a data-grid feature this simple panel does not have). Widening one
+   * column narrows its neighbour by the same amount, clamped so neither
+   * goes below `MIN_COLUMN_WIDTH` (v0.3 WK-121, user request).
+   */
+  private beginColumnResize(colIndex: number, e: PointerEvent): void {
+    if (e.button !== 0) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const handle = e.currentTarget as HTMLElement;
+    const startX = e.clientX;
+    const startWidth = this.columnWidths[colIndex];
+    const pairTotal = startWidth + this.columnWidths[colIndex + 1];
+    const pointerId = e.pointerId;
+    try {
+      handle.setPointerCapture(pointerId);
+    } catch {
+      // capture unavailable — the pointerId guard below still filters events
     }
+
+    const onMove = (ev: PointerEvent) => {
+      if (ev.pointerId !== pointerId) return;
+      const min = RowListController.MIN_COLUMN_WIDTH;
+      const next = Math.max(min, Math.min(startWidth + (ev.clientX - startX), pairTotal - min));
+      this.columnWidths[colIndex] = next;
+      this.columnWidths[colIndex + 1] = pairTotal - next;
+      this.updateGridTemplate();
+    };
+    const cleanup = () => {
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onUp);
+      window.removeEventListener('pointercancel', onUp);
+      try {
+        handle.releasePointerCapture(pointerId);
+      } catch {
+        // already released
+      }
+    };
+    const onUp = (ev: PointerEvent) => {
+      if (ev.pointerId !== pointerId) return;
+      cleanup();
+    };
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', onUp);
+    window.addEventListener('pointercancel', onUp);
   }
 
   public render(): void {

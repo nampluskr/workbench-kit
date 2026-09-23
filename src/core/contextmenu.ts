@@ -120,21 +120,32 @@ export class ContextMenuController {
 
     if (e.key === 'Escape') {
       e.preventDefault();
+      e.stopPropagation();
       this.hide();
       return;
     }
     if (e.key === 'ArrowDown') {
       e.preventDefault();
+      e.stopPropagation();
       this.moveFocus(1);
       return;
     }
     if (e.key === 'ArrowUp') {
       e.preventDefault();
+      e.stopPropagation();
       this.moveFocus(-1);
       return;
     }
     if (e.key === 'Enter') {
       e.preventDefault();
+      // Right-click selecting (and focusing) its row before the menu opens
+      // (v0.3 WK-120) means the tree/rail sitting underneath can now
+      // legitimately have DOM focus while this menu is open — without
+      // stopping propagation, the SAME ArrowDown/Enter this handler just
+      // consumed would keep bubbling into that focused row's own keyboard
+      // handling too (e.g. Enter opening a file), which used to be
+      // unreachable only because nothing under the menu was ever focused.
+      e.stopPropagation();
       const item = this.currentItems[this.focusedIndex];
       if (item) {
         item.action?.();

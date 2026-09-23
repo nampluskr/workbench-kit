@@ -1107,6 +1107,11 @@ export class FolderTabsController {
       });
       row.addEventListener('contextmenu', (e) => {
         e.preventDefault();
+        // Right-click selects (activates) this tab first, same as a left
+        // click, before the menu opens (v0.3 WK-120, user request) —
+        // otherwise the menu could act on a tab that visually wasn't the
+        // one highlighted.
+        this.activateTab(tab.id);
         for (const cb of this.contextMenuCallbacks) cb(tab, e.clientX, e.clientY);
       });
 

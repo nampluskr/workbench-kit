@@ -20,7 +20,7 @@ import type { SerializedDockview, DockviewGroupPanel, IDockviewPanel } from 'doc
 import { ContextMenuController, ContextMenuItem } from './core/contextmenu';
 import { ResourceKindRegistry } from './registry/kind-registry';
 import { registerFilePreset, FILE_KIND, getFileModeLabel } from './presets/file-preset';
-import { registerFolderPreset, FOLDER_KIND, getFolderModeLabel } from './presets/folder-preset';
+import { registerFolderPreset, FOLDER_KIND } from './presets/folder-preset';
 import { closeTerminalSession, registerTerminalPreset, TERMINAL_KIND } from './presets/terminal-preset';
 import { AppEditorSurface, createAppEditorSurface } from './core/editor';
 import { MenuItem } from './core/menu';
@@ -507,60 +507,34 @@ export class WorkbenchApp {
       { id: 'view:zen-mode', label: 'Zen Mode', shortcut: 'F11' },
     ]);
 
+    // File-only, always (v0.3 WK-124, user request): this used to switch to
+    // folder/terminal-specific content when one of those was the active tab
+    // (Level 1 open modes, 2026-09-19) — reverted. It is now the DEFAULT
+    // mode new file tabs open in on an Explorer left click
+    // (`this.defaultFileMode`, read by `openFromEntry`/`handleOpenFileDialog`
+    // etc.), not the active tab's own mode — picking an item here persists
+    // that default (`setDefaultFileMode`, previously dead code with no UI
+    // caller) and does not touch whatever tab happens to be open right now.
+    // Overriding a SPECIFIC file's mode stays a right-click/statusbar-button
+    // affair (`buildResourceContextMenuItems`'s Open as Viewer/Editor,
+    // `setActivePanelMode`) — a deliberate split between "default" and
+    // "this one tab's override".
     this.menu.setSubmenuProvider('view:tab-mode', () => {
-      const panel = this.editor.getActivePanel();
-      if (!panel) {
-        return [{ id: 'view:tab-mode:empty', label: 'No Active Tab', disabled: true }];
-      }
-      const kind = panel.params?.kind;
-      if (kind === FILE_KIND) {
-        const currentMode = panel.params?.mode || this.defaultFileMode;
-        return [
-          {
-            id: 'view:tab-mode:file-editor',
-            label: 'Editor',
-            checked: currentMode === 'editor',
-            action: () => this.setActivePanelMode('editor'),
-          },
-          {
-            id: 'view:tab-mode:file-viewer',
-            label: 'Viewer',
-            checked: currentMode === 'viewer',
-            action: () => this.setActivePanelMode('viewer'),
-          },
-        ];
-      }
-      if (kind === FOLDER_KIND) {
-        const cwd = panel.params?.targetId as string;
-        const title = panel.title || cwd;
-        return [
-          {
-            id: 'view:tab-mode:folder-file-list',
-            label: 'File List',
-            checked: true,
-          },
-          {
-            id: 'view:tab-mode:folder-cmd',
-            label: 'Open Command Prompt (New Tab)',
-            action: () => this.openResource(cwd, title, TERMINAL_KIND, 'cmd', 'pinned', true),
-          },
-          {
-            id: 'view:tab-mode:folder-terminal',
-            label: 'Open PowerShell (New Tab)',
-            action: () => this.openResource(cwd, title, TERMINAL_KIND, 'powershell', 'pinned', true),
-          },
-        ];
-      }
-      if (kind === TERMINAL_KIND) {
-        const cwd = panel.params?.targetId as string;
-        const title = panel.title || cwd;
-        return [
-          { id: 'view:tab-mode:terminal-current', label: getFolderModeLabel(panel.params?.mode as string), checked: true },
-          { id: 'view:tab-mode:terminal-cmd', label: 'Open Command Prompt (New Tab)', action: () => this.openResource(cwd, title, TERMINAL_KIND, 'cmd', 'pinned', true) },
-          { id: 'view:tab-mode:terminal-powershell', label: 'Open PowerShell (New Tab)', action: () => this.openResource(cwd, title, TERMINAL_KIND, 'powershell', 'pinned', true) },
-        ];
-      }
-      return [{ id: 'view:tab-mode:unsupported', label: 'No Mode for Current Tab', disabled: true }];
+      const current = this.getDefaultFileMode();
+      return [
+        {
+          id: 'view:tab-mode:file-editor',
+          label: 'Editor',
+          checked: current === 'editor',
+          action: () => this.setDefaultFileMode('editor'),
+        },
+        {
+          id: 'view:tab-mode:file-viewer',
+          label: 'Viewer',
+          checked: current === 'viewer',
+          action: () => this.setDefaultFileMode('viewer'),
+        },
+      ];
     });
 
     this.activityBar.setAction('activity:toggle-sidebar', () => this.viewState.toggleSidebar());
@@ -698,6 +672,13 @@ export class WorkbenchApp {
       if (!row) return;
       e.preventDefault();
       const nodeId = row.getAttribute('data-id');
+      // Right-click changes the selection to this row (a no-op if it was
+      // already the selected one) and nothing else beyond that — no file
+      // preview-open — before the menu appears (v0.3 WK-120, corrected
+      // WK-122 then reverted back to this by WK-123, user request:
+      // "선택으로 표시 변경"='swap the selection if different', not also
+      // opening the file the way a left click does).
+      if (nodeId) this.tree.focusItemById(nodeId);
       const items = nodeId ? this.contextMenuItemsForTreeNode(nodeId) : [];
       this.contextMenu.show(e.clientX, e.clientY, items);
     });

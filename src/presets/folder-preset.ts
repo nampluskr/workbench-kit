@@ -6,12 +6,6 @@ import { RowListController, RowListItem, RowListColumn, RowListSortDirection } f
 
 export const FOLDER_KIND = 'folder';
 
-export function getFolderModeLabel(mode?: string): string {
-  if (mode === 'cmd') return 'Command Prompt';
-  if (mode === 'powershell' || mode === 'terminal') return 'PowerShell';
-  return 'File List';
-}
-
 export interface FolderPresetDeps {
   iconTheme: IconThemeManager;
 }
@@ -40,11 +34,14 @@ function parentOf(path: string): string | null {
 
 type SortColumn = 'name' | 'ext' | 'size' | 'date';
 
+// Starting pixel widths, each mutable afterward via the header's own drag
+// handles (v0.3 WK-121) — dragging shifts width between the two columns on
+// either side of a handle, so these four always sum to the same total.
 const COLUMNS: RowListColumn[] = [
-  { id: 'name', label: 'Name', width: 'minmax(120px, 1fr)' },
-  { id: 'ext', label: 'Ext', width: '70px' },
-  { id: 'size', label: 'Size', width: '90px' },
-  { id: 'date', label: 'Date', width: '150px' },
+  { id: 'name', label: 'Name', width: 260 },
+  { id: 'ext', label: 'Ext', width: 60 },
+  { id: 'size', label: 'Size', width: 90 },
+  { id: 'date', label: 'Date', width: 150 },
 ];
 
 /** No extension for a dotfile like ".env" (the leading dot is not a separator) or a name with no dot at all. */

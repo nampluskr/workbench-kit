@@ -655,6 +655,214 @@
     `2026-09-23 11:06` 형식으로 뜨는 것을 실제 DOM에서 확인했다.
   - 사용자가 직접 수동 테스트한다.
 
+- **탐색기 폴더 이름 대괄호 표시, 우클릭 시 선택 표시 후 메뉴, 드라이브
+  루트 바로 아래 폴더 탭의 거짓 "target no longer exists" 오류 수정
+  (WK-120)** (2026-09-23, 사용자 요청)
+  - 요청 ①: 탐색기 영역에서도 폴더 이름을 `[이름]`으로 감싼다(WK-119를
+    폴더탭 file-list 패널뿐 아니라 탐색기 트리에도 적용).
+  - 요청 ②: 탐색기/폴더탭 영역에서 우클릭 시, 메뉴가 뜨기 전에 먼저
+    그 행이 선택 표시로 바뀌게 한다.
+  - 요청 ③(버그 신고): 폴더탭에서 폴더 우클릭 → Open File List로 새 탭을
+    열면 상태 표시줄에 `Error: target no longer exists: d:\projects`가
+    거짓으로 뜬다.
+  - PLAN 반영 없는 추가 요청, 반대 벤더 적대적 검증 생략(동일 조건 계속).
+  - **①**: `src/core/tree.ts`의 두 렌더 경로(`render()`의 일반 목록,
+    가상 스크롤/평탄화 목록 경로) 둘 다에서 `.tree-label`에 찍는 텍스트를
+    `item.node.isContainer ? `[${label}]` : label`로 바꿨다. WK-119와
+    동일한 원칙 — 아이콘 조회(`resolveIcon`)는 대괄호 없는 원본
+    `item.node.label`을 그대로 쓴다(특정 이름 폴더 전용 아이콘 매칭이
+    깨지지 않도록).
+  - **②**: 탐색기는 `main.ts`의 `sidebarContent`의 `contextmenu` 리스너
+    맨 앞에 `this.tree.focusItemById(nodeId)`를 추가했다(기존 좌클릭
+    선택과 동일한 공개 API 재사용). 폴더탭 레일은 `foldertabs.ts`의 행
+    `contextmenu` 리스너 맨 앞에 `this.activateTab(tab.id)`를 추가했다 —
+    이 레일엔 "활성" 외의 별도 "선택" 상태가 없어서, 기존에 이미 좌클릭이
+    쓰는 활성화 자체가 이 레일의 "선택 표시"에 해당한다고 판단했다.
+  - **② 부작용 대응**: `this.tree.focusItemById()`는 트리 전체를 다시
+    그린다(`render()`) — 이 리렌더가 열려 있던 우클릭 메뉴의 키보드
+    탐색(`contextmenu.ts`)과 원래 상호작용이 없던 경로였는데, 이제 우클릭
+    시점에 트리 컨테이너가 실제로 DOM 포커스를 갖게 되면서(`focusTree()`)
+    화살표/Enter가 컨텍스트 메뉴와 트리 양쪽에 동시에 전달될 수 있는
+    여지가 새로 생겼다. `src/core/contextmenu.ts`의 `handleKeydown()`이
+    처리하는 4개 키(Escape/ArrowUp/ArrowDown/Enter) 전부에
+    `e.stopPropagation()`을 추가해, 메뉴가 열려 있는 동안은 이 키들을
+    확실히 독점하도록 했다(`docs/reserved-keys.md` §2b가 원래 의도한
+    "우클릭 메뉴가 열려 있을 때만"의 배타성을 실제로 강제).
+  - **③ 원인**: `src/providers/filesystem.ts`의 `pathExists()`가 대상
+    경로의 "부모 디렉터리"를 문자열 마지막 구분자로 잘라내는데, 대상이
+    드라이브 루트 바로 아래(`D:\projects` 같은)면 그 결과가 `"D:"`
+    (드라이브 문자만, 구분자 없음)가 된다. Windows에서 `"D:"`는 그
+    드라이브의 루트가 아니라 "그 드라이브에서의 현재 작업 디렉터리"를
+    뜻하는 모호한 경로라, 엉뚱한 디렉터리를 읽거나 실패해 `entries.some(e
+    => e.path === targetPath)` 매칭이 항상 거짓이 되고 — 실제로는 존재하는
+    폴더가 "사라졌다"고 오판된다. 이미 `foldertabs.ts`의
+    `normalizePath()`가 탭 자신의 경로에 대해 정확히 같은 문제를 막고
+    있었는데, `pathExists()`가 부모 경로를 계산할 때는 같은 정규화를
+    빠뜨리고 있었다.
+  - **③ 수정**: `pathExists()`에서 부모 경로가 `/^[a-zA-Z]:$/`(대괄호
+    문자만)에 매치하면 구분자를 붙여 드라이브 루트로 정규화한다 —
+    `foldertabs.ts`의 기존 패턴을 그대로 가져왔다.
+  - `검증`: `npx tsc --noEmit`·`npm run build`·`npm run verify:dist`(0
+    differences) 통과. 임시 Electron 스모크 스크립트(작업용, 커밋하지 않고
+    삭제)로 실제 창을 띄워 세 가지 모두 확인했다: 드라이브 루트 바로
+    아래(`D:\wb-wk120-fixture-...`)에 폴더 탭을 추가·활성화해도, 우클릭
+    →`Open File List`로 새 탭을 열어도 상태 표시줄에 거짓 오류가 더 이상
+    안 뜸(③); 탐색기 트리의 루트·하위 폴더 모두 `[이름]`으로 표시되고
+    파일은 그대로임(①); 탐색기에서 파일 행을 우클릭하면 메뉴가 뜨는 시점에
+    그 행이 이미 `.selected` 클래스를 갖고 있고, 메뉴 자체도 정상적으로
+    2개 항목(Open as Viewer/Editor)을 보여줌(②); 폴더탭 우클릭 시 그 탭이
+    `.active`로 표시되고 메뉴가 5개 항목(Rename/Color/구분선/File List/
+    CMD/PowerShell)을 보여줌(②).
+  - **레거시 스위트에서 발견한, 실제 버그는 아닌 것으로 확인된 항목**:
+    `npm run verify:phase5`에 `P5-WK030-KEYBOARD`(우클릭 메뉴 화살표+Enter)
+    실패가 새로 늘었다. 원인을 직접 디버그 스크립트로 추적한 결과 — 이
+    v0.1 스위트가 테스트 도중 캡처해 둔 행 DOM 참조(`row` 변수)를 재사용해
+    **두 번째** `contextmenu` 이벤트를 그 **오래된(첫 번째 우클릭 이후
+    `focusItemById()`의 재렌더로 이미 DOM에서 떨어져 나간) 참조**에
+    디스패치하고 있었다 — 떨어져 나간 노드에 이벤트를 쏘면 실제
+    리스너까지 버블링되지 않아, 두 번째 클릭이 아예 무시되고 첫 번째
+    우클릭 때 뜬(메뉴가 기본적으로 켜져 있다는, 이미 알려진 WK-114 이전부터
+    있던 별개 사실 — `P5-FR-G5-DEFAULT-OFF`) 예전 메뉴가 그대로 남아
+    있던 것이다. 즉 이 스위트 자체의 "행 하나를 두 번 우클릭"하는 헬퍼가
+    "선택이 바뀌면 그 행의 DOM이 실제로 교체된다"는, 이 앱이 이미 어디서나
+    (좌클릭 선택 등) 쓰던 전제와 충돌한 것이지 신규 기능의 결함이 아니다 —
+    `app.tree`/`app.contextMenu`만 갖고 우클릭→화살표→Enter를 그대로
+    재현한 별도 디버그 스크립트(작업용, 삭제)에서는 정확히 기대한
+    항목("Second")이 실행되고 메뉴가 정상적으로 닫히는 것을 확인했다.
+  - 사용자가 직접 수동 테스트한다.
+
+- **폴더 file-list 탭 주소줄 위 여백 제거, 헤더 컬럼 경계 마우스 드래그
+  너비 조정 (WK-121)** (2026-09-23, 사용자 요청)
+  - 요청 ①: 주소줄(WK-117) 위쪽 여백 제거.
+  - 요청 ②: Name|Ext|Size|Date 헤더 경계를 마우스로 드래그해 너비 조정.
+    PLAN 반영 없는 추가 요청, 반대 벤더 적대적 검증 생략(동일 조건 계속).
+  - **①**: `src/style.css`의 `.folder-file-list-header`가 `padding:
+    10px`(사방 동일)였던 것을 `padding: 0 10px 10px`로 바꿔 위쪽만
+    없앴다.
+  - **②**: `RowListColumn.width`를 CSS 트랙 문자열(`'minmax(120px,
+    1fr)'`/`'90px'`)에서 **픽셀 숫자**로 바꿨다 — 드래그로 조정 가능한
+    상태를 표현하려면 문자열보다 숫자가 다루기 쉽고, Name 컬럼도 더 이상
+    `1fr`로 유연하지 않고 다른 컬럼과 똑같이 고정폭이어야 드래그 대상이
+    될 수 있어서다. `RowListController`가 `columnWidths: number[]`를
+    인스턴스 상태로 갖고, 헤더의 마지막 컬럼을 제외한 각 셀 오른쪽
+    가장자리에 `.rowlist-resize-handle`(작은 드래그 스트립)을 그린다.
+    드래그는 `beginColumnResize(colIndex, e)`가 처리하는데, **그
+    컬럼과 바로 다음 컬럼의 합만 고정한 채 그 둘 사이에서만** 폭을
+    재분배한다(`foldertabs.ts`의 드래그-순서변경이 쓰는 포인터 캡처
+    패턴과 동일) — 전체 그리드 폭 자체를 안 늘리는 의도적 선택이다. 만약
+    드래그로 전체 합이 늘어나게 했다면, 헤더(`.rowlist-header`)와
+    스크롤되는 목록 본문(`.tree-list`)이 서로 다른 요소라 가로 스크롤이
+    동기화되지 않는 문제가 생긴다 — 이 패널은 그런 데이터그리드급 동기화
+    스크롤을 갖추고 있지 않으므로, 합을 고정해 애초에 그 문제 자체가
+    생기지 않게 피했다. 양쪽 다 `MIN_COLUMN_WIDTH = 40`으로 클램프한다.
+    드래그 핸들 클릭은 `stopPropagation()`으로 헤더 셀 자신의 정렬 클릭
+    핸들러로 안 새게 막았다.
+  - `src/style.css`: `.rowlist-resize-handle`(폭 5px, `cursor:
+    col-resize`, hover/active 시 `--focus-ring` 색) 신설.
+    `.tree-row.rowlist-row`에서 `width: 100%` 강제를 뺐다 — 드래그로 두
+    컬럼 합이 패널 폭보다 커지는 경우는 이제 없지만(합 고정), 애초에
+    네 컬럼 합이 패널 자체보다 넓은 좁은 패널에서는 `.tree-row` 기본
+    규칙(`min-width:100%; width:max-content;`)의 가로 스크롤이 그대로
+    살아있게 두는 편이 내용을 잘라내는 것보다 낫다고 판단했다.
+  - `src/presets/folder-preset.ts`: `COLUMNS`를 픽셀 숫자로
+    다시 썼다(Name 260 · Ext 60 · Size 90 · Date 150).
+  - `검증`: `npx tsc --noEmit`·`npm run build`·`npm run verify:dist`
+    (0 differences, D-29 포함) 통과 — 처음에 핸들 CSS에 `width: 6px`를
+    썼다가 D-29 금지값(`6px`)에 걸려 `5px`로 바꿨다. 임시 Electron
+    스모크 스크립트(작업용, 커밋하지 않고 삭제)로 실제 창을 띄워: 주소줄이
+    패널 최상단에 완전히 붙어 있음(여백 0px)을 실측했고(①), Name/Ext
+    경계 핸들을 포인터 이벤트로 40px 드래그해 Name 260→280px·Ext
+    60→40px(40px 최소폭에 걸려 40만큼만 이동, 의도한 클램프대로)로
+    바뀌고 Size·Date는 그대로이며, 헤더 셀 폭과 실제 행 셀 폭이 정확히
+    일치하는 것까지 확인했다(②).
+  - 사용자가 직접 수동 테스트한다.
+
+- **탐색기 우클릭의 "선택 표시"를 좌클릭과 완전히 동등하게 정정 (WK-122)**
+  (2026-09-23, 사용자 요청 — WK-120 ②의 재정의)
+  - 요청: WK-120에서 구현한 "우클릭 시 선택 표시"가 실제로는 선택만 하고
+    있었는데, 사용자의 의도는 **좌클릭과 동일한 효과 + 우클릭 메뉴**였다.
+    파일 행에서 좌클릭은 선택뿐 아니라 그 파일을 미리보기로 여는데
+    (`this.tree.onOpen((node) => { if (!node.isContainer)
+    this.openFromEntry(node, 'preview'); });`, v0.2 FR-B1/FR-B4), 우클릭은
+    선택만 하고 그 "열기" 효과가 빠져 있었다.
+  - `src/main.ts`의 `sidebarContent`의 `contextmenu` 리스너에서
+    `this.tree.focusItemById(nodeId)`만 부르던 것을, 노드를
+    `this.tree.getNodeById(nodeId)`로 먼저 얻어 선택(`focusItemById`)한
+    뒤 **파일이면(`!node.isContainer`) `this.openFromEntry(node,
+    'preview')`도 호출**하도록 바꿨다 — 바로 위 `this.tree.onOpen(...)`
+    와이어링과 완전히 같은 가드·호출을 그대로 반복했다(`emitOpen`이
+    `TreeController` 비공개 메서드라 그 경로를 재사용할 수 없어서
+    복제했다). 폴더는 여전히 열리지 않는다(WK-114 그대로 유지).
+  - 폴더탭 레일의 우클릭(`activateTab(tab.id)`)은 원래도 그 탭의 좌클릭과
+    완전히 같은 효과(활성화 = 탐색기 루트 전환)라 손댈 게 없었다 —
+    이번 정정은 탐색기 쪽에만 해당한다.
+  - `검증`: `npx tsc --noEmit`·`npm run build`·`npm run verify:dist`(0
+    differences) 통과. 임시 Electron 스모크 스크립트(작업용, 커밋하지 않고
+    삭제)로 실제 창을 띄워, 파일 행 우클릭 시 에디터 패널이 실제로
+    새로 열리고(`panelsAfter: 1`) 대상 경로가 일치하며 `mode: 'viewer'`·
+    `isPreview: true`(좌클릭과 동일한 미리보기 모드)로 열리는 것,
+    그 행이 `.selected`로 표시되는 것, 우클릭 메뉴가 여전히 정상적으로
+    2개 항목(Open as Viewer/Editor)을 보여주는 것까지 함께 확인했다.
+  - 사용자가 직접 수동 테스트한다.
+
+- **탐색기 우클릭에서 파일 미리보기 열기를 다시 제거 — WK-122를 되돌림
+  (WK-123)** (2026-09-23, 사용자 요청 — WK-122의 정정)
+  - 요청: WK-122에서 추가한 "우클릭 = 좌클릭과 동일한 효과(파일 미리보기
+    열기 포함) + 메뉴"는 사용자가 의도한 게 아니었다. 실제로 원하는 것은
+    **"선택으로 표시 변경(기존 선택 항목이 다르면 그 행으로 선택 전환) +
+    우클릭 메뉴 표시"** — 즉 WK-120이 원래 하던 것(선택만, 파일을 열지
+    않음)이 맞았고, WK-122가 잘못 고친 것이었다.
+  - `src/main.ts`의 `sidebarContent`의 `contextmenu` 리스너에서 WK-122가
+    추가한 `if (!node.isContainer) this.openFromEntry(node, 'preview')`
+    호출을 뺐다. `this.tree.focusItemById(nodeId)`만 남아 WK-120 시점의
+    동작(선택 전환, 이미 선택된 행이면 사실상 아무 변화 없음)으로
+    돌아갔다.
+  - `검증`: `npx tsc --noEmit`·`npm run build`·`npm run verify:dist`(0
+    differences) 통과.
+  - 사용자가 직접 수동 테스트한다.
+
+- **View > Tab Mode를 파일 전용 2모드로 되돌리고, "탐색기 좌클릭 시 열리는
+  기본 모드 정의" + "우클릭으로 개별 지정"의 두 갈래로 재정립 (WK-124)**
+  (2026-09-23, 사용자 요청)
+  - 배경: WK-083 무렵(Level 1 open modes, 2026-09-19) `View > Tab Mode`가
+    활성 탭의 종류(kind)에 따라 내용이 바뀌도록 설계됐다 — 파일 탭이면
+    Editor/Viewer, 폴더 탭이면 File List(체크만)/CMD/PowerShell, 터미널
+    탭이면 CMD/PowerShell. 사용자가 이 설계 자체를 되돌리기로 했다.
+  - 요청: `Tab Mode`는 **항상** 파일 열기 모드(Editor/Viewer 2가지)만
+    보여준다. 이건 활성 탭의 모드를 바꾸는 게 아니라, **탐색기에서
+    좌클릭했을 때 파일이 여는 기본(default) 모드를 정의**하는 자리다.
+    특정 파일 하나만 다른 모드로 열고 싶으면 **우클릭**(Open as Viewer/
+    Open as Editor, 이미 있던 기능)으로 그때그때 따로 지정한다.
+  - 조사 결과 흥미로운 점: "기본 모드"를 저장하는 `getDefaultFileMode()`/
+    `setDefaultFileMode()`(`localStorage`의 `workbench:default-file-mode`
+    까지 다 갖춰진 코드)가 **이미 `main.ts`에 있었는데 어디서도 호출되는
+    곳이 없는 죽은 코드**였다 — 아마 Level 1 때 이런 용도로 준비해뒀다가
+    실제 UI 연결이 빠진 채 남은 것으로 보인다. 이번에 그 자리에 정확히
+    연결했다.
+  - `src/main.ts`의 `view:tab-mode` 서브메뉴 프로바이더를 전면 교체했다 —
+    활성 패널(`this.editor.getActivePanel()`)을 더 이상 보지 않고, 항상
+    `this.getDefaultFileMode()`를 체크 상태로 반영하는 Editor/Viewer
+    2항목만 반환한다. 각 항목의 `action`은 (기존의 `setActivePanelMode`
+    대신) `this.setDefaultFileMode(mode)`를 부른다 — 지금 열려 있는
+    탭에는 손대지 않고 **다음번 좌클릭부터** 적용되는 기본값만 바꾼다.
+    `FOLDER_KIND`/`TERMINAL_KIND` 분기, `getFolderModeLabel` 관련 코드를
+    통째로 지웠다(그 결과 `getFolderModeLabel` 자체가 어디서도 안 쓰여
+    `folder-preset.ts`에서 함수 정의까지 제거했다 — 죽은 코드 0줄 유지).
+    상태 표시줄 모드 버튼(클릭 시 토글)·우클릭의 Open as Viewer/
+    Editor는 **그대로 유지** — 이 둘은 원래도 "지금 이 탭 하나"의 모드를
+    바꾸는 것이었고, 이번 변경과 개념적으로 정확히 분리된다(기본값 vs
+    개별 지정).
+  - `검증`: `npx tsc --noEmit`·`npm run build`·`npm run verify:dist`(0
+    differences) 통과. 임시 Electron 스모크 스크립트(작업용, 커밋하지
+    않고 삭제)로 실제 창을 띄워 확인했다 — 폴더 file-list 탭이 활성인
+    상태에서도 `Tab Mode`가 정확히 `["Editor", "Viewer"]`만 보여줌(더 이상
+    폴더 모드로 안 바뀜); 메뉴에서 "Editor"를 고르면
+    `getDefaultFileMode()`와 `localStorage`가 함께 `"editor"`로 바뀌고
+    **활성 폴더 탭은 그대로 폴더 탭으로 남아 있음**(현재 탭 불변 확인);
+    그 직후 탐색기에서 파일을 좌클릭하면 새로 지정한 기본값
+    (`mode: "editor"`)으로 열림.
+  - 사용자가 직접 수동 테스트한다.
+
 ---
 
 ## Phase 1 — Folder Tabs 레일과 폴더 추가 (WK-083 ~ WK-087) — done, 2026-09-16

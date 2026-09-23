@@ -1207,6 +1207,11 @@ export class TreeController {
       );
 
       const iconHtml = renderIconMarkup(iconDesc);
+      // Display-only bracket wrap for a container row (v0.3 WK-120, user
+      // request) — icon resolution above stays on the raw `item.node.label`
+      // so a theme's special-named-folder icon lookup (e.g. "node_modules")
+      // still matches.
+      const displayLabel = item.node.isContainer ? `[${item.node.label}]` : item.node.label;
 
       html += `
         <div class="tree-row ${isSelected ? 'selected' : ''} ${isFocused ? 'focused' : ''}"
@@ -1217,7 +1222,7 @@ export class TreeController {
           ${indentUnitsHtml}
           ${twistieHtml}
           ${iconHtml}
-          <span class="tree-label">${escapeHtml(item.node.label)}</span>
+          <span class="tree-label">${escapeHtml(displayLabel)}</span>
         </div>
       `;
 
@@ -1350,6 +1355,8 @@ export class TreeController {
       );
 
       const iconHtml = renderIconMarkup(iconDesc);
+      // Same display-only bracket wrap as the other render path above (v0.3 WK-120).
+      const displayLabel = item.node.isContainer ? `[${item.node.label}]` : item.node.label;
 
       rowsHtml += `
         <div class="tree-row ${isSelected ? 'selected' : ''} ${isFocused ? 'focused' : ''}"
@@ -1360,7 +1367,7 @@ export class TreeController {
           ${indentUnitsHtml}
           ${twistieHtml}
           ${iconHtml}
-          <span class="tree-label">${escapeHtml(item.node.label)}</span>
+          <span class="tree-label">${escapeHtml(displayLabel)}</span>
         </div>
       `;
     }

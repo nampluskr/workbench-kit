@@ -239,7 +239,18 @@ export class FileSystemTreeProvider implements ITreeDataProvider {
     const normalized = targetPath.replace(/[/\\]+$/, '');
     const lastSepIndex = Math.max(normalized.lastIndexOf('/'), normalized.lastIndexOf('\\'));
     if (lastSepIndex <= 0) return true;
-    const parentPath = normalized.slice(0, lastSepIndex);
+    let parentPath = normalized.slice(0, lastSepIndex);
+    // A bare drive letter ("D:") is ambiguous on Windows — it means "the
+    // process's current directory on that drive", not the drive root, and
+    // can read/list an entirely unrelated directory (v0.3 WK-120 bug fix,
+    // user report: opening a folder tab whose path sat directly under a
+    // drive root, e.g. "D:\projects", falsely showed "target no longer
+    // exists"). Same normalization `foldertabs.ts`'s own `normalizePath()`
+    // already applies when a TAB's path is a bare drive letter — this is
+    // the same fix for a PARENT path computed here.
+    if (/^[a-zA-Z]:$/.test(parentPath)) {
+      parentPath += normalized.includes('/') ? '/' : '\\';
+    }
 
     const host = getHostFsBridge();
     if (!host?.readDir && !host?.read_dir) return true;
