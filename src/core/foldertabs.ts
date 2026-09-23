@@ -274,8 +274,6 @@ export class FolderTabsController {
 
   private listEl: HTMLElement;
   private addBtn: HTMLButtonElement;
-  private renameBtn: HTMLButtonElement;
-  private colorBtn: HTMLButtonElement | null;
   private iconTheme: IconThemeManager;
   /** The floating palette popup (v0.3 WK-112), or none while closed. */
   private colorPopupEl: HTMLElement | null = null;
@@ -305,21 +303,13 @@ export class FolderTabsController {
   constructor(
     listEl: HTMLElement,
     addBtn: HTMLButtonElement,
-    renameBtn: HTMLButtonElement,
-    iconTheme: IconThemeManager,
-    colorBtn?: HTMLButtonElement
+    iconTheme: IconThemeManager
   ) {
     this.listEl = listEl;
     this.addBtn = addBtn;
-    this.renameBtn = renameBtn;
-    this.colorBtn = colorBtn ?? null;
     this.iconTheme = iconTheme;
 
     this.addBtn?.addEventListener('click', () => this.onAddRequested?.());
-    // F2 is deliberately NOT bound here (D-4) — it stays reserved for the
-    // app view, so Rename only ever starts from this header icon.
-    this.renameBtn?.addEventListener('click', () => this.beginRename());
-    this.colorBtn?.addEventListener('click', () => this.toggleColorPicker());
     this.render();
   }
 
@@ -651,20 +641,17 @@ export class FolderTabsController {
   }
 
   /**
-   * Opens/closes the header's palette popup for the active tab (v0.3
-   * WK-112). Always targets the CURRENTLY active tab, whichever it is when
-   * the popup is opened — the button only ever affects the active tab
-   * (user request, 2026-09-17: header-icon trigger, active tab only, not
-   * a per-row right-click).
+   * Opens the colour palette popup for a specific tab at a given screen
+   * point (v0.3 WK-112, repositioned WK-115 out-of-plan addition,
+   * 2026-09-23 — user request) — the tab's own right-click menu is now the
+   * only trigger, not a header icon, so this targets whichever tab was
+   * right-clicked and opens at the click point rather than beneath a fixed
+   * button.
    */
-  private toggleColorPicker(): void {
-    if (this.colorPopupEl) {
-      this.closeColorPicker();
-      return;
-    }
-    const active = this.getActiveTab();
-    if (!active || !this.colorBtn) return;
-    this.showColorPicker(active.id);
+  public openColorPicker(tabId: string, x: number, y: number): void {
+    if (this.colorPopupEl) this.closeColorPicker();
+    if (!this.tabs.some((t) => t.id === tabId)) return;
+    this.showColorPicker(tabId, x, y);
   }
 
   private closeColorPicker(): void {
@@ -682,8 +669,7 @@ export class FolderTabsController {
     }
   }
 
-  private showColorPicker(tabId: string): void {
-    if (!this.colorBtn) return;
+  private showColorPicker(tabId: string, x: number, y: number): void {
     const popup = document.createElement('div');
     popup.className = 'foldertabs-color-popup';
     popup.setAttribute('role', 'menu');
@@ -717,13 +703,13 @@ export class FolderTabsController {
     popup.appendChild(noneBtn);
 
     document.body.appendChild(popup);
-    const btnRect = this.colorBtn.getBoundingClientRect();
     const popupRect = popup.getBoundingClientRect();
-    popup.style.top = `${Math.round(btnRect.bottom + 4)}px`;
-    // Right-aligned to the button, but never off the left edge of the
-    // window (the rail can sit close to it when narrow).
-    const left = Math.max(4, Math.round(btnRect.right - popupRect.width));
+    // Anchored at the right-click point, clamped so it never runs off the
+    // right or bottom edge of the window.
+    const left = Math.max(4, Math.min(Math.round(x), window.innerWidth - popupRect.width - 4));
+    const top = Math.max(4, Math.min(Math.round(y), window.innerHeight - popupRect.height - 4));
     popup.style.left = `${left}px`;
+    popup.style.top = `${top}px`;
     this.colorPopupEl = popup;
     this.colorPopupTargetId = tabId;
 
@@ -1150,19 +1136,10 @@ export class FolderTabsController {
       this.listEl.appendChild(row);
     }
 
-    if (this.renameBtn) {
-      const active = this.getActiveTab();
-      this.renameBtn.disabled = !active || active.origin === 'drive-scan';
-    }
-    if (this.colorBtn) {
-      // No origin restriction (v0.3 WK-112, user request, 2026-09-17) — a
-      // drive tab may be coloured too, unlike rename.
-      this.colorBtn.disabled = !this.getActiveTab();
-    }
-    // The popup always targets whichever tab was active when it opened —
-    // if that tab stopped being active (or was removed) since, it is now
-    // showing swatches for the wrong tab, so close it (v0.3 WK-112).
-    if (this.colorPopupTargetId !== null && this.colorPopupTargetId !== this.activeId) {
+    // The popup targets whichever tab was right-clicked when it opened
+    // (WK-115) — if that tab was closed since, it is now showing swatches
+    // for a tab that no longer exists, so close it.
+    if (this.colorPopupTargetId !== null && !this.tabs.some((t) => t.id === this.colorPopupTargetId)) {
       this.closeColorPicker();
     }
 

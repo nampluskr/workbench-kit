@@ -393,6 +393,100 @@
     기존 정책, WK-113 항목 마지막 문단과 같은 판단). 사용자가 직접 수동
     테스트한다.
 
+- **폴더 탭 헤더의 Rename/Color를 우클릭 메뉴로, 에디터의 폴더 file-list
+  탭을 실행 없는 제자리 탐색기로 재작성 (WK-115, WK-116)** (2026-09-23,
+  사용자 요청)
+  - 요청 1(WK-115): 폴더 탭 레일 헤더의 Rename·Color 아이콘을 없애고, 탭
+    우클릭 메뉴로 옮긴다 — `Rename` / `Color` / 구분선 / `Open File List` /
+    `Open Command Prompt` / `Open PowerShell`(WK-114에서 이미 붙인 3항목).
+  - 요청 2(WK-116): 에디터에 열리는 폴더 file-list 탭(WK-113)에서 "실행"
+    개념을 전부 제거하고 순수 제자리 탐색기로 바꾼다 — 클릭은 선택만, 폴더
+    더블클릭/Enter는 그 하위 폴더로 제자리 이동, 목록 맨 위 `..` 행(드라이브
+    루트에서는 숨김)을 Enter하면 상위로 이동, 방향키는 선택 이동만(좌우 없음),
+    우클릭 메뉴는 완전히 없앤다(폴더 동작은 WK-114로, 파일 동작은 이미 탐색기
+    쪽으로 이관된 상태). 아울러 폴더 탭 레일의 "Add Folder"·메뉴의
+    `Open Folder...`·단축키(`Ctrl+K Ctrl+O`) 어느 경로로도 에디터에 file-list
+    탭이 자동으로 열리지 않게 하고, 폴더 탭 우클릭의 `Open File List`만 그
+    탭을 연다.
+  - PLAN 반영 없는 추가 요청이며, 사용자가 직접 수동 테스트하는 조건으로
+    반대 벤더 적대적 검증은 생략했다(WK-114와 동일 조건).
+  - `src/core/contextmenu.ts`: `ContextMenuItem`에 `type?: 'normal' |
+    'separator'`를 추가했다. `separator` 행은 `.menu-separator`(기존
+    햄버거 메뉴가 쓰던 클래스, 새 CSS 0줄)로 그리고 클릭·포커스 이동·Enter
+    전부에서 건너뛴다 — `moveFocus()`를 "선택 가능한 인덱스만 모아 그 안에서
+    순환"하는 방식으로 다시 짰다(행 DOM과 `currentItems` 인덱스가 더 이상
+    1:1이 아니라 `data-item-id`로 행을 찾는 `getRowEl()`을 새로 뒀다).
+  - `src/core/foldertabs.ts`: 생성자에서 `renameBtn`/`colorBtn` 매개변수를
+    제거했다. `beginRename(id?)`는 그대로 두되(이미 명시적 id를 받을 수
+    있었다) 호출자를 헤더 클릭 → 우클릭 메뉴 액션으로 바꿨다. 색상 팔레트는
+    `toggleColorPicker()`(활성 탭 전용, 헤더 버튼 좌표 기준)를 공개
+    `openColorPicker(tabId, x, y)`로 바꿔 우클릭된 탭을 직접 타깃하고 우클릭
+    좌표 근처(뷰포트 경계로 clamp)에 뜨도록 했다. 팝업이 열려 있는 동안
+    타깃 탭이 닫히면 닫는 조건도 "활성 탭이 바뀌면"에서 "타깃 탭이 더 이상
+    존재하지 않으면"으로 바꿨다(우클릭 대상은 활성 탭이 아닐 수 있으므로).
+  - `src/core/layout.ts`: `#foldertabs-rename-btn`/`#foldertabs-color-btn`
+    버튼과 그 레이아웃 필드(`folderTabsRenameBtn`/`folderTabsColorBtn`)를
+    제거했다. 대체 CSS는 필요 없었다 — 둘 다 공용 `.foldertabs-action-btn`
+    클래스만 썼다.
+  - `src/main.ts`: `folderTabs.onContextMenu` 핸들러가 `tab.origin !==
+    'drive-scan'`일 때만 Rename 항목을 넣는다(드라이브 탭은 개별 이름변경이
+    없다는 기존 `beginRename()`의 제약과 동일) — Color는 WK-112 때부터
+    드라이브 탭도 허용이라 제약 없음. `handleOpenFolderDialog()`에서 탭
+    추가 뒤 자동으로 `openResource(..., FOLDER_KIND, 'file-list', 'pinned')`
+    를 부르던 줄을 지웠다.
+  - `src/core/rowlist.ts`: `onOpen`/`onConfirm`/`onEnterOpen`/
+    `onContextMenu` 4개 콜백을 `onActivate` 하나로 합쳤다(dblclick과 Enter
+    모두 이것 하나를 부른다 — "무엇을 열지"는 더 이상 이 컴포넌트의 개념이
+    아니라 호출자가 "activate가 뭘 뜻하는지" 결정). 클릭 핸들러는 `selectAndFocus`
+    만 남기고 콜백 호출을 뺐다. `contextmenu` DOM 리스너와 `handleContextMenu()`를
+    통째로 지웠다. 이 컴포넌트는 `folder-preset.ts` 하나만 쓰므로(다른 소비자
+    없음, grep으로 확인) 범용성을 유지할 이유가 없어 새 용도에 맞게 계약
+    자체를 좁혔다.
+  - `src/presets/folder-preset.ts`: 전면 재작성. `currentPath`를 패널
+    상태로 갖고, `load(path)`가 그 경로를 `readDirectory()`로 다시 읽어
+    `rowList.setItems()`로 교체하는 방식으로 "제자리 이동"을 구현했다.
+    `parentOf(path)`(새 헬퍼, `filesystem.ts`의 `pathExists()`가 쓰던
+    구분자-스캔 방식·`foldertabs.ts`의 드라이브 루트 정규화 방식을 그대로
+    빌려 씀)가 `null`이면(드라이브 루트) `..` 행을 안 붙이고, 아니면
+    목록 맨 앞에 `{id: '..', label: '..', isContainer: true}`를 붙인다.
+    `rowList.onActivate`에서 `item.id === '..'`면 `parentOf(currentPath)`로
+    이동, 컨테이너면 그 경로로 이동, 파일이면 아무 것도 안 한다. Refresh
+    버튼전용이던 `loadGeneration` 레이스 가드(WK-113의 Codex A22 R1 Major
+    finding)는 그대로 유지·재사용했다 — 빠른 `..`/하위 폴더 연타에도 같은
+    클래스의 stale-response 문제가 생길 수 있어서다. `FolderPresetDeps`가
+    `{iconTheme}`만 남아 `main.ts`의 `registerFolderPreset()` 호출도 그만큼
+    단순해졌다.
+  - `src/main.ts`의 `openFromEntry`/`openEntryOnEnter`/`OpenableEntry`는
+    건드리지 않았다(WK-114에서 이미 파일 전용 호출로 좁혀짐) — 다만
+    `onOpenToSide`(Ctrl+Enter)에도 같은 계열의 "탐색기가 폴더를 여는 경로"라
+    판단해 `if (node.isContainer) return;` 가드를 새로 추가했다. 사용자가
+    이번에 명시한 5개 항목엔 없었지만, "탐색기 영역은 순수 탐색+파일 선택만"
+    이라는 원칙을 Ctrl+Enter에도 동일하게 적용하는 것이 이전 항목(WK-114)의
+    취지와 맞다고 판단했다 — 범위를 벗어난 추가 판단이라 여기 명시해 둔다.
+  - `검증`: `npx tsc --noEmit`·`npm run build` 통과. `npm run verify:dist`
+    (0 differences), `npm run verify:phase2`, `npm run verify:phase3`,
+    `npm run verify:v03-phase3`(레일 토글·Explorer 연동), `npm run
+    verify:v05-phase5`(오류 상태) 전부 회귀 0건.
+  - **의도적으로 깨진 레거시 스위트** (모두 이번에 실제로 바뀐 옛 계약을
+    확인하던 것들이라 손대지 않음, 기존 v0.1/v0.2 정책과 동일 판단):
+    - `npm run verify:v03-phase1`: 헤더 아이콘 4개(Add Folder/Add All
+      Drives/Rename/Color) 존재·순서, `#foldertabs-rename-btn`의
+      disabled 상태를 확인하던 4개 단언 실패 — 헤더 버튼 자체가 이제 없다.
+    - `npm run verify:v03-phase2`: 이 스위트는 rename·drag 테스트마다
+      `#foldertabs-rename-btn`을 직접 클릭해 rename을 시작하는데, 그
+      요소가 이제 없어 첫 참조에서 바로 크래시하며 31개 단언 전체가
+      수집조차 안 된다 — Phase 2 자체의 rename/drag 로직이 아니라 그
+      로직을 "시작하는 방법"이 이번에 바뀐 것.
+    - `npm run verify:rowlist`(WK-113 전용): 우클릭 메뉴·click=preview/
+      dblclick=pinned를 확인하던 스위트라 `.workbench-context-menu`가
+      영영 안 뜨는 시점에 `querySelectorAll` 호출이 크래시한다 — 이 스위트가
+      확인하던 계약(열기 동작·우클릭 메뉴) 자체가 이번 요청으로 사라졌다.
+    - `npm run verify:open-modes`: `handleOpenFolderDialog()` 직후
+      `app.editor.getActivePanel()`이 file-list 패널일 것으로 가정하는데,
+      이제 그 자동 오픈이 없어 `getActivePanel()`이 `undefined`라
+      `.params` 접근에서 크래시한다.
+  - 사용자가 직접 수동 테스트한다.
+
 ---
 
 ## Phase 1 — Folder Tabs 레일과 폴더 추가 (WK-083 ~ WK-087) — done, 2026-09-16

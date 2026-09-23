@@ -175,15 +175,7 @@ export class WorkbenchApp {
     // Resource kind registration slot + minimal example presets (FR-I1, FR-I2, FR-I3, WK-025, WK-026)
     this.kindRegistry = new ResourceKindRegistry();
     registerFilePreset(this.kindRegistry);
-    registerFolderPreset(this.kindRegistry, {
-      iconTheme: this.iconTheme,
-      onOpenEntry: (entry) => this.openFromEntry(entry, 'preview'),
-      onConfirmEntry: (entry) => this.openFromEntry(entry, 'pinned'),
-      onEnterOpenEntry: (entry) => this.openEntryOnEnter(entry),
-      onContextMenuEntry: (entry, x, y) => this.contextMenu.show(
-        x, y, this.buildResourceContextMenuItems(entry.id, entry.label, entry.isContainer)
-      ),
-    });
+    registerFolderPreset(this.kindRegistry, { iconTheme: this.iconTheme });
     registerTerminalPreset(this.kindRegistry);
     this.editor.setComponentFactory(this.kindRegistry.createComponentFactory(this.editor));
     this.editor.setSaveHandler((panelId) => this.kindRegistry.save(panelId));
@@ -258,9 +250,7 @@ export class WorkbenchApp {
     this.folderTabs = new FolderTabsController(
       this.layout.folderTabsList,
       this.layout.folderTabsAddBtn,
-      this.layout.folderTabsRenameBtn,
-      this.iconTheme,
-      this.layout.folderTabsColorBtn
+      this.iconTheme
     );
     this.folderTabs.onAddRequested = () => this.handleOpenFolderDialog();
     // "Add All Drives" toggle (v0.3 WK-111): adds every accessible drive at
@@ -278,14 +268,27 @@ export class WorkbenchApp {
     this.folderTabs.onRelocateRequested = (id) => {
       void this.handleRelocateFolderTab(id);
     };
-    // A folder tab's own right-click menu (v0.3 WK-114, out-of-plan
-    // addition, 2026-09-23 — user request): the same three "open a folder"
-    // choices `buildResourceContextMenuItems` already offers for a
-    // container, now reachable from the rail itself, not just the Explorer
-    // tree. `tab.path` is the tab's actual filesystem root regardless of
-    // any user-set alias, so opened resources still title/target correctly.
+    // A folder tab's own right-click menu (v0.3 WK-114/WK-115, out-of-plan
+    // addition, 2026-09-23 — user request). Rename/Color used to be header
+    // icons that always acted on the active tab; both moved here so they
+    // act on whichever tab was actually right-clicked (WK-115). Below the
+    // separator: the same three "open a folder" choices
+    // `buildResourceContextMenuItems` already offers for a container, now
+    // reachable from the rail itself, not just the Explorer tree (WK-114).
+    // `tab.path` is the tab's actual filesystem root regardless of any
+    // user-set alias, so opened resources still title/target correctly.
+    // Rename is omitted for a 'drive-scan' tab (no individual rename of its
+    // own — same restriction `beginRename()` already enforces); Color has
+    // no such restriction (WK-112).
     this.folderTabs.onContextMenu((tab, x, y) => {
-      this.contextMenu.show(x, y, this.buildResourceContextMenuItems(tab.path, this.folderTabs.displayName(tab), true));
+      const items: ContextMenuItem[] = [];
+      if (tab.origin !== 'drive-scan') {
+        items.push({ id: 'foldertab:rename', label: 'Rename', action: () => this.folderTabs.beginRename(tab.id) });
+      }
+      items.push({ id: 'foldertab:color', label: 'Color', action: () => this.folderTabs.openColorPicker(tab.id, x, y) });
+      items.push({ id: 'foldertab:separator', label: '', type: 'separator' });
+      items.push(...this.buildResourceContextMenuItems(tab.path, this.folderTabs.displayName(tab), true));
+      this.contextMenu.show(x, y, items);
     });
     // onSelect fires on EVERY successful pick, even clicking the tab that
     // was already active — unlike onActivate below, which only fires on an
@@ -649,7 +652,12 @@ export class WorkbenchApp {
     // (v0.2 FR-P4).
     this.tree.onConfirm((node) => { if (!node.isContainer) this.openFromEntry(node, 'pinned'); });
     this.tree.onEnterOpen((node) => { if (!node.isContainer) this.openEntryOnEnter(node); });
+    // Ctrl+Enter "open to side" (FR-A14) is another opening trigger, same
+    // family as onOpen/onConfirm/onEnterOpen above — a folder no longer
+    // opens through the Explorer by any of them (WK-114, out-of-plan
+    // addition, 2026-09-23 — user request).
     this.tree.onOpenToSide((node) => {
+      if (node.isContainer) return;
       const activeGroup = this.editor.getActiveGroup();
       const besideGroup = activeGroup ? this.editor.findBesideGroup(activeGroup) : undefined;
       // No existing beside group means openBeside() will split a fresh
@@ -1520,14 +1528,18 @@ export class WorkbenchApp {
     closeWindow();
   }
 
-  /** `Open Folder...` always adds a new folder tab; it never replaces the active one (v0.3 D-3). */
+  /**
+   * `Open Folder...` always adds a new folder tab; it never replaces the
+   * active one (v0.3 D-3). It no longer also opens an editor file-list tab
+   * for it (WK-114, out-of-plan addition, 2026-09-23 — user request) — the
+   * folder tab rail's own "Open File List" context-menu action is now the
+   * only path that opens one.
+   */
   public async handleOpenFolderDialog(folderPath?: string): Promise<void> {
     const selected = folderPath ?? (await promptOpenFolderDialog());
     if (selected) {
       this.folderTabs.addTab(selected);
       await this.lastActivationPromise;
-      this.openResource(selected, selected.split(/[/\\]/).filter(Boolean).pop() || selected,
-        FOLDER_KIND, 'file-list', 'pinned');
     }
   }
 
@@ -1566,12 +1578,13 @@ export class WorkbenchApp {
   /**
    * The Explorer tree's click/dblclick/Enter opening rules (FR-B1 ~ FR-B4,
    * FR-A6, FR-A14, D-5 — see the `this.tree.onOpen`/`onConfirm`/`onEnterOpen`
-   * wiring below), generalised to any `OpenableEntry` so a folder tab's flat
-   * file-list rows (WK-113) get the exact same preview-vs-pinned semantics
-   * and the same dirty-preview confirmation gate the Explorer tree earned
-   * across three rounds of adversarial review (A9 R1/R3). Which kind an
-   * entry opens as is still an app-layer decision (`isContainer` is a
-   * generic field) — the shell itself never branches on file/folder.
+   * wiring below), with the dirty-preview confirmation gate the Explorer
+   * tree earned across three rounds of adversarial review (A9 R1/R3). Every
+   * current caller filters to `!node.isContainer` first (WK-114, out-of-plan
+   * addition, 2026-09-23 — user request: the Explorer no longer opens
+   * folders at all, only files) — `OpenableEntry`/`isContainer` stay generic
+   * here rather than narrowing the type to file-only, since the shell layer
+   * itself still must not branch on file/folder by name (INTENT 3, D-4).
    */
   private openFromEntry(entry: OpenableEntry, mode: EditorOpenMode): void {
     const openNow = (target: OpenableEntry, how: EditorOpenMode) =>

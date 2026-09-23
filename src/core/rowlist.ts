@@ -13,16 +13,23 @@ import { renderIconMarkup, escapeHtml } from './tree';
  * hardened around (A4, A9, A14) — a real regression risk for no shared
  * benefit, since the two shapes only overlap in the single-row visuals.
  *
- * That row-level visual/interaction contract IS shared on purpose: same
+ * That row-level visual contract IS shared on purpose: same
  * `.tree-list`/`.tree-row`/`.tree-icon` classes as the Explorer (so hover,
  * selection colour, focus ring and scrollbar styling come for free with 0
- * new CSS — .claude/rules/dockview-css.md's "hand-copy every vendor rule"
- * concern doesn't apply here, nothing new is introduced), the same
- * `IconThemeManager.resolveIcon()` (D-4 — this module still does not know
- * file extensions, it only receives `isContainer` per row), and the same
- * click/dblclick/Enter semantics (`onOpen` = preview, `onConfirm` =
- * pinned, `onEnterOpen` = preview-or-confirm, decided by the caller the
- * same way `main.ts`'s tree wiring already does for the Explorer).
+ * new CSS), and the same `IconThemeManager.resolveIcon()` (D-4 — this
+ * module still does not know file extensions, it only receives
+ * `isContainer` per row).
+ *
+ * Interaction is deliberately its OWN, narrower contract (WK-116,
+ * out-of-plan addition, 2026-09-23 — user request), not the Explorer
+ * tree's open-elsewhere rules: a click only selects, and dblclick/Enter
+ * both fire one `onActivate` — this view has no concept of "open a file
+ * viewer/editor", only "select a row" and "activate a row" (the caller,
+ * `folder-preset.ts`, decides what activating a row means: step into a
+ * subfolder or step up via a `..` row; a file row activating is simply
+ * not wired to anything by the caller). No right-click menu — a folder's
+ * own actions live on the folder tab rail now, a file's on the Explorer
+ * (WK-114/WK-115).
  */
 
 export interface RowListItem {
@@ -40,10 +47,8 @@ export class RowListController {
   private selectedId: string | null = null;
   private focusedId: string | null = null;
 
-  private onOpenCallbacks: ((item: RowListItem) => void)[] = [];
-  private onConfirmCallbacks: ((item: RowListItem) => void)[] = [];
-  private onEnterOpenCallbacks: ((item: RowListItem) => void)[] = [];
-  private onContextMenuCallbacks: ((item: RowListItem, x: number, y: number) => void)[] = [];
+  /** Fires on dblclick and on Enter alike — the caller decides what "activating" a row means. */
+  private onActivateCallbacks: ((item: RowListItem) => void)[] = [];
   private unsubscribeIconTheme: () => void;
   private unsubscribeColorTheme: () => void;
 
@@ -61,7 +66,6 @@ export class RowListController {
     this.container.appendChild(this.listEl);
 
     this.listEl.addEventListener('keydown', (e) => this.handleKeyDown(e));
-    this.listEl.addEventListener('contextmenu', (e) => this.handleContextMenu(e as MouseEvent));
 
     this.unsubscribeIconTheme = this.iconThemeManager.onThemeChange(() => this.render());
     // Codex A22 R1 (Major): the icon THEME event alone missed Color Theme
@@ -105,24 +109,9 @@ export class RowListController {
     this.container.removeChild(this.listEl);
   }
 
-  public onOpen(cb: (item: RowListItem) => void): () => void {
-    this.onOpenCallbacks.push(cb);
-    return () => { this.onOpenCallbacks = this.onOpenCallbacks.filter((c) => c !== cb); };
-  }
-
-  public onConfirm(cb: (item: RowListItem) => void): () => void {
-    this.onConfirmCallbacks.push(cb);
-    return () => { this.onConfirmCallbacks = this.onConfirmCallbacks.filter((c) => c !== cb); };
-  }
-
-  public onEnterOpen(cb: (item: RowListItem) => void): () => void {
-    this.onEnterOpenCallbacks.push(cb);
-    return () => { this.onEnterOpenCallbacks = this.onEnterOpenCallbacks.filter((c) => c !== cb); };
-  }
-
-  public onContextMenu(cb: (item: RowListItem, x: number, y: number) => void): () => void {
-    this.onContextMenuCallbacks.push(cb);
-    return () => { this.onContextMenuCallbacks = this.onContextMenuCallbacks.filter((c) => c !== cb); };
+  public onActivate(cb: (item: RowListItem) => void): () => void {
+    this.onActivateCallbacks.push(cb);
+    return () => { this.onActivateCallbacks = this.onActivateCallbacks.filter((c) => c !== cb); };
   }
 
   /**
@@ -137,16 +126,6 @@ export class RowListController {
     this.focusedId = id;
     this.render();
     this.listEl.focus();
-  }
-
-  private handleContextMenu(e: MouseEvent): void {
-    const row = (e.target as HTMLElement).closest('.tree-row') as HTMLElement | null;
-    const id = row?.getAttribute('data-id');
-    const item = id ? this.items.find((it) => it.id === id) : undefined;
-    if (!item) return;
-    e.preventDefault();
-    this.selectAndFocus(item.id);
-    this.onContextMenuCallbacks.forEach((cb) => cb(item, e.clientX, e.clientY));
   }
 
   private handleKeyDown(e: KeyboardEvent): void {
@@ -183,7 +162,7 @@ export class RowListController {
       e.preventDefault();
       e.stopPropagation();
       const item = curIdx >= 0 ? this.items[curIdx] : undefined;
-      if (item) this.onEnterOpenCallbacks.forEach((cb) => cb(item));
+      if (item) this.onActivateCallbacks.forEach((cb) => cb(item));
     }
   }
 
@@ -234,11 +213,10 @@ export class RowListController {
       if (!item) return;
       row.addEventListener('click', () => {
         this.selectAndFocus(item.id);
-        this.onOpenCallbacks.forEach((cb) => cb(item));
       });
       row.addEventListener('dblclick', () => {
         this.selectAndFocus(item.id);
-        this.onConfirmCallbacks.forEach((cb) => cb(item));
+        this.onActivateCallbacks.forEach((cb) => cb(item));
       });
     });
   }

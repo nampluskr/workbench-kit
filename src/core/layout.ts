@@ -19,9 +19,6 @@ export interface WorkbenchLayoutElements {
   folderTabsAddBtn: HTMLButtonElement;
   /** "Add All Drives" toggle (v0.3 WK-111) — see FolderTabsController.addDriveTabs/removeDriveTabs. */
   folderTabsDrivesBtn: HTMLButtonElement;
-  folderTabsRenameBtn: HTMLButtonElement;
-  /** "Set Tab Color" palette toggle (v0.3 WK-112) — see FolderTabsController.setTabColor. */
-  folderTabsColorBtn: HTMLButtonElement;
   folderTabsList: HTMLElement;
   /** Drag handle between the Folder Tabs rail and the Explorer (user request, 2026-09-17). */
   folderTabsResizeHandle: HTMLElement;
@@ -76,8 +73,6 @@ export function createWorkbenchLayout(container: HTMLElement): WorkbenchLayoutEl
             <span id="foldertabs-title" class="foldertabs-title">ROOTS</span>
             <div class="foldertabs-header-actions">
               <button id="foldertabs-add-btn" class="foldertabs-action-btn" title="Add Folder" aria-label="Add Folder"><i class="codicon codicon-new-folder"></i></button>
-              <button id="foldertabs-rename-btn" class="foldertabs-action-btn" title="Rename Folder Tab" aria-label="Rename Folder Tab" disabled><i class="codicon codicon-edit"></i></button>
-              <button id="foldertabs-color-btn" class="foldertabs-action-btn" title="Set Tab Color" aria-label="Set Tab Color" disabled><i class="codicon codicon-symbol-color"></i></button>
               <!-- Icon set by main.ts's refreshDrivesButtonState() (v0.3 WK-111) — it is per-icon-theme, so there is no single correct default to bake in here. -->
               <button id="foldertabs-drives-btn" class="foldertabs-action-btn" title="Add All Drives" aria-label="Add All Drives" aria-pressed="false"></button>
             </div>
@@ -149,8 +144,6 @@ export function createWorkbenchLayout(container: HTMLElement): WorkbenchLayoutEl
     folderTabsRail: container.querySelector('#foldertabs-rail') as HTMLElement,
     folderTabsAddBtn: container.querySelector('#foldertabs-add-btn') as HTMLButtonElement,
     folderTabsDrivesBtn: container.querySelector('#foldertabs-drives-btn') as HTMLButtonElement,
-    folderTabsRenameBtn: container.querySelector('#foldertabs-rename-btn') as HTMLButtonElement,
-    folderTabsColorBtn: container.querySelector('#foldertabs-color-btn') as HTMLButtonElement,
     folderTabsList: container.querySelector('#foldertabs-list') as HTMLElement,
     folderTabsResizeHandle: container.querySelector('#foldertabs-resize-handle') as HTMLElement,
     sidebar: container.querySelector('#sidebar') as HTMLElement,
