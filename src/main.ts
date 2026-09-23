@@ -932,8 +932,8 @@ export class WorkbenchApp {
 
   /**
    * Drag — or arrow-key nudge — the handle between the Folder Tabs rail and
-   * the Explorer to resize the rail. The rail starts at 200px, stops at
-   * 150px, and keeps the same ~60% of window cap and "lives only in a CSS
+   * the Explorer to resize the rail. The rail starts at 150px, stops at
+   * 100px, and keeps the same ~60% of window cap and "lives only in a CSS
    * variable, never persisted" rule as the Explorer.
    */
   private setupFolderTabsResize(): void {
@@ -941,7 +941,7 @@ export class WorkbenchApp {
     const rail = this.layout.folderTabsRail;
     if (!handle || !rail) return;
 
-    const MIN = 150;
+    const MIN = 100;
     const clamp = (px: number) => {
       const max = Math.max(MIN, Math.round((window.innerWidth || 1280) * 0.6));
       return Math.min(max, Math.max(MIN, px));

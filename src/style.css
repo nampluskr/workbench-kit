@@ -46,7 +46,7 @@
   /* Same default/min/max as the Explorer's own --sidebar-width, and resizable
      the same way (user request, 2026-09-17: apply the Explorer's width
      values to the Folder Tabs rail too). */
-  --foldertabs-width: 200px;
+  --foldertabs-width: 150px;
   --close-hover-bg: #e81123;
 }
 
@@ -657,10 +657,10 @@ html, body, #app {
  * shows, while this rail lists the sidebar's own dataset (v0.3 INTENT 3).
  */
 .workbench-foldertabs-rail {
-  /* Starts at 200px and clamps at 150px; see setupFolderTabsResize() for
+  /* Starts at 150px and clamps at 100px; see setupFolderTabsResize() for
      the matching drag/keyboard minimum and ~60% window maximum. */
   width: var(--foldertabs-width);
-  min-width: 150px;
+  min-width: 100px;
   background-color: var(--sidebar-bg);
   color: var(--sidebar-fg);
   display: flex;
@@ -1737,6 +1737,8 @@ body.is-resizing-sidebar {
   height: 22px;
   border-bottom: 1px solid var(--border-color);
   font-size: inherit;
+  /* Scrolled by hand to follow the list below (rowlist.ts), never by the user. */
+  overflow: hidden;
 }
 
 .rowlist-header-cell {
@@ -1799,6 +1801,10 @@ body.is-resizing-sidebar {
   text-overflow: ellipsis;
   white-space: nowrap;
   padding: 0 10px;
+}
+
+.rowlist-cell-end {
+  text-align: right;
 }
 
 .rowlist-cell-name {

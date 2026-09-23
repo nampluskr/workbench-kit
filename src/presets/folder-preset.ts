@@ -34,14 +34,15 @@ function parentOf(path: string): string | null {
 
 type SortColumn = 'name' | 'ext' | 'size' | 'date';
 
-// Starting pixel widths, each mutable afterward via the header's own drag
-// handles (v0.3 WK-121) — dragging shifts width between the two columns on
-// either side of a handle, so these four always sum to the same total.
+// Ext/Size/Date are fixed at their longest display value (13px system-ui,
+// measured 2026-09-23: `woff2`, `999.9 MB`, `YYYY-MM-DD HH:MM`) plus the
+// cell's 20px gutter. Name fills whatever is left between 150px and 500px,
+// and is the one column the header lets you drag (user request, 2026-09-23).
 const COLUMNS: RowListColumn[] = [
-  { id: 'name', label: 'Name', width: 260 },
-  { id: 'ext', label: 'Ext', width: 60 },
-  { id: 'size', label: 'Size', width: 90 },
-  { id: 'date', label: 'Date', width: 150 },
+  { id: 'name', label: 'Name', width: 150, fill: true, maxWidth: 500 },
+  { id: 'ext', label: 'Ext', width: 55, resizable: false },
+  { id: 'size', label: 'Size', width: 76, resizable: false, align: 'end' },
+  { id: 'date', label: 'Date', width: 125, resizable: false },
 ];
 
 /** No extension for a dotfile like ".env" (the leading dot is not a separator) or a name with no dot at all. */
@@ -56,13 +57,20 @@ function naturalCompare(a: string, b: string): number {
   return a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' });
 }
 
+/**
+ * Binary units (÷1024), but the unit steps up once the shown number would
+ * reach 1000 (user request, 2026-09-23) — so the number part never exceeds
+ * `999.9` and a value just under a unit reads `1.0 MB`, not `1023.9 KB` or,
+ * after rounding, `1024.0 KB`. 999.95 is where `toFixed(1)` would print
+ * `1000.0`, hence that threshold rather than 1000.
+ */
 function formatSize(bytes: number | null): string {
   if (bytes === null) return '';
-  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1000) return `${bytes} B`;
   const units = ['KB', 'MB', 'GB', 'TB'];
   let value = bytes / 1024;
   let unitIndex = 0;
-  while (value >= 1024 && unitIndex < units.length - 1) {
+  while (value >= 999.95 && unitIndex < units.length - 1) {
     value /= 1024;
     unitIndex++;
   }
@@ -110,17 +118,19 @@ function compareEntries(a: HostDirectoryEntry, b: HostDirectoryEntry, column: So
 
 /**
  * Folders always group before files regardless of sort column (user
- * request, 2026-09-23) — each group is sorted independently. A folder has
- * no meaningful Size, so sorting by Size falls back to Name for the
- * folder group only, matching Explorer's own behaviour (user decision,
- * 2026-09-23) — every other column (Name, Ext, Date) has a real value for
- * a folder and sorts normally.
+ * request, 2026-09-23) — each group is sorted independently. Only Name
+ * and Date reorder the folder group; a folder shows no Ext, and its Size
+ * is only known after a slow recursive walk, so sorting by Ext or Size
+ * leaves folders in fixed ascending Name order, whichever direction the
+ * files go (user decision, 2026-09-23).
  */
 function sortEntries(entries: HostDirectoryEntry[], column: SortColumn, direction: RowListSortDirection): HostDirectoryEntry[] {
   const folders = entries.filter((e) => e.isContainer);
   const files = entries.filter((e) => !e.isContainer);
-  const folderColumn: SortColumn = column === 'size' ? 'name' : column;
-  folders.sort((a, b) => compareEntries(a, b, folderColumn, direction));
+  const foldersFollowSort = column === 'name' || column === 'date';
+  folders.sort((a, b) => (foldersFollowSort
+    ? compareEntries(a, b, column, direction)
+    : compareEntries(a, b, 'name', 'asc')));
   files.sort((a, b) => compareEntries(a, b, column, direction));
   return [...folders, ...files];
 }
@@ -233,7 +243,7 @@ export function registerFolderPreset(registry: ResourceKindRegistry, deps: Folde
         ext: entry.isContainer ? '' : extractExt(entry.name),
         size: entry.isContainer
           ? (foldersCalculating.has(entry.path)
-            ? 'Calculating…'
+            ? 'Cal…'
             : (folderSizeCache.has(entry.path) ? formatSize(folderSizeCache.get(entry.path)!) : ''))
           : formatSize(entry.size),
         date: formatDate(entry.mtimeMs),
@@ -357,7 +367,7 @@ export function registerFolderPreset(registry: ResourceKindRegistry, deps: Folde
           applyEntries([...entriesByPath.values()]);
         });
       }
-      // Show "Calculating…" immediately for any newly marked folder —
+      // Show "Cal…" immediately for any newly marked folder —
       // the resolved value above re-renders again once known.
       if (needsRerender) applyEntries([...entriesByPath.values()]);
     });

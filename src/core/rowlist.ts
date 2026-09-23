@@ -44,8 +44,26 @@ import { renderIconMarkup, escapeHtml } from './tree';
 export interface RowListColumn {
   id: string;
   label: string;
-  /** Starting width in pixels — mutable after that, via the header's own drag handles (v0.3 WK-121). */
+  /**
+   * Starting width in pixels — mutable after that, via the header's own drag
+   * handles (v0.3 WK-121). For a `fill` column this is its MINIMUM width
+   * instead: it never renders narrower than this, auto-fill or dragged.
+   */
   width: number;
+  /**
+   * Grows to take whatever width the list has left over after every other
+   * column (at most one column should set this). Dragging its handle pins
+   * it to an explicit width — wider than the list scrolls horizontally,
+   * narrower leaves empty space on the right — and double-clicking the
+   * handle returns it to auto-fill (user request, 2026-09-23).
+   */
+  fill?: boolean;
+  /** Caps how wide a `fill` column grows on its own — past this, the leftover stays empty on the right. Dragging can still go wider. */
+  maxWidth?: number;
+  /** `false` gives this column no drag handle — a fixed width. Defaults to `true`. */
+  resizable?: boolean;
+  /** `'end'` right-aligns this column's row values (numbers, Explorer-style). Defaults to `'start'`. */
+  align?: 'start' | 'end';
 }
 
 export type RowListSortDirection = 'asc' | 'desc';
@@ -66,8 +84,14 @@ export class RowListController {
   private headerEl: HTMLElement;
   private listEl: HTMLElement;
   private columns: RowListColumn[];
-  /** Live per-column pixel widths, mutable via drag (v0.3 WK-121) — starts as each column's own `width`. */
+  /** Live per-column pixel widths, mutable via drag (v0.3 WK-121) — starts as each column's own `width`. A `fill` column's entry is its minimum while auto-filling, its pinned width once dragged. */
   private columnWidths: number[];
+  /** Index of the `fill` column, or -1 when there is none. */
+  private fillIndex: number;
+  /** `true` once the fill column has been dragged to an explicit width; double-clicking its handle clears it. */
+  private fillPinned = false;
+  /** Re-resolves the fill column whenever the list's own width changes (window resize, split, sidebar toggle). */
+  private resizeObserver: ResizeObserver | null = null;
 
   private items: RowListItem[] = [];
   private selectedId: string | null = null;
@@ -98,10 +122,10 @@ export class RowListController {
     this.iconThemeManager = iconThemeManager;
     this.columns = columns;
     this.columnWidths = columns.map((c) => c.width);
+    this.fillIndex = columns.findIndex((c) => c.fill);
     this.sortColumn = columns[0]?.id ?? 'name';
 
     this.container.classList.add('rowlist-container');
-    this.updateGridTemplate();
 
     this.headerEl = document.createElement('div');
     this.headerEl.className = 'rowlist-header';
@@ -115,8 +139,19 @@ export class RowListController {
     this.listEl.className = 'tree-list';
     this.listEl.tabIndex = 0;
     this.container.appendChild(this.listEl);
+    this.updateGridTemplate();
 
     this.listEl.addEventListener('keydown', (e) => this.handleKeyDown(e));
+    // The header sits outside the scrolling list, so it follows the list's
+    // horizontal scroll by hand — otherwise a column pinned wider than the
+    // list would scroll its rows out from under a header that stays put.
+    this.listEl.addEventListener('scroll', () => {
+      this.headerEl.scrollLeft = this.listEl.scrollLeft;
+    });
+    if (typeof ResizeObserver !== 'undefined') {
+      this.resizeObserver = new ResizeObserver(() => this.updateGridTemplate());
+      this.resizeObserver.observe(this.listEl);
+    }
 
     this.unsubscribeIconTheme = this.iconThemeManager.onThemeChange(() => this.render());
     // Codex A22 R1 (Major): the icon THEME event alone missed Color Theme
@@ -171,6 +206,8 @@ export class RowListController {
   }
 
   public dispose(): void {
+    this.resizeObserver?.disconnect();
+    this.resizeObserver = null;
     this.unsubscribeIconTheme();
     this.unsubscribeColorTheme();
     this.container.classList.remove('rowlist-container');
@@ -279,7 +316,33 @@ export class RowListController {
 
   /** Sets `--rowlist-grid` once via the DOM API (not baked into an HTML template string — .claude/rules/dockview-css.md's "no literal `style=` in rendered HTML" applies to this file too) as a CSS custom property every column cell inherits, the same pattern `foldertabs.ts` already uses for its tab accent colour. */
   private updateGridTemplate(): void {
-    this.container.style.setProperty('--rowlist-grid', this.columnWidths.map((w) => `${w}px`).join(' '));
+    const widths = this.resolveColumnWidths();
+    this.container.style.setProperty('--rowlist-grid', widths.map((w) => `${w}px`).join(' '));
+    // The header spans the list's full box, vertical scrollbar included;
+    // the rows only its client area. Padding the header by the scrollbar's
+    // width keeps the two horizontal scroll ranges equal, so the synced
+    // `scrollLeft` never leaves the header a few pixels off at the far end.
+    const gutter = Math.max(0, this.listEl.offsetWidth - this.listEl.clientWidth);
+    this.headerEl.style.paddingRight = `${gutter}px`;
+  }
+
+  /**
+   * Every column resolves to a whole pixel width — never `fr` — so the
+   * header and every row lay out identical tracks: a `1fr` track inside a
+   * `width: max-content` row would size each row to its own longest label.
+   * An auto-filling column takes the list's client width minus the others,
+   * floored at its own minimum (`width`) and capped at `maxWidth` if set.
+   */
+  private resolveColumnWidths(): number[] {
+    const widths = [...this.columnWidths];
+    if (this.fillIndex >= 0 && !this.fillPinned) {
+      const available = this.listEl.clientWidth;
+      const others = widths.reduce((sum, w, i) => (i === this.fillIndex ? sum : sum + w), 0);
+      const { width: min, maxWidth } = this.columns[this.fillIndex];
+      const fill = available > 0 ? Math.max(min, Math.floor(available - others)) : min;
+      widths[this.fillIndex] = maxWidth !== undefined ? Math.min(fill, Math.max(min, maxWidth)) : fill;
+    }
+    return widths;
   }
 
   private renderHeader(): void {
@@ -316,16 +379,24 @@ export class RowListController {
         }
       });
 
-      // A drag handle on the right edge of every column but the last
-      // (v0.3 WK-121, user request) — dragging resizes THIS column only,
-      // same as Explorer's own Details-view header.
-      if (index < this.columns.length - 1) {
+      // A drag handle on the right edge of every resizable column but the
+      // last (v0.3 WK-121, user request) — dragging resizes THIS column
+      // only, same as Explorer's own Details-view header.
+      if (index < this.columns.length - 1 && col.resizable !== false) {
         const handle = document.createElement('div');
         handle.className = 'rowlist-resize-handle';
         // A click landing on the handle (drag or not) must never reach the
         // cell's own `activate` (sort) click listener above.
         handle.addEventListener('click', (e) => e.stopPropagation());
         handle.addEventListener('pointerdown', (e) => this.beginColumnResize(index, e));
+        if (index === this.fillIndex) {
+          handle.title = 'Double-click to fit';
+          handle.addEventListener('dblclick', (e) => {
+            e.stopPropagation();
+            this.fillPinned = false;
+            this.updateGridTemplate();
+          });
+        }
         cell.appendChild(handle);
       }
 
@@ -336,13 +407,14 @@ export class RowListController {
   private static readonly MIN_COLUMN_WIDTH = 40;
 
   /**
-   * Dragging the handle between column `colIndex` and the next one shifts
-   * width between exactly that pair, holding their COMBINED width fixed —
-   * deliberately not "grow the whole grid past the container", which would
-   * need the header and the scrollable row list below to scroll in sync
-   * (a data-grid feature this simple panel does not have). Widening one
-   * column narrows its neighbour by the same amount, clamped so neither
-   * goes below `MIN_COLUMN_WIDTH` (v0.3 WK-121, user request).
+   * Dragging a column's handle resizes that column alone; the columns to
+   * its right keep their widths and move with it, so the grid's total
+   * width changes — past the list's width it scrolls horizontally, header
+   * included (see the constructor's scroll sync). Dragging the fill column
+   * pins it to the dragged width, floored at its own minimum; any other
+   * column is floored at `MIN_COLUMN_WIDTH`, and an auto-filling column
+   * absorbs its change (user request, 2026-09-23 — replaces WK-121's
+   * pair-sharing drag).
    */
   private beginColumnResize(colIndex: number, e: PointerEvent): void {
     if (e.button !== 0) return;
@@ -350,8 +422,9 @@ export class RowListController {
     e.stopPropagation();
     const handle = e.currentTarget as HTMLElement;
     const startX = e.clientX;
-    const startWidth = this.columnWidths[colIndex];
-    const pairTotal = startWidth + this.columnWidths[colIndex + 1];
+    const isFill = colIndex === this.fillIndex;
+    const startWidth = this.resolveColumnWidths()[colIndex];
+    const min = isFill ? this.columns[colIndex].width : RowListController.MIN_COLUMN_WIDTH;
     const pointerId = e.pointerId;
     try {
       handle.setPointerCapture(pointerId);
@@ -361,10 +434,8 @@ export class RowListController {
 
     const onMove = (ev: PointerEvent) => {
       if (ev.pointerId !== pointerId) return;
-      const min = RowListController.MIN_COLUMN_WIDTH;
-      const next = Math.max(min, Math.min(startWidth + (ev.clientX - startX), pairTotal - min));
-      this.columnWidths[colIndex] = next;
-      this.columnWidths[colIndex + 1] = pairTotal - next;
+      this.columnWidths[colIndex] = Math.max(min, Math.round(startWidth + (ev.clientX - startX)));
+      if (isFill) this.fillPinned = true;
       this.updateGridTemplate();
     };
     const cleanup = () => {
@@ -415,7 +486,8 @@ export class RowListController {
           </span>
       `;
       for (const col of this.columns.slice(1)) {
-        cellsHtml += `<span class="rowlist-cell">${escapeHtml(item.columns?.[col.id] ?? '')}</span>`;
+        const alignClass = col.align === 'end' ? ' rowlist-cell-end' : '';
+        cellsHtml += `<span class="rowlist-cell${alignClass}">${escapeHtml(item.columns?.[col.id] ?? '')}</span>`;
       }
       html += `
         <div class="tree-row rowlist-row ${isSelected ? 'selected' : ''} ${isFocused ? 'focused' : ''} ${isMarked ? 'marked' : ''}"
