@@ -3,7 +3,7 @@ import { setupWindowControls, setupResizeGrips, closeWindow } from './core/windo
 import { ConfirmDialogController } from './core/dialog';
 import { AboutDialogController } from './core/about';
 import { StatusMessageController } from './core/statusmessage';
-import { TextEditorView, setEditorColorTheme, getLineNumbersVisible, setLineNumbersVisible, findTextViewWithin, type EditCommandId } from './core/texteditor';
+import { TextEditorView, setEditorColorTheme, getLineNumbersVisible, setLineNumbersVisible, getWordWrapEnabled, setWordWrapEnabled, findTextViewWithin, type EditCommandId } from './core/texteditor';
 import { MenuController } from './core/menu';
 import { ActivityBarController } from './core/activitybar';
 import { ViewStateManager } from './core/viewstate';
@@ -493,6 +493,7 @@ export class WorkbenchApp {
     this.menu.setAction('view:toggle-titlebar', toggleTitlebar);
     this.menu.setAction('view:toggle-statusbar', toggleStatusbar);
     this.menu.setAction('view:toggle-foldertabs', () => this.viewState.toggleFolderTabs());
+    this.menu.setAction('view:toggle-word-wrap', () => setWordWrapEnabled(!getWordWrapEnabled()));
     this.menu.setAction('view:toggle-line-numbers', () => setLineNumbersVisible(!getLineNumbersVisible()));
     this.menu.setAction('view:zen-mode', () => this.viewState.toggleZenMode());
     // Each row's check mark is read from the live state whenever the menu is
@@ -508,6 +509,7 @@ export class WorkbenchApp {
     this.menu.setCheckedProvider('view:toggle-statusbar', () => this.viewState.getState().statusbarVisible);
     // The Activity Bar icon and this row watch the same state (v0.3 D-2).
     this.menu.setCheckedProvider('view:toggle-foldertabs', () => this.viewState.getState().folderTabsVisible);
+    this.menu.setCheckedProvider('view:toggle-word-wrap', () => getWordWrapEnabled());
     this.menu.setCheckedProvider('view:toggle-line-numbers', () => getLineNumbersVisible());
 
     // One positive setting replaces the former pair of mode rows. Checked is
@@ -534,6 +536,8 @@ export class WorkbenchApp {
       { id: 'view:appearance:separator-theme', label: '', type: 'separator' },
       { id: 'view:toggle-titlebar', label: 'Show Title Bar' },
       { id: 'view:toggle-statusbar', label: 'Show Status Bar' },
+      // Wraps text / document files at the tab width (user request, 2026-09-24).
+      { id: 'view:toggle-word-wrap', label: 'Word Wrap' },
       { id: 'view:toggle-line-numbers', label: 'Show Line Numbers' },
       { id: 'view:appearance:separator-zen', label: '', type: 'separator' },
       { id: 'view:zen-mode', label: 'Zen Mode', shortcut: 'F11' },

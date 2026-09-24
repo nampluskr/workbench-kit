@@ -1,18 +1,20 @@
 import {
-  clearFilter,
   getFilter,
   getKnownExtensions,
   onFilterChange,
   parseExtensionList,
-  setExclude,
-  setInclude,
+  setFilter,
+  type ExtensionFilter,
 } from '../providers/extension-filter';
 
 /**
  * The File Filter popup (user request, 2026-09-23 — D-12), opened from the
- * Activity Bar's filter button or View > File Filter. Every change applies
- * at once — there is no Apply/Cancel — and the popup redraws itself from
- * the shared filter state whenever that changes.
+ * Activity Bar's filter button or View > File Filter. Picks are a draft
+ * inside the popup until Apply writes them to the shared filter and closes
+ * it; Escape or a click outside closes without applying (user request,
+ * 2026-09-24). Clear resets the draft to "no filter" — Apply still commits
+ * it. A filter change made elsewhere (View > File Filter > Clear Filter)
+ * re-seeds the draft.
  *
  * - Include: "All files (*.*)" by default. Unticking it lets you pick
  *   extensions; unpicking the last one goes back to "All" by itself, so an
@@ -26,6 +28,8 @@ export class ExtensionFilterPanel {
   private anchor: HTMLElement | null = null;
   /** "All files" unticked with nothing picked yet — a UI-only state; the filter itself is still "all". */
   private includePicking = false;
+  /** Unapplied picks; Apply writes them to the shared filter. */
+  private draft: ExtensionFilter = { include: null, exclude: [] };
   private unsubscribe: (() => void) | null = null;
   private readonly onDocPointerDown = (e: PointerEvent) => {
     const target = e.target as Node;
@@ -54,6 +58,7 @@ export class ExtensionFilterPanel {
     if (this.el) this.close();
     this.anchor = anchor;
     this.includePicking = false;
+    this.draft = getFilter();
     const el = document.createElement('div');
     el.className = 'file-filter-panel';
     el.setAttribute('role', 'dialog');
@@ -62,7 +67,11 @@ export class ExtensionFilterPanel {
     this.el = el;
     this.render();
     this.position();
-    this.unsubscribe = onFilterChange(() => this.render());
+    this.unsubscribe = onFilterChange(() => {
+      this.draft = getFilter();
+      this.includePicking = false;
+      this.render();
+    });
     document.addEventListener('pointerdown', this.onDocPointerDown, true);
     document.addEventListener('keydown', this.onDocKeyDown, true);
     el.querySelector<HTMLElement>('input, button')?.focus();
@@ -99,8 +108,10 @@ export class ExtensionFilterPanel {
     if (!el) return;
     // Keep keyboard focus on the same control across the redraw a change triggers.
     const focusedKey = (document.activeElement as HTMLElement | null)?.dataset?.filterKey;
-    const filter = getFilter();
-    const known = getKnownExtensions();
+    const filter = this.draft;
+    const applied = getFilter();
+    // Picked-but-unapplied extensions stay listed even if no folder showed them yet.
+    const known = [...new Set([...getKnownExtensions(), ...(filter.include ?? []), ...filter.exclude])].sort();
     const includeAll = filter.include === null;
     const picking = !includeAll || this.includePicking;
 
@@ -114,7 +125,7 @@ export class ExtensionFilterPanel {
     const inc = this.section('Include');
     const allRow = this.checkbox('All files (*.*)', !picking, 'include:all', (checked) => {
       this.includePicking = !checked;
-      if (checked) setInclude(null);
+      if (checked) this.setDraft({ include: null });
       else this.render();
     });
     inc.appendChild(allRow);
@@ -122,22 +133,35 @@ export class ExtensionFilterPanel {
       if (next.length === 0) {
         // Unpicking the last extension returns to "All files".
         this.includePicking = false;
-        setInclude(null);
+        this.setDraft({ include: null });
       } else {
-        setInclude(next);
+        this.setDraft({ include: next });
       }
     }));
-    inc.appendChild(this.addField('include', !picking, (exts) => setInclude([...(filter.include ?? []), ...exts])));
+    inc.appendChild(this.addField('include', !picking, (exts) => this.setDraft({ include: [...(filter.include ?? []), ...exts] })));
     el.appendChild(inc);
 
     // Exclude
     const exc = this.section('Exclude');
-    exc.appendChild(this.extensionList(known, filter.exclude, false, 'exclude', (next) => setExclude(next)));
-    exc.appendChild(this.addField('exclude', false, (exts) => setExclude([...filter.exclude, ...exts])));
+    exc.appendChild(this.extensionList(known, filter.exclude, false, 'exclude', (next) => this.setDraft({ exclude: next })));
+    exc.appendChild(this.addField('exclude', false, (exts) => this.setDraft({ exclude: [...filter.exclude, ...exts] })));
     el.appendChild(exc);
 
     const actions = document.createElement('div');
     actions.className = 'file-filter-actions';
+    const apply = document.createElement('button');
+    apply.type = 'button';
+    apply.className = 'file-filter-btn';
+    apply.textContent = 'Apply';
+    apply.dataset.filterKey = 'apply';
+    apply.disabled = sameFilter(filter, applied);
+    apply.addEventListener('click', () => {
+      const next = this.draft;
+      const anchor = this.anchor;
+      this.close();
+      setFilter(next);
+      anchor?.focus();
+    });
     const clear = document.createElement('button');
     clear.type = 'button';
     clear.className = 'file-filter-btn';
@@ -146,13 +170,17 @@ export class ExtensionFilterPanel {
     clear.disabled = includeAll && filter.exclude.length === 0 && !this.includePicking;
     clear.addEventListener('click', () => {
       this.includePicking = false;
-      clearFilter();
-      this.render();
+      this.setDraft({ include: null, exclude: [] });
     });
-    actions.appendChild(clear);
+    actions.append(apply, clear);
     el.appendChild(actions);
 
     if (focusedKey) el.querySelector<HTMLElement>(`[data-filter-key="${CSS.escape(focusedKey)}"]`)?.focus();
+  }
+
+  private setDraft(patch: Partial<ExtensionFilter>): void {
+    this.draft = { ...this.draft, ...patch };
+    this.render();
   }
 
   private section(label: string): HTMLElement {
@@ -228,4 +256,15 @@ export class ExtensionFilterPanel {
     input.addEventListener('blur', commit);
     return input;
   }
+}
+
+function sameList(a: readonly string[], b: readonly string[]): boolean {
+  const x = [...a].sort();
+  const y = [...b].sort();
+  return x.length === y.length && x.every((v, i) => v === y[i]);
+}
+
+function sameFilter(a: ExtensionFilter, b: ExtensionFilter): boolean {
+  const inc = a.include === null || b.include === null ? a.include === b.include : sameList(a.include, b.include);
+  return inc && sameList(a.exclude, b.exclude);
 }

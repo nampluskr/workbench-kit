@@ -63,6 +63,12 @@ export interface TextViewOptions {
    * read as "back to saved").
    */
   savedValue?: string;
+  /**
+   * Whether this view follows View > Appearance > Word Wrap (user request,
+   * 2026-09-24). The caller decides which content is prose worth wrapping —
+   * the shell knows no file types (D-4).
+   */
+  wrappable?: boolean;
 }
 
 /**
@@ -144,6 +150,39 @@ export function setLineNumbersVisible(visible: boolean): void {
 }
 
 /**
+ * Word wrap at the view's width, like Notepad's (View > Appearance > Word
+ * Wrap, user request, 2026-09-24). One shell-wide switch, on by default and
+ * remembered across restarts; it only reaches views created `wrappable`.
+ */
+const WORD_WRAP_STORAGE_KEY = 'workbench:word-wrap';
+
+function loadWordWrapEnabled(): boolean {
+  try {
+    return typeof localStorage === 'undefined' || localStorage.getItem(WORD_WRAP_STORAGE_KEY) !== 'false';
+  } catch {
+    return true;
+  }
+}
+
+let wordWrapEnabled = loadWordWrapEnabled();
+
+export function getWordWrapEnabled(): boolean {
+  return wordWrapEnabled;
+}
+
+export function setWordWrapEnabled(enabled: boolean): void {
+  wordWrapEnabled = enabled;
+  try {
+    if (typeof localStorage !== 'undefined') localStorage.setItem(WORD_WRAP_STORAGE_KEY, String(enabled));
+  } catch {
+    // Ignore localStorage errors (quota, disabled storage, ...).
+  }
+  for (const view of liveTextViews) {
+    view.applyWordWrapOption();
+  }
+}
+
+/**
  * Reusable monaco-backed text/code view (D-18, FR-P1 ~ FR-P6). The shell
  * carries monaco as a default part; any preset may use this instead of
  * importing monaco itself (FR-P6). Turned on: syntax colorization, find/
@@ -161,11 +200,13 @@ export class TextEditorView {
   private savedValue: string;
   private dirtyChangeCallbacks: ((dirty: boolean) => void)[] = [];
   private contentChangeCallbacks: (() => void)[] = [];
+  private readonly wrappable: boolean;
 
   constructor(options: TextViewOptions) {
     this.element = document.createElement('div');
     this.element.className = 'text-editor-view';
     this.savedValue = options.savedValue ?? options.value;
+    this.wrappable = Boolean(options.wrappable);
 
     this.model = monaco.editor.createModel(options.value, options.language || 'plaintext');
 
@@ -188,6 +229,9 @@ export class TextEditorView {
       // each power of ten (user request, 2026-09-17). Monaco still widens
       // it automatically past 999 lines — this only sets the floor.
       lineNumbersMinChars: 3,
+      // 'on' wraps at the view's width; automaticLayout re-wraps it when the
+      // tab area is resized or split.
+      wordWrap: this.wrappable && wordWrapEnabled ? 'on' : 'off',
       // Autocomplete / language service off (X-12, FR-P5)
       quickSuggestions: false,
       suggestOnTriggerCharacters: false,
@@ -214,6 +258,16 @@ export class TextEditorView {
   /** Module-internal: applies a new global line-numbers setting to this one live view. */
   public applyLineNumbersOption(visible: boolean): void {
     this.editor.updateOptions({ lineNumbers: visible ? 'on' : 'off' });
+  }
+
+  /** Module-internal: applies the global Word Wrap setting to this view, if it is wrappable. */
+  public applyWordWrapOption(): void {
+    this.editor.updateOptions({ wordWrap: this.wrappable && wordWrapEnabled ? 'on' : 'off' });
+  }
+
+  /** Test-support only: the monaco `wordWrap` option currently in effect. */
+  public getWordWrapForTest(): string {
+    return this.editor.getOption(monaco.editor.EditorOption.wordWrap);
   }
 
   public getValue(): string {

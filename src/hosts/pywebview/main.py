@@ -1696,9 +1696,14 @@ def main():
     # across exactly two process launches, not the real shared one above —
     # otherwise a test run would pollute (or be polluted by) whatever the
     # real app or another test left in %LOCALAPPDATA%\workbench-kit\pywebview.
+    # Every test-suite launch (any `--...-test` flag) gets a throwaway profile
+    # too: the suites used to share the real one, so a File Filter or Word Wrap
+    # choice made in the running app leaked into them — an "Include: md"
+    # filter hid the .txt fixtures and failed whole suites (2026-09-24).
+    is_any_test_launch = is_smoke_test or any(arg.startswith("--") and arg.endswith("-test") for arg in sys.argv[1:])
     storage_path = os.environ.get("WB_STORAGE_PATH_OVERRIDE") or (
-        tempfile.mkdtemp(prefix="wb-smoke-py-")
-        if is_smoke_test
+        tempfile.mkdtemp(prefix="wb-smoke-py-" if is_smoke_test else "wb-test-py-")
+        if is_any_test_launch
         else os.path.join(
             os.environ.get("LOCALAPPDATA") or tempfile.gettempdir(),
             "workbench-kit",

@@ -86,7 +86,12 @@
   /* Soft gray ring for the tree cursor and the focused tab: still >= 3:1 on
      the sidebar and on the selection (FR-F11), without the old white glare. */
   --focus-ring: #7a7a7a;
-  --tree-indent-guide: rgba(255, 255, 255, 0.1);
+  /* Area boundaries — rail | Explorer | editor (user request, 2026-09-24).
+     --border-color sits within a shade of the sidebar here, so it vanished;
+     this is the title bar's own gray. The indent guides were dimmed at the
+     same time so a tree guide no longer out-draws an area edge. */
+  --area-divider: #505050;
+  --tree-indent-guide: rgba(255, 255, 255, 0.06);
   --scrollbar-track: rgba(255, 255, 255, 0.04);
   --scrollbar-thumb: rgba(204, 204, 204, 0.28);
   --scrollbar-thumb-hover: rgba(204, 204, 204, 0.46);
@@ -147,7 +152,10 @@
   --tab-inactive-bg: #f0f0f0;
   --tab-inactive-fg: #6c6c6c;
   --focus-ring: #8a8a8a;
-  --tree-indent-guide: rgba(0, 0, 0, 0.15);
+  /* The title bar matches the sidebar in this theme, so the area edge takes
+     its own darker gray (user request, 2026-09-24). */
+  --area-divider: #c8c8c8;
+  --tree-indent-guide: rgba(0, 0, 0, 0.09);
   --scrollbar-track: rgba(0, 0, 0, 0.03);
   --scrollbar-thumb: rgba(100, 100, 100, 0.35);
   --scrollbar-thumb-hover: rgba(100, 100, 100, 0.55);
@@ -206,7 +214,9 @@
   --tab-inactive-bg: #a6a6a6;
   --tab-inactive-fg: #333333;
   --focus-ring: #505050;
-  --tree-indent-guide: rgba(0, 0, 0, 0.2);
+  /* See the light theme's note above (user request, 2026-09-24). */
+  --area-divider: #7a7a7a;
+  --tree-indent-guide: rgba(0, 0, 0, 0.12);
   --scrollbar-track: rgba(0, 0, 0, 0.06);
   --scrollbar-thumb: rgba(17, 17, 17, 0.30);
   --scrollbar-thumb-hover: rgba(17, 17, 17, 0.48);
@@ -666,7 +676,8 @@ html, body, #app {
   display: flex;
   flex-direction: column;
   flex-shrink: 0;
-  border-right: 1px solid var(--border-color);
+  /* No right border: the Explorer's (or, with it hidden, the editor's) left
+     edge draws this boundary (user request, 2026-09-24). */
 }
 
 /* Drag handle between the Folder Tabs rail and the Explorer (user request,
@@ -1028,7 +1039,17 @@ body.is-resizing-foldertabs {
   display: flex;
   flex-direction: column;
   flex-shrink: 0;
-  border-right: 1px solid var(--border-color);
+  /* Each area boundary is the LEFT edge of the area to its right, so hiding
+     any area never leaves a doubled or missing line (user request,
+     2026-09-24): this one is rail | Explorer; the editor draws
+     Explorer | editor. */
+  border-left: 1px solid var(--area-divider);
+}
+
+/* With the rail hidden the Explorer sits against the Activity Bar, which has
+   its own edge. */
+.workbench-foldertabs-rail.hidden ~ .workbench-sidebar {
+  border-left: none;
 }
 
 /* Drag handle between the explorer and the editor area (v0.2 FR-X5). */
@@ -1227,6 +1248,13 @@ body.is-resizing-sidebar {
   overflow: hidden;
   position: relative;
   background-color: var(--editor-bg);
+  /* The editor's left edge, whatever sits beside it (user request,
+     2026-09-24) — see --area-divider. */
+  border-left: 1px solid var(--area-divider);
+}
+
+.workbench-root.zen-mode .workbench-main-area {
+  border-left: none;
 }
 
 .editor-container {
@@ -2135,6 +2163,7 @@ body.is-resizing-sidebar {
 .file-filter-actions {
   display: flex;
   justify-content: flex-end;
+  gap: 5px;
   margin-top: 10px;
 }
 

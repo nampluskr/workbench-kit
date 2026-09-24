@@ -1,8 +1,9 @@
 // Regression coverage for the global file extension filter (D-12, user
 // request 2026-09-23): the Activity Bar button and its filled/unfilled icon,
 // the File Filter popup (Include "All files" / extension checklist / typed
-// extensions, Exclude, Clear, Escape), Exclude winning over Include, the
-// "(no extension)" entry, folders always staying, the Explorer tree keeping
+// extensions, Exclude, and the [Apply][Clear] buttons — picks are a draft
+// until Apply; Escape or a click outside discards them, 2026-09-24),
+// Exclude winning over Include, the "(no extension)" entry, folders always staying, the Explorer tree keeping
 // its expansion across a filter change, the file-list footer's hidden count,
 // View > File Filter's rows, and the filter surviving a reload. Everything
 // is driven through the real UI, not the filter module directly.
@@ -106,10 +107,15 @@ app.whenReady().then(async () => {
       await click(btn());
       r.buttonOpensPanel = Boolean(panel());
       r.includeAllCheckedByDefault = ctl('include:all').checked && ctl('include:ext:md').disabled;
-      // Include md.
+      r.buttonsApplyThenClear = [...panel().querySelectorAll('.file-filter-actions button')].map((b) => b.textContent).join('|') === 'Apply|Clear';
+      r.applyDisabledWithoutChange = ctl('apply').disabled;
+      // Include md — a draft until Apply.
       await click(ctl('include:all'));
       r.untickingAllKeepsEverything = listLabels().includes('c.ts') && !ctl('include:ext:md').disabled;
       await click(ctl('include:ext:md'));
+      r.draftNotAppliedYet = listLabels().includes('c.ts') && !icon().includes('filled') && !ctl('apply').disabled;
+      await click(ctl('apply'));
+      r.applyCloses = !panel();
       const t = treeLabels(); const l = listLabels();
       r.includeMdTree = same(t, ['[sub]', 'a.md', 'b.md', 'inner.md']);
       r.includeMdList = same(l, ['[..]', '[sub]', 'a.md', 'b.md']);
@@ -117,41 +123,60 @@ app.whenReady().then(async () => {
       r.tooltipSpellsFilter = (btn().getAttribute('title') || '').includes('Include: md');
       r.treeExpansionKept = a.tree.isExpanded(SUB);
       r.footerNotesHidden = /5 hidden by filter/.test(document.querySelector('.folder-file-list-footer').textContent);
+      // Reopening shows the applied filter.
+      await click(btn());
+      r.reopenShowsApplied = !ctl('include:all').checked && ctl('include:ext:md').checked && ctl('apply').disabled;
       // Exclude md wins over Include md.
       await click(ctl('exclude:ext:md'));
+      await click(ctl('apply'));
       r.excludeWinsOverInclude = same(listLabels(), ['[..]', '[sub]']) && same(treeLabels(), ['[sub]']);
+      await click(btn());
       await click(ctl('exclude:ext:md'));
       // Typed extensions add to Include.
       await typeInto('include:add', 'ts; *.py');
+      await click(ctl('apply'));
       r.typedExtensionsAdded = same(listLabels(), ['[..]', '[sub]', 'a.md', 'b.md', 'c.ts', 'd.py']);
       // "(no extension)".
+      await click(btn());
       await click(ctl('include:ext:'));
+      await click(ctl('apply'));
       r.noExtensionEntry = listLabels().includes('README') && listLabels().includes('.env');
       // View > File Filter rows.
       const rows = a.menu.getSubmenuItems('view:file-filter');
       r.menuRows = rows.map((x) => x.label).join('|') === 'Edit Filter...|Clear Filter' &&
         rows[1].disabled === false;
-      // Clear.
+      // Clear resets the draft; Apply commits it.
+      await click(btn());
       await click(ctl('clear'));
+      r.clearIsDraftUntilApply = ctl('include:all').checked && icon().includes('filled') && !listLabels().includes('e.log');
+      await click(ctl('apply'));
       r.clearRestoresAll = allTree.every((n) => treeLabels().includes(n)) && listLabels().includes('e.log');
       r.clearRestoresIcon = !icon().includes('filled');
       r.clearMenuDisabled = a.menu.getSubmenuItems('view:file-filter')[1].disabled === true;
       // Unpicking the last extension goes back to "All files".
-      await click(ctl('include:all'));
-      await click(ctl('include:ext:md'));
-      await click(ctl('include:ext:md'));
-      r.lastUnpickReturnsToAll = ctl('include:all').checked && !icon().includes('filled') && listLabels().includes('c.ts');
-      // Escape closes the popup.
-      document.activeElement.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
-      await wait(100);
-      r.escapeCloses = !panel();
-      // Leave "Include: md" set for the reload check.
       await click(btn());
       await click(ctl('include:all'));
       await click(ctl('include:ext:md'));
+      await click(ctl('include:ext:md'));
+      r.lastUnpickReturnsToAll = ctl('include:all').checked && ctl('apply').disabled;
+      // Escape closes without applying.
+      await click(ctl('include:all'));
+      await click(ctl('include:ext:md'));
+      document.activeElement.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
+      await wait(100);
+      r.escapeClosesWithoutApplying = !panel() && !icon().includes('filled') && listLabels().includes('c.ts');
+      // A click outside closes without applying.
+      await click(btn());
+      await click(ctl('include:all'));
+      await click(ctl('include:ext:ts'));
       document.body.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }));
       await wait(100);
-      r.outsideClickCloses = !panel();
+      r.outsideClickClosesWithoutApplying = !panel() && !icon().includes('filled');
+      // Leave "Include: md" applied for the reload check.
+      await click(btn());
+      await click(ctl('include:all'));
+      await click(ctl('include:ext:md'));
+      await click(ctl('apply'));
       r.saved = localStorage.getItem('workbench:file-filter') === JSON.stringify({ include: ['md'], exclude: [] });
       return r;
     `);

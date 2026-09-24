@@ -3,6 +3,7 @@ import type { AppEditorSurface, EditorOpenOptions } from '../core/editor';
 import { TextEditorView } from '../core/texteditor';
 import { readLegacyTextFile, readTextFile, writeTextFile } from '../providers/filesystem';
 import type { IconThemeManager } from '../core/icontheme';
+import { extractExt } from '../providers/extension-filter';
 
 // The file preset owns disk I/O and mode behavior; the editor shell remains
 // independent of resource kinds and filesystem paths.
@@ -78,6 +79,18 @@ export function detectLanguage(filePath: string): string {
   }
 }
 
+/**
+ * Text and document files — the ones View > Appearance > Word Wrap applies
+ * to (user request, 2026-09-24). Code keeps its long lines on one line.
+ * '' is a file without an extension (README).
+ */
+const WRAPPABLE_EXTENSIONS: ReadonlySet<string> = new Set(['', 'txt', 'text', 'md', 'markdown', 'log', 'csv', 'tsv', 'rst']);
+
+export function isWrappableFile(filePath: string): boolean {
+  const name = filePath.slice(Math.max(filePath.lastIndexOf('\\'), filePath.lastIndexOf('/')) + 1);
+  return WRAPPABLE_EXTENSIONS.has(extractExt(name).toLowerCase());
+}
+
 export interface FilePresetDeps {
   iconTheme: IconThemeManager;
 }
@@ -126,6 +139,7 @@ export function registerFilePreset(registry: ResourceKindRegistry, deps?: FilePr
       value: initialValue,
       savedValue: initialSavedValue,
       language: detectLanguage(targetId),
+      wrappable: isWrappableFile(targetId),
       readOnly: initialMode === 'viewer' || params.loadError === true,
     });
     const pushContentParams = () => updateParams({ value: view.getValue(), savedValue: view.getSavedValue() });

@@ -15,6 +15,118 @@
 
 사람이 구현 중 요청한, backlog에 없는 작업을 요청 건마다 남긴다.
 
+- **텍스트·문서 파일 자동 줄바꿈 (`View > Appearance > Word Wrap`)** (2026-09-24, 사용자 요청)
+  - **요청**: 메모장의 "자동 줄바꿈"처럼 탭 너비에 맞춰 줄을 접어 보여 준다. 기본은 켜짐이고,
+    메뉴 행은 `Show Line Numbers` 바로 위에 둔다.
+  - **사용자 결정**:
+    - 텍스트·문서류만 대상으로 한다: `txt`, `text`, `md`, `markdown`, `log`, `csv`, `tsv`,
+      `rst`, 확장자 없는 파일. 코드는 가로 스크롤을 유지한다.
+    - 재시작 뒤에도 기억한다.
+  - **코드**:
+    - `src/core/texteditor.ts`(범용):
+      - `TextViewOptions.wrappable`: 대상 판단은 호출자가 한다(D-4).
+      - `getWordWrapEnabled`/`setWordWrapEnabled`: `localStorage` `workbench:word-wrap`에
+        저장하고 기본은 켜짐이다.
+      - 살아 있는 보기에는 `applyWordWrapOption`으로 즉시 반영한다.
+      - monaco `wordWrap: 'on'`은 보기 너비에서 접고, `automaticLayout`으로 크기가 바뀌면
+        다시 접는다.
+    - `src/presets/file-preset.ts`: `WRAPPABLE_EXTENSIONS`, `isWrappableFile`,
+      `wrappable` 전달. 이름을 바꿔 탭이 따라가면 보기가 다시 만들어지므로 새 확장자로
+      다시 정해진다.
+    - `src/main.ts`: Appearance 하위 메뉴에 `Word Wrap` 행과 동작, 체크 표시.
+      단축키는 두지 않는다(`Alt+Z`는 예약 키 변경이 필요해 범위 밖).
+  - **검증**:
+    - `typecheck`, `build` 통과.
+    - 신규 `verify:word-wrap` 11개 통과. monaco가 실제로 그린 줄 수로 판정한다.
+      - md, txt, README는 긴 한 줄이 6줄로 그려지고, py는 1줄이다.
+      - 메뉴 행이 `Show Line Numbers` 바로 위에 있고 기본으로 체크되어 있다.
+      - 칸을 나눠 좁아지면 더 많이 접힌다.
+      - 메뉴로 끄면 열린 보기가 1줄로 돌아가고 저장된다. 다시 불러와도 꺼진 채이고,
+        다시 켜면 접힌다.
+    - 회귀: 처음 비교했을 때 pywebview 쪽에서 `v02-phase1`, `v02-phase2`, `v02-phase6`,
+      `phase7`이 대량으로 실패했다. 원인은 Word Wrap이 아니었다.
+      - pywebview 검사 실행이 `WB_STORAGE_PATH_OVERRIDE`가 없으면 **실제 앱 프로필**
+        (`%LOCALAPPDATA%\workbench-kit\pywebview`)을 쓰고 있었다.
+      - 사용자가 앱에서 적용한 File Filter(`{"include":["md"],...}`)가 검사에도
+        걸려 `.txt` 고정 파일이 트리에서 사라졌다. D-12 필터가 저장되면서 드러난,
+        원래 있던 격리 결함이다.
+      - 수정: `src/hosts/pywebview/main.py`에서 `--...-test` 플래그로 실행하면 임시
+        프로필(`wb-test-py-*`)을 쓴다. `WB_STORAGE_PATH_OVERRIDE`는 계속 우선한다
+        (두 번 실행해 재시작을 보는 v0.3 Phase 4 검사용).
+      - 함께 발견한 것: 이전 실행에서 멈춘 채 남은 검사용 Electron 프로세스 2개
+        (`v02-phase5` runner, 예전 `wk118_debug.cjs`)를 정리했다. 사용자 창이 아니다.
+      - 고친 뒤 `verify:*` 22개를 다시 돌린 결과가 이전 결과(`results-divider`)와 실패
+        집합까지 똑같다. 새 실패 0건, `verify:dist` 통과.
+  - **반대 벤더 검증**: 코어(`texteditor.ts`)에 설정을 더해 규칙상 대상이다. 사용자가
+    **실행하지 않기로** 했다(2026-09-24).
+
+- **영역 경계선 강화: 레일 | 트리 | 에디터** (2026-09-24, 사용자 요청)
+  - **배경**: 레일, 트리, 에디터 사이 경계는 `--border-color`였다. dark 테마에서는
+    `#2b2b2b`로 사이드바 `#272727`과 거의 같아 보이지 않았고, 트리 세로 정렬선(흰색
+    10%)이 더 눈에 띄었다. 타이틀바 색은 light와 gray에서 사이드바와 같아 경계선 색으로
+    쓸 수 없다.
+  - **사용자 결정**:
+    - 테마별 전용 색 `--area-divider`: dark `#505050`(타이틀바 색), light `#c8c8c8`,
+      gray `#7a7a7a`
+    - 레일 | 트리 경계도 같은 색으로 한다
+    - 정렬선은 연하게 한다
+  - **코드 (`src/style.css`만)**:
+    - 세 테마 블록에 `--area-divider`를 더했다.
+    - `--tree-indent-guide`를 낮췄다: dark 0.10→0.06, light 0.15→0.09, gray 0.20→0.12.
+    - 경계는 오른쪽 영역의 왼쪽 변에 둔다. 영역을 감춰도 선이 두 겹이 되거나
+      사라지지 않게 하기 위해서다.
+      - `.workbench-main-area`에 `border-left`를 두고, Zen 모드에서는 없앤다.
+      - `.workbench-sidebar`의 `border-right`를 `border-left`로 바꿨다. 레일이 숨겨지면
+        이 선을 없앤다(`.workbench-foldertabs-rail.hidden ~ .workbench-sidebar`).
+      - `.workbench-foldertabs-rail`의 `border-right`를 없앴다.
+  - **검증**:
+    - `build`, `verify:dist`, `verify:phase2`(D-29) 통과.
+    - Electron 1280×800 실측:
+      - 세 테마에서 트리와 에디터의 왼쪽 선이 1px `--area-divider` 색이다.
+      - 레일을 숨기면 트리 왼쪽 선이 없고 에디터 선만 남는다.
+      - 트리를 숨기면 에디터 선만 남는다.
+      - Zen 모드에서는 선이 없다.
+      - 세 테마 스크린샷을 눈으로도 확인했다.
+    - 회귀: `verify:*` 22개를 이전 결과(`results-apply`)와 비교했다. 새로 보인 실패는
+      phase7의 pywebview `P7-FR-F1` 1건(에디터 폭 1→1)이다.
+      - 에디터 왼쪽 선을 빼고 다시 돌려도 실패했다(0→0). 이번 변경과 무관하다.
+      - 원인: 바로 앞 단언이 창 최소화 단추를 누르므로 pywebview 창이 최소화된 상태에서
+        폭을 잰다. 환경에 따라 통과와 실패가 갈린다. Electron 쪽은 884→1084로 통과한다.
+
+- **D-12 4항 개정 확정, 반대 벤더 검증 생략** (2026-09-24, 사용자 지시)
+  - 사용자가 File Filter의 "Apply로 반영" 개정을 확정했다. `DECISIONS.md` D-12 4항을
+    개정 내용으로 바꾸고 초안 표시를 지웠다.
+  - 반대 벤더 검증은 사용자가 **실행하지 않기로** 했다(사용자 직접 테스트로 대신).
+    `verify:file-filter` 31개와 `verify:*` 22개 회귀 비교만 거쳤다.
+
+- **File Filter에 `[Apply][Clear]`, Apply로 반영** (2026-09-24, 사용자 요청 · D-12 4항 개정 초안)
+  - **사용자 결정**: 체크와 입력은 창 안의 초안만 바꾸고, `Apply`를 눌러야 반영한다.
+  - **코드**:
+    - `src/presets/extension-filter-panel.ts`:
+      - 열 때 현재 필터를 초안(`draft`)으로 복사하고, 모든 체크와 입력은 초안만 바꾼다.
+      - `Apply`: 초안을 반영하고 창을 닫는다. 바뀐 것이 없으면 비활성이다.
+      - `Clear`: 초안을 "필터 없음"으로 되돌린다.
+      - `Esc`와 바깥 클릭: 초안을 버리고 닫는다.
+      - 외부에서 필터가 바뀌면 초안을 다시 맞춘다.
+      - 초안에서 고른 확장자는 체크 목록에 남긴다.
+    - `src/providers/extension-filter.ts`: Include와 Exclude를 한 번에 바꾸는
+      `setFilter`. 변경 알림이 한 번만 나가 트리 새로 고침도 한 번이다.
+    - `src/style.css`: 두 단추 사이 간격 `gap: 5px`
+  - **문서**: `docs/current/DECISIONS.md` D-12 4항("즉시 적용")에 개정 초안을 붙였다
+    (사용자 확인 대기).
+  - **검증**:
+    - `typecheck`, `build`, `verify:dist`, `verify:phase2` 통과.
+    - `verify:file-filter`를 새 흐름으로 고쳐 31개 전건 통과했다.
+      - 단추 순서 `Apply|Clear`, 변경이 없으면 `Apply` 비활성
+      - 초안 단계에서는 반영되지 않음, `Apply`로 반영되고 창이 닫힘
+      - 다시 열면 적용된 상태가 보임
+      - `Clear`는 `Apply` 전까지 초안일 뿐임
+      - `Esc`와 바깥 클릭은 반영하지 않음
+      - 재시작 뒤 유지
+    - 회귀: `verify:*` 22개에서 새 실패는 0건이다. phase4의 `P4-FR-L1-SET`은
+      `results-fileops` 기준에 이미 있던 실패다. 직전 실행에서는 phase4가 중간에 멈춰
+      이 단언까지 가지 않았을 뿐이다.
+
 - **D-15 확정, 반대 벤더 검증(A24)** (2026-09-24, 사용자 지시)
   - 사용자가 D-15를 확정했다. `DECISIONS.md`에서 초안 표시를 지웠다.
   - 반대 벤더 검증: Codex `gpt-6-sol` 1/3회, 256초, 1턴. 결과는 Critical 0건, Major 4건.

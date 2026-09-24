@@ -94,6 +94,11 @@ export function setExclude(list: readonly string[]): void {
   commit({ include: state.include, exclude: normalizeList(list) });
 }
 
+/** Include and Exclude in one change — the File Filter popup's Apply (D-12). */
+export function setFilter(next: ExtensionFilter): void {
+  commit({ include: next.include === null ? null : normalizeList(next.include), exclude: normalizeList(next.exclude) });
+}
+
 export function clearFilter(): void {
   commit({ include: null, exclude: [] });
 }
