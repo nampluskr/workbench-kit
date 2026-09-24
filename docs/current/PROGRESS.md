@@ -15,6 +15,46 @@
 
 사람이 구현 중 요청한, backlog에 없는 작업을 요청 건마다 남긴다.
 
+- **탐색기 트리 폴더/파일 우클릭 `Copy Path` 및 `Copy Relative Path` 추가** (2026-09-25, 사용자 요청)
+  - **요청**:
+    - 탐색기 트리(Explorer Tree)의 파일 및 폴더에서 마우스 우클릭 시 전체 경로(`Copy Path`)와 루트 기준 상대 경로(`Copy Relative Path`)를 클립보드로 복사할 수 있게 한다.
+  - **사용자 결정**:
+    - 폴더 우클릭 시 `Copy Path`, `Copy Relative Path` 2개 항목만 표시한다(옵션 F-1).
+    - 파일 우클릭 시 기존 뷰어/에디터 열기 메뉴 아래에 구분선과 함께 배치한다.
+    - 복사 완료 시 하단 상태표시줄에 안내 메시지(`Path copied to clipboard`, `Relative path copied to clipboard`)를 3초간 띄운다(옵션 M-2).
+    - 최상위 루트 노드 우클릭 시 상대 경로는 `.`을 반환한다(옵션 R-1).
+  - **코드**:
+    - `src/core/about.ts`: `copyToClipboard` 유틸리티를 `export` 선언해 재사용한다.
+    - `src/main.ts`:
+      - `copyToClipboard`를 임포트한다.
+      - `getRelativePath(targetPath: string): string`: 탐색기 루트 노드(`this.tree.getRoot()?.id`) 기준 상대 경로 산출, 윈도우 드라이브 및 슬래시/역슬래시 정규화, 루트 일치 시 `.` 반환.
+      - `this.contextMenuItemsForTreeNode`: 파일 노드는 기존 항목 + `copy:separator` + `copy:path` + `copy:relative-path`, 폴더 노드는 `copy:path` + `copy:relative-path`.
+      - 복사 시 `this.statusMessages.showMessage(...)` 알림 호출.
+  - **검증**:
+    - `npm run typecheck`, `npm run build` 통과.
+    - `npm run verify:open-modes`, `npm run verify:text-open` 통과 (기존 `open:editor` 컨텍스트 메뉴 단언 및 동작 보존 확인).
+    - `npm run verify:dist` 통과 (두 호스트 파일 집합 및 해시 0 diff).
+
+- **다크·화이트·그레이 3개 테마 색상 정비 및 구분선 제거 일관화** (2026-09-25, 사용자 요청)
+  - **요청**:
+    - 다크, 화이트, 그레이 3개 테마 전체에 걸쳐 상단 타이틀바 색 = 하단 상태표시줄 색을 일치시킨다.
+    - Activity Bar 색 = 탐색기 트리(사이드바) 색을 일치시킨다.
+    - 폴더탭 레일, 탐색기 트리, 에디터 탭의 활성/선택 라인 색상을 VS Code 스타일로 통일한다.
+    - 영역 간의 경계선을 없애고 면(배경색) 차이로만 깔끔하게 영역을 구분한다.
+    - 탐색기 트리 및 에디터 탭의 포커스 테두리(`outline`)를 없애고, 에디터 비활성 탭 호버 시 활성화 색을 적용하며, 선택된 탭의 테두리를 제거한다.
+    - 화이트/그레이 테마에서 타이틀바/상태표시줄이 Activity Bar와 더 뚜렷하게 구분되도록 조정하고, 화이트/그레이 테마에서 폴더탭 레일이 검정색으로 나오는 결함을 해결한다.
+  - **조치 (`src/style.css`)**:
+    - 3개 테마 타이틀바/상태표시줄 배경색 통일: 다크 `#505050`, 화이트 `#d8d8d8`, 그레이 `#888888`. Activity Bar 대비 명도비 확보 (화이트 1.25:1, 그레이 1.46:1).
+    - 3개 테마 Activity Bar 및 Sidebar 배경색 통일: 다크 `#353535`, 화이트 `#f0f0f0`, 그레이 `#a6a6a6`.
+    - 폴더탭 레일 전용 배경색 `--foldertabs-bg` 도입 (다크 `#272727`, 화이트 `#e4e4e4`, 그레이 `#989898`)으로 테마별 깊이감 부여 및 화이트/그레이 테마 검정색 표시 결함 해소.
+    - 폴더탭 레일(`.foldertabs-tab.active`), 탐색기 트리(`.tree-row.selected`), 에디터 활성 탭(`.dv-tab.dv-active-tab`)이 모두 공통 토큰 `--tab-active-bg` 및 `--tab-active-fg`를 사용하도록 정렬 (다크 `#4e4e4e`/`#ffffff`, 화이트 `#d8d8d8`/`#1f1f1f`, 그레이 `#8e8e8e`/`#1a1a1a`).
+    - 선 없는 면 분할 확립: `--area-divider`를 `transparent`로 변경, 타이틀바 하단 및 액티비티바 우측 `border` 제거, 트리 및 에디터 활성 탭의 포커스 `outline` 제거, 에디터 활성 탭 우측 1px 구분선 제거 (`border-right-color: transparent;`), 에디터 활성 탭 하단 돌출선(`::after`) 제거.
+    - 비활성 에디터 탭 호버 시 활성화 강조색 적용(`.dv-tab.dv-inactive-tab:hover`).
+  - **검증**:
+    - `npm run typecheck`, `npm run build` 통과.
+    - `node scripts/verify-phase2.mjs` 통과 (테마 명도 대비 AA/AAA 충족 및 스타일 토큰 불변식 유지).
+    - `npm run verify:dist` 통과 (Electron과 pywebview 배포 파일 동일 해시, 0 diff).
+
 - **D2Coding을 앱 배포물에 포함** (2026-09-24, 사용자 요청)
   - 기존 에디터와 터미널의 D2Coding 사용을 시스템 설치에 의존하지 않게 했다.
     공식 1.3.3 릴리스 압축파일의 SHA-256(`c2a6e364...47f31e2`)을 GitHub 릴리스

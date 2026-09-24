@@ -13,6 +13,7 @@
 우클릭 메뉴의 `Open as Viewer`/`Open as Editor`와 같이 각각 보기/편집 모드로 연다.
 트리 안에서 찾기는 `Ctrl+F`다. 트리에서 모드를 지정해 열면 모드마다 별도의 탭을 쓰며,
 이미 열린 탭이 있으면 그 탭을 활성화한다. 수정되지 않은 빈 `Untitled` 탭은 재사용한다.
+트리에서 파일이나 폴더를 우클릭하면 `Copy Path`, `Copy Relative Path`로 절대·상대 경로를 클립보드에 복사할 수 있다.
 폴더 탭의 우클릭 메뉴에서 File List, Command Prompt, PowerShell을 열 수 있다. 셸 탭은
 각각 독립된 터미널 세션이다.
 

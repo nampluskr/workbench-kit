@@ -16,7 +16,7 @@ function escapeHtml(text: string): string {
     .replace(/'/g, '&#39;');
 }
 
-function copyToClipboard(text: string): Promise<boolean> {
+export function copyToClipboard(text: string): Promise<boolean> {
   if (typeof navigator !== 'undefined' && navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
     return navigator.clipboard.writeText(text).then(() => true).catch(() => fallbackCopy(text));
   }

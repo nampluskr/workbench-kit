@@ -1,7 +1,7 @@
 import { createWorkbenchLayout, WorkbenchLayoutElements } from './core/layout';
 import { setupWindowControls, setupResizeGrips, closeWindow } from './core/window';
 import { ConfirmDialogController } from './core/dialog';
-import { AboutDialogController } from './core/about';
+import { AboutDialogController, copyToClipboard } from './core/about';
 import { StatusMessageController } from './core/statusmessage';
 import { TextEditorView, setEditorColorTheme, getLineNumbersVisible, setLineNumbersVisible, getWordWrapEnabled, setWordWrapEnabled, findTextViewWithin, type EditCommandId } from './core/texteditor';
 import { MenuController } from './core/menu';
@@ -766,12 +766,30 @@ export class WorkbenchApp {
     this.contextMenuItemsForTreeNode = (nodeId) => {
       const node = this.tree.getNodeById(nodeId);
       if (!node) return [];
-      // A folder row's own "open a folder" choices moved to the folder tab
-      // rail's right-click menu (v0.3 WK-114, out-of-plan addition,
-      // 2026-09-23 — user request). A file row is unaffected — ContextMenu
-      // Controller.show() already no-ops on zero items (FR-G5).
-      if (node.isContainer) return [];
-      return this.buildResourceContextMenuItems(node.id, node.label, node.isContainer);
+      const items: ContextMenuItem[] = [];
+      if (!node.isContainer) {
+        items.push(...this.buildResourceContextMenuItems(node.id, node.label, node.isContainer));
+        items.push({ id: 'copy:separator', label: '', type: 'separator' });
+      }
+      items.push({
+        id: 'copy:path',
+        label: 'Copy Path',
+        action: () => {
+          void copyToClipboard(node.id).then((ok) => {
+            if (ok) this.statusMessages.showMessage('Path copied to clipboard');
+          });
+        },
+      });
+      items.push({
+        id: 'copy:relative-path',
+        label: 'Copy Relative Path',
+        action: () => {
+          void copyToClipboard(this.getRelativePath(node.id)).then((ok) => {
+            if (ok) this.statusMessages.showMessage('Relative path copied to clipboard');
+          });
+        },
+      });
+      return items;
     };
     this.layout.sidebarContent.addEventListener('contextmenu', (e) => {
       const row = (e.target as HTMLElement).closest('.tree-row') as HTMLElement | null;
@@ -1810,6 +1828,28 @@ export class WorkbenchApp {
       { id: 'open:editor', label: 'Open as Editor', action: () => void this.openIfText(id, label, (enc) =>
         this.openResource(id, label, FILE_KIND, this.fileModeFor(enc, 'editor'), 'pinned', false, enc)) },
     ];
+  }
+
+  private getRelativePath(targetPath: string): string {
+    const root = this.tree.getRoot();
+    const rootPath = root?.id;
+    if (!rootPath) return targetPath;
+
+    const isWindows = /^[a-zA-Z]:/.test(targetPath) || targetPath.includes('\\');
+    const targetNorm = targetPath.replace(/\\/g, '/');
+    const rootNorm = rootPath.replace(/\\/g, '/').replace(/\/+$/, '');
+
+    if (targetNorm.toLowerCase() === rootNorm.toLowerCase()) {
+      return '.';
+    }
+
+    const prefix = rootNorm + '/';
+    if (targetNorm.toLowerCase().startsWith(prefix.toLowerCase())) {
+      const rel = targetNorm.slice(prefix.length);
+      return isWindows ? rel.replace(/\//g, '\\') : rel;
+    }
+
+    return targetPath;
   }
 
   public setActivePanelMode(mode: string): void {

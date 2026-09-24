@@ -69,16 +69,14 @@
 [data-theme="dark"] {
   --bg-color: #1f1f1f;
   --text-color: #cccccc;
-  /* Chrome (titlebar/activitybar/sidebar/statusbar/tabs/menu) lightened to
-     match the user's actual running VS Code theme (Monokai Dimmed), which
-     they asked to check — user request, 2026-09-14. --editor-bg and the
-     active-tab colors are unchanged on purpose (same request). */
+  /* VS Code Monokai Dimmed styling (user request, 2026-09-25) */
   --titlebar-bg: #505050;
   --titlebar-fg: #e0e0e0;
   --activitybar-bg: #353535;
   --activitybar-fg: #d7d7d7;
-  --sidebar-bg: #272727;
+  --sidebar-bg: #353535;
   --sidebar-fg: #cccccc;
+  --foldertabs-bg: #272727;
   --editor-bg: #1f1f1f;
   --statusbar-bg: #505050;
   --statusbar-fg: #e0e0e0;
@@ -92,11 +90,11 @@
   --menu-hover-bg: #454545;
   --menu-hover-fg: #ffffff;
   --menu-shortcut-fg: #909090;
-  --tabs-bg: #282828;
-  --tab-active-bg: #1f1f1f;
+  --tabs-bg: #1f1f1f;
+  --tab-active-bg: #4e4e4e;
   --tab-active-fg: #ffffff;
-  --tab-inactive-bg: #404040;
-  --tab-inactive-fg: #b8b8b8;
+  --tab-inactive-bg: #1f1f1f;
+  --tab-inactive-fg: #cccccc;
   /* Soft gray ring for the tree cursor and the focused tab: still >= 3:1 on
      the sidebar and on the selection (FR-F11), without the old white glare. */
   --focus-ring: #7a7a7a;
@@ -104,7 +102,7 @@
      --border-color sits within a shade of the sidebar here, so it vanished;
      this is the title bar's own gray. The indent guides were dimmed at the
      same time so a tree guide no longer out-draws an area edge. */
-  --area-divider: #505050;
+  --area-divider: transparent;
   --tree-indent-guide: rgba(255, 255, 255, 0.06);
   --scrollbar-track: rgba(255, 255, 255, 0.04);
   --scrollbar-thumb: rgba(204, 204, 204, 0.28);
@@ -140,16 +138,15 @@
 [data-theme="light"] {
   --bg-color: #ffffff;
   --text-color: #3b3b3b;
-  /* Chrome a step darker than the white editor so the two areas separate
-     (user request, 2026-09-14). */
-  --titlebar-bg: #f0f0f0;
+  --titlebar-bg: #d8d8d8;
   --titlebar-fg: #333333;
   --activitybar-bg: #f0f0f0;
   --activitybar-fg: #1f1f1f;
   --sidebar-bg: #f0f0f0;
   --sidebar-fg: #3b3b3b;
+  --foldertabs-bg: #e4e4e4;
   --editor-bg: #ffffff;
-  --statusbar-bg: #f0f0f0;
+  --statusbar-bg: #d8d8d8;
   --statusbar-fg: #333333;
   --border-color: #e5e5e5;
   --button-hover-bg: rgba(0, 0, 0, 0.07);
@@ -160,15 +157,13 @@
   --menu-hover-bg: #e0e0e0;
   --menu-hover-fg: #1f1f1f;
   --menu-shortcut-fg: #505050;
-  --tabs-bg: #f0f0f0;
-  --tab-active-bg: #ffffff;
-  --tab-active-fg: #333333;
-  --tab-inactive-bg: #f0f0f0;
+  --tabs-bg: #ffffff;
+  --tab-active-bg: #d8d8d8;
+  --tab-active-fg: #1f1f1f;
+  --tab-inactive-bg: #ffffff;
   --tab-inactive-fg: #6c6c6c;
   --focus-ring: #8a8a8a;
-  /* The title bar matches the sidebar in this theme, so the area edge takes
-     its own darker gray (user request, 2026-09-24). */
-  --area-divider: #c8c8c8;
+  --area-divider: transparent;
   --tree-indent-guide: rgba(0, 0, 0, 0.09);
   --scrollbar-track: rgba(0, 0, 0, 0.03);
   --scrollbar-thumb: rgba(100, 100, 100, 0.35);
@@ -203,14 +198,15 @@
 [data-theme="gray"] {
   --bg-color: #c0c0c0;
   --text-color: #1a1a1a;
-  --titlebar-bg: #a6a6a6;
+  --titlebar-bg: #888888;
   --titlebar-fg: #1a1a1a;
   --activitybar-bg: #a6a6a6;
   --activitybar-fg: #1a1a1a;
   --sidebar-bg: #a6a6a6;
   --sidebar-fg: #1a1a1a;
+  --foldertabs-bg: #989898;
   --editor-bg: #c0c0c0;
-  --statusbar-bg: #a6a6a6;
+  --statusbar-bg: #888888;
   --statusbar-fg: #1a1a1a;
   --border-color: #9a9a9a;
   --button-hover-bg: rgba(0, 0, 0, 0.1);
@@ -222,14 +218,13 @@
   --menu-hover-bg: #a6a6a6;
   --menu-hover-fg: #1a1a1a;
   --menu-shortcut-fg: #1a1a1a;
-  --tabs-bg: #a6a6a6;
-  --tab-active-bg: #c0c0c0;
+  --tabs-bg: #c0c0c0;
+  --tab-active-bg: #8e8e8e;
   --tab-active-fg: #1a1a1a;
-  --tab-inactive-bg: #a6a6a6;
-  --tab-inactive-fg: #333333;
+  --tab-inactive-bg: #c0c0c0;
+  --tab-inactive-fg: #404040;
   --focus-ring: #505050;
-  /* See the light theme's note above (user request, 2026-09-24). */
-  --area-divider: #7a7a7a;
+  --area-divider: transparent;
   --tree-indent-guide: rgba(0, 0, 0, 0.12);
   --scrollbar-track: rgba(0, 0, 0, 0.06);
   --scrollbar-thumb: rgba(17, 17, 17, 0.30);
@@ -564,7 +559,7 @@ html, body, #app {
   font-size: 13px;
   -webkit-app-region: drag;
   flex-shrink: 0;
-  border-bottom: 1px solid var(--border-color);
+  border-bottom: none;
 }
 
 .titlebar-left, .titlebar-right {
@@ -642,7 +637,7 @@ html, body, #app {
   flex-direction: column;
   justify-content: space-between;
   flex-shrink: 0;
-  border-right: 1px solid var(--border-color);
+  border-right: none;
 }
 
 .activity-bar-group {
@@ -685,7 +680,7 @@ html, body, #app {
      the matching drag/keyboard minimum and ~60% window maximum. */
   width: var(--foldertabs-width);
   min-width: 100px;
-  background-color: var(--sidebar-bg);
+  background-color: var(--foldertabs-bg, var(--sidebar-bg));
   color: var(--sidebar-fg);
   display: flex;
   flex-direction: column;
@@ -825,12 +820,10 @@ body.is-resizing-foldertabs {
   background-color: var(--button-hover-bg);
 }
 
-/* The active folder tab is distinguishable by fill AND edge, not colour
-   alone, so it reads on the gray theme too (v0.3 D-1, PLAN Phase 1). */
 .foldertabs-tab.active {
   background-color: var(--tab-active-bg);
   color: var(--tab-active-fg);
-  border-left-color: var(--focus-ring);
+  border-left-color: transparent;
 }
 
 /* When a custom colour is set on a tab (v0.3 WK-112, Windows Terminal model):
@@ -1053,11 +1046,7 @@ body.is-resizing-foldertabs {
   display: flex;
   flex-direction: column;
   flex-shrink: 0;
-  /* Each area boundary is the LEFT edge of the area to its right, so hiding
-     any area never leaves a doubled or missing line (user request,
-     2026-09-24): this one is rail | Explorer; the editor draws
-     Explorer | editor. */
-  border-left: 1px solid var(--area-divider);
+  border-left: none;
 }
 
 /* With the rail hidden the Explorer sits against the Activity Bar, which has
@@ -1262,9 +1251,7 @@ body.is-resizing-sidebar {
   overflow: hidden;
   position: relative;
   background-color: var(--editor-bg);
-  /* The editor's left edge, whatever sits beside it (user request,
-     2026-09-24) — see --area-divider. */
-  border-left: 1px solid var(--area-divider);
+  border-left: none;
 }
 
 .workbench-root.zen-mode .workbench-main-area {
@@ -1384,30 +1371,17 @@ body.is-resizing-sidebar {
 
 .tree-row.selected {
   /* Same inner color the editor uses to mark its active area (--tab-active-bg/
-     -fg), not the blue menu-hover accent — user request, 2026-09-12. */
+     -fg), matching active tab (user request, 2026-09-25). */
   background-color: var(--tab-active-bg);
   color: var(--tab-active-fg);
 }
 
-/*
- * Selection and focus are separate marks (v0.2 D-10, FR-F6). The selected
- * row keeps its background wherever keyboard focus goes; the cursor's ring is
- * drawn only while the tree itself holds focus, so the ring alone says which
- * area is current. On a selected row the ring uses the selection foreground,
- * because a ring in the selection colour would vanish into its background.
- */
 .tree-list:focus .tree-row.focused {
-  /* A per-theme soft gray, not the accent: the accent sits too close to the
-     gray theme's background to read as a mark (FR-F11). */
-  outline: 1px solid var(--focus-ring);
-  outline-offset: -1px;
+  outline: none;
 }
 
 .tree-list:focus .tree-row.selected.focused {
-  /* Same ring color the editor's active-tab-with-focus ring uses, so both
-     areas share border AND fill color. */
-  outline: 1px solid var(--focus-ring);
-  outline-offset: -1px;
+  outline: none;
 }
 
 .tree-twistie {
@@ -2862,43 +2836,26 @@ body.is-resizing-sidebar {
   color: var(--dv-inactivegroup-hiddenpanel-tab-color);
 }
 
-/* Fills the gap between the 22px active tab and the bottom of the 30px strip
-   with the tab's own colour, so the tab runs straight into the editor below
-   (user request, 2026-09-14). */
+/* Inactive tab hover shows active tab highlight color and hides right border (user request, 2026-09-25) */
+.dv-tabs-container > .dv-tab.dv-inactive-tab:hover {
+  background-color: var(--tab-active-bg);
+  color: var(--tab-active-fg);
+  border-right-color: transparent;
+}
+
+.dv-tab.dv-active-tab {
+  border-right-color: transparent;
+}
+
 .dv-tab.dv-active-tab::after {
-  content: "";
-  position: absolute;
-  left: 0;
-  right: 0;
-  top: 100%;
-  height: calc((var(--area-size) - 22px) / 2);
-  background-color: inherit;
-  pointer-events: none;
+  display: none;
 }
 
 /*
- * Every group keeps showing its active tab (the rules above); only the group
- * that holds keyboard focus adds a ring to it (v0.2 FR-F10). Keyed off
- * :focus-within, so there is at most one — only one element can hold focus.
+ * Active tab has no focus outline border (user request, 2026-09-25).
  */
 .dv-groupview:focus-within > .dv-tabs-and-actions-container .dv-tabs-container > .dv-tab.dv-active-tab {
-  /* Same ring as the tree cursor: a soft gray that still reads >= 3:1 on the
-     active tab in every theme, which the accent does not. */
-  outline: 1px solid var(--focus-ring);
-  outline-offset: -1px;
-  /*
-   * Every pane but the leftmost has a dockview group-boundary separator
-   * (.dv-view:not(:first-child)::before, z-index 5) and a resize sash
-   * (.dv-sash, z-index 99) sitting exactly on its left edge — the same x
-   * position as this ring's left segment. Neither is part of a stacking
-   * context its .dv-view/.dv-groupview ancestors establish (position with
-   * z-index:auto doesn't create one), so they paint above this ring's
-   * default z-index:auto and cut off its left side in every pane except the
-   * one against the explorer (user report, 2026-09-15). Beating the sash's
-   * 99 (the higher of the two) is enough for the separator too; matching
-   * --dv-overlay-z-index (100) rather than tying the sash at 99 avoids
-   * relying on DOM paint order to break a tie.
-   */
+  outline: none;
   z-index: 100;
 }
 
