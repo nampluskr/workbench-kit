@@ -39,18 +39,53 @@ app.whenReady().then(async () => {
       }
       const xterm = view?.querySelector('.xterm');
       const style = xterm ? getComputedStyle(xterm) : null;
+      const container = view?.parentElement;
+      const viewRect = view?.getBoundingClientRect();
+      const containerRect = container?.getBoundingClientRect();
+      const xtermRect = xterm?.getBoundingClientRect();
+      const screenRect = view?.querySelector('.xterm-screen')?.getBoundingClientRect();
+      const viewport = view?.querySelector('.xterm-viewport');
+      const context = document.createElement('canvas').getContext('2d');
+      context.font = '14px "Workbench D2Coding"';
+      const latinWidth = context.measureText('A').width;
       const result = {
         visibilityState: document.visibilityState,
         terminalMounted: Boolean(view),
         terminalViewCount: document.querySelectorAll('.preset-terminal-view').length,
         terminalViewSize: view ? [view.offsetWidth, view.offsetHeight] : null,
+        terminalEdgeGap: viewRect && containerRect ? [
+          viewRect.left - containerRect.left,
+          viewRect.top - containerRect.top,
+          containerRect.right - viewRect.right,
+          containerRect.bottom - viewRect.bottom,
+        ] : null,
+        xtermEdgeGap: viewRect && xtermRect ? [
+          xtermRect.left - viewRect.left,
+          xtermRect.top - viewRect.top,
+          viewRect.right - xtermRect.right,
+          viewRect.bottom - xtermRect.bottom,
+        ] : null,
+        screenEdgeGap: xtermRect && screenRect ? [
+          screenRect.left - xtermRect.left,
+          screenRect.top - xtermRect.top,
+          xtermRect.right - screenRect.right,
+          xtermRect.bottom - screenRect.bottom,
+        ] : null,
+        containerPadding: container ? getComputedStyle(container).padding : '',
+        terminalPadding: view ? getComputedStyle(view).padding : '',
+        xtermPadding: style?.padding || '',
+        viewBackground: view ? getComputedStyle(view).backgroundColor : '',
+        xtermBackground: style?.backgroundColor || '',
+        viewportBackground: viewport ? getComputedStyle(viewport).backgroundColor : '',
         panelId: panel?.id || '',
         webglCanvasPresent: Boolean(view?.querySelector('canvas')),
         canvasClasses: [...(view?.querySelectorAll('canvas') || [])].map((canvas) => canvas.className),
         computedFontFamily: style?.fontFamily || '',
         computedFontSize: style?.fontSize || '',
         computedLetterSpacing: style?.letterSpacing || '',
-        d2CodingPrimary: Boolean(style?.fontFamily.includes('D2Coding')),
+        d2CodingPrimary: Boolean(style?.fontFamily.includes('Workbench D2Coding')),
+        bundledFaceLoaded: [...document.fonts].some((face) => face.family === 'Workbench D2Coding' && face.weight === '400' && face.status === 'loaded'),
+        grid2to1: latinWidth > 0 && Math.abs(context.measureText('가').width / latinWidth - 2) < 0.05,
         fontSize14: style?.fontSize === '14px',
         letterSpacingZero: style?.letterSpacing === '0px' || style?.letterSpacing === 'normal',
       };
@@ -61,7 +96,19 @@ app.whenReady().then(async () => {
     })()`);
     console.log(JSON.stringify(result));
     const passed = result.terminalMounted && result.webglCanvasPresent && result.d2CodingPrimary
-      && result.fontSize14 && result.letterSpacingZero;
+      && result.bundledFaceLoaded && result.grid2to1
+      && result.fontSize14 && result.letterSpacingZero
+      && result.containerPadding === '0px' && result.terminalPadding === '0px'
+      && result.xtermPadding === '2px 10px'
+      && result.viewBackground === 'rgb(12, 12, 12)'
+      && result.xtermBackground === result.viewBackground
+      && result.viewportBackground === result.viewBackground
+      && result.terminalEdgeGap?.every((gap) => Math.abs(gap) < 1)
+      && result.xtermEdgeGap?.every((gap) => Math.abs(gap) < 1)
+      && result.screenEdgeGap?.[0] >= 9.5
+      && result.screenEdgeGap?.[1] >= 1.5
+      && result.screenEdgeGap?.[2] >= 9.5
+      && result.screenEdgeGap?.[3] >= 1.5;
     win.destroy();
     app.exit(passed ? 0 : 1);
   } catch (error) {

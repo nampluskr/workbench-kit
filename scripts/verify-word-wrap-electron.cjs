@@ -83,6 +83,14 @@ app.whenReady().then(async () => {
       r.checkedByDefault = Boolean(document.querySelector('[data-item-id="view:toggle-word-wrap"] .menu-item-check .codicon-check'));
       a.menu.closeMenu();
       for (const n of ['notes.md', 'a.txt', 'README', 'code.py']) await open(n);
+      const editorEl = a.editor.getContentRenderer(a.editor.getPanels().find((x) => x.params?.targetId === j('code.py')).id)?.element?.querySelector('.monaco-editor');
+      r.editorComputedFont = editorEl ? [getComputedStyle(editorEl).fontFamily, getComputedStyle(editorEl.querySelector('.view-lines')).fontFamily].join(' | ') : '';
+      r.editorBundledFont = r.editorComputedFont.includes('Workbench D2Coding');
+      const canvas = document.createElement('canvas');
+      const context = canvas.getContext('2d');
+      context.font = '14px "Workbench D2Coding"';
+      const latinWidth = context.measureText('A').width;
+      r.editorGrid2to1 = latinWidth > 0 && Math.abs(context.measureText('가').width / latinWidth - 2) < 0.05;
       // Each file opens pinned in turn; measure each while it is the active tab.
       const measure = async (n) => { a.editor.getPanels().find((x) => x.params?.targetId === j(n)).api.setActive(); await wait(250); return lines(n); };
       const md = await measure('notes.md'), txt = await measure('a.txt'), readme = await measure('README'), py = await measure('code.py');

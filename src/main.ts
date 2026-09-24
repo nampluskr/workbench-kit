@@ -225,6 +225,25 @@ export class WorkbenchApp {
         this.setActivePanelMode(nextMode);
       }
     });
+    // File tabs own F3/F4. Capture before Monaco handles F3 as Find Next;
+    // other tab kinds keep receiving both keys unchanged.
+    this.layout.editorContainer.addEventListener('keydown', (e) => {
+      if ((e.key !== 'F3' && e.key !== 'F4') || e.ctrlKey || e.altKey || e.shiftKey || e.metaKey) return;
+      const panel = this.editor.getActivePanel();
+      if (panel?.params?.kind !== FILE_KIND) return;
+      const target = e.target as HTMLElement | null;
+      const fileContent = this.editor.getContentRenderer(panel.id)?.element;
+      const activeTab = target?.closest?.('.dv-tab[data-tab-panel-id]');
+      if (!target || (!fileContent?.contains(target) && activeTab?.getAttribute('data-tab-panel-id') !== panel.id)) return;
+      if (this.menu.isOpen || this.contextMenu?.isOpen()) {
+        e.preventDefault();
+        e.stopPropagation();
+        return;
+      }
+      e.preventDefault();
+      e.stopPropagation();
+      this.setActivePanelMode(e.key === 'F3' ? 'viewer' : 'editor');
+    }, true);
     this.editor.onActivePanelChange((panel) => {
       this.updateStatusbarMode();
       if (panel?.id) {
@@ -454,15 +473,35 @@ export class WorkbenchApp {
       },
     });
     this.explorerTitlebar.setNewItemHandler((req) => void this.explorerFileOps.create(req));
-    // F2 is not a shell key (reserved-keys.md §4) — the app binds it on the
-    // Explorer, for the focused tree row only.
+    // An open menu owns the new tree shortcuts even when focus stays on the
+    // tree list; capture before the tree's Ctrl+F handler runs.
     this.layout.sidebarContent.addEventListener('keydown', (e) => {
-      if (e.key !== 'F2' || e.ctrlKey || e.altKey || e.shiftKey || e.metaKey) return;
+      if (!this.menu.isOpen && !this.contextMenu?.isOpen()) return;
       if (!(e.target as HTMLElement | null)?.closest?.('.tree-list')) return;
+      const fileKey = (e.key === 'F3' || e.key === 'F4') &&
+        !e.ctrlKey && !e.altKey && !e.shiftKey && !e.metaKey;
+      const findKey = e.ctrlKey && !e.shiftKey && !e.metaKey && (e.key === 'f' || e.key === 'F');
+      if (!fileKey && !findKey) return;
+      e.preventDefault();
+      e.stopPropagation();
+    }, true);
+    // The Explorer handles file commands for its focused row, without
+    // reserving F3/F4 for terminal or other app tabs.
+    this.layout.sidebarContent.addEventListener('keydown', (e) => {
+      if ((e.key !== 'F2' && e.key !== 'F3' && e.key !== 'F4') ||
+        e.ctrlKey || e.altKey || e.shiftKey || e.metaKey) return;
+      if (e.key !== 'F2' && (this.menu.isOpen || this.contextMenu?.isOpen())) return;
+      if (!(e.target as HTMLElement | null)?.closest?.('.tree-list')) return;
+      if ((e.target as HTMLElement).closest('input, textarea, [contenteditable="true"]')) return;
       const nodeId = this.tree.getFocusedId();
       if (!nodeId) return;
       e.preventDefault();
-      this.explorerFileOps.beginRename(nodeId);
+      if (e.key === 'F2') {
+        this.explorerFileOps.beginRename(nodeId);
+        return;
+      }
+      const actionId = e.key === 'F3' ? 'open:viewer' : 'open:editor';
+      this.contextMenuItemsForTreeNode(nodeId).find((item) => item.id === actionId)?.action?.();
     });
 
     // Explorer width: a drag handle between the tree and the editor area
@@ -922,7 +961,7 @@ export class WorkbenchApp {
         } else if (altOnly && e.key === 'F4') {
           // The key File > Exit displays (FR-M4, FR-M5). It takes the same
           // path as the menu row, so a dirty tab is asked about through the
-          // same host close gate. A plain F4 is untouched (v0.1 FR-I6).
+          // same host close gate. Plain F4 belongs to the focused file view.
           run(() => this.handleExitRequest());
         }
       }, true);
@@ -1997,11 +2036,40 @@ export function initWorkbench(): WorkbenchApp {
 }
 
 if (typeof window !== 'undefined') {
+  const startWithBundledFont = async () => {
+    let timeoutId: ReturnType<typeof setTimeout> | undefined;
+    try {
+      const loaded = Promise.all([
+        document.fonts.load('14px "Workbench D2Coding"'),
+        document.fonts.load('bold 14px "Workbench D2Coding"'),
+      ]);
+      const faces = await Promise.race([
+        loaded,
+        new Promise<never>((_, reject) => {
+          timeoutId = setTimeout(() => reject(new Error('Font load timed out')), 10000);
+        }),
+      ]);
+      if (faces.some((weightFaces) => weightFaces.length === 0 || weightFaces.some((face) => face.status !== 'loaded'))) {
+        throw new Error('Bundled font faces are missing or failed to load');
+      }
+    } catch (error) {
+      console.error('[Workbench] Bundled D2Coding failed to load.', error);
+      const container = document.getElementById('app') || document.body;
+      const message = document.createElement('p');
+      message.setAttribute('role', 'alert');
+      message.textContent = 'Bundled D2Coding font could not be loaded. Reinstall the app and try again.';
+      container.replaceChildren(message);
+      return;
+    } finally {
+      if (timeoutId !== undefined) clearTimeout(timeoutId);
+    }
+    initWorkbench();
+  };
   if (document.readyState === 'loading') {
     window.addEventListener('DOMContentLoaded', () => {
-      initWorkbench();
+      void startWithBundledFont();
     });
   } else {
-    initWorkbench();
+    void startWithBundledFont();
   }
 }

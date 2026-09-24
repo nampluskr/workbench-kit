@@ -48,6 +48,7 @@ JSON.stringify({
   title: document.title,
   statusbarText: document.getElementById('statusbar-message') ? document.getElementById('statusbar-message').textContent.trim() : (document.getElementById('statusbar') ? document.getElementById('statusbar').textContent.trim() : null),
   domAssets: Array.from(document.querySelectorAll('script[src], link[href]')).map(function(el) { return el.getAttribute('src') || el.getAttribute('href'); }),
+  bundledFontFaces: Array.from(document.fonts).filter(function(face) { return face.family === 'Workbench D2Coding'; }).map(function(face) { return { weight: face.weight, status: face.status }; }),
   styleSheetsCount: document.styleSheets.length,
   styleSheetRulesCount: document.styleSheets.length > 0 && document.styleSheets[0].cssRules ? document.styleSheets[0].cssRules.length : 0,
   computedBg: window.getComputedStyle ? window.getComputedStyle(document.body).backgroundColor : null
@@ -60,17 +61,11 @@ def hash_file(file_path: str) -> str:
         return hashlib.sha256(f.read()).hexdigest()
 
 
-def compute_digest_map(dist_dir: str, dom_assets: list) -> dict:
+def compute_digest_map(dist_dir: str) -> dict:
     digest_map = {}
-    index_path = os.path.join(dist_dir, "index.html")
-    digest_map["index.html"] = hash_file(index_path)
-
-    for raw in dom_assets:
-        if not raw:
-            continue
-        clean = raw.lstrip("./").lstrip("/")
-        asset_path = os.path.join(dist_dir, clean)
-        if os.path.exists(asset_path):
+    for root, _, files in os.walk(dist_dir):
+        for name in files:
+            asset_path = os.path.join(root, name)
             rel_key = os.path.relpath(asset_path, dist_dir).replace("\\", "/")
             digest_map[rel_key] = hash_file(asset_path)
 
@@ -522,7 +517,7 @@ def main():
                 current_url = window.get_current_url()
                 inspection_json = window.evaluate_js(INSPECTION_EXPRESSION)
                 inspection = json.loads(inspection_json)
-                digest_map = compute_digest_map(dist_dir, inspection.get("domAssets") or [])
+                digest_map = compute_digest_map(dist_dir)
 
                 sys.stdout.write(f"[pywebview] Local Path: {dist_index}\n")
                 sys.stdout.write(f"[pywebview] Loaded URL: {current_url}\n")

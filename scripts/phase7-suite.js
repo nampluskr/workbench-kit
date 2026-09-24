@@ -629,9 +629,9 @@ window.__runPhase7TestSuite = async function runPhase7TestSuite() {
         'Real Ctrl+ArrowLeft keydown on the tree collapses every expanded node (FR-A7) — previously only the View-titlebar Collapse All button (FR-A21) exercised this result'
       );
 
-      dispatchTreeKey('F3');
+      dispatchTreeKey('f', { ctrlKey: true });
       await wait(20);
-      record('P7-FR-A13', tree.getIsFindOpen(), 'Real F3 keydown on the tree opens the inline find widget (FR-A13) — previously only tree.openFindWidget() was called directly');
+      record('P7-FR-A13', tree.getIsFindOpen(), 'Real Ctrl+F keydown on the tree opens the inline find widget (FR-A13) — previously only tree.openFindWidget() was called directly');
       tree.closeFindWidget();
 
       const visible = tree.getVisibleItems();
@@ -844,10 +844,10 @@ window.__runPhase7TestSuite = async function runPhase7TestSuite() {
       await wait(15);
       record('P7-FR-A12', tree.getSelectedIds().length === 0, 'Real Escape keydown clears a multi-item selection (FR-A12)');
 
-      // FR-A19: Ctrl+Alt+F opens the find widget (same result as FR-A13's F3)
+      // FR-A19: Ctrl+Alt+F opens the find widget (same result as Ctrl+F).
       dispatchTreeKey('f', { ctrlKey: true, altKey: true });
       await wait(20);
-      record('P7-FR-A19', tree.getIsFindOpen(), 'Real Ctrl+Alt+F keydown on the tree opens the inline find widget, same as F3 (FR-A19)');
+      record('P7-FR-A19', tree.getIsFindOpen(), 'Real Ctrl+Alt+F keydown on the tree opens the inline find widget, same as Ctrl+F (FR-A19)');
       tree.closeFindWidget();
 
       // FR-A15: no means exists to change the tree root from inside the

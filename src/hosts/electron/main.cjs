@@ -237,6 +237,7 @@ JSON.stringify({
   title: document.title,
   statusbarText: document.getElementById('statusbar-message') ? document.getElementById('statusbar-message').textContent.trim() : (document.getElementById('statusbar') ? document.getElementById('statusbar').textContent.trim() : null),
   domAssets: Array.from(document.querySelectorAll('script[src], link[href]')).map(function(el) { return el.getAttribute('src') || el.getAttribute('href'); }),
+  bundledFontFaces: Array.from(document.fonts).filter(function(face) { return face.family === 'Workbench D2Coding'; }).map(function(face) { return { weight: face.weight, status: face.status }; }),
   styleSheetsCount: document.styleSheets.length,
   styleSheetRulesCount: document.styleSheets.length > 0 && document.styleSheets[0].cssRules ? document.styleSheets[0].cssRules.length : 0,
   computedBg: window.getComputedStyle ? window.getComputedStyle(document.body).backgroundColor : null
@@ -248,20 +249,20 @@ function hashFile(filePath) {
   return crypto.createHash('sha256').update(bytes).digest('hex');
 }
 
-function computeDigestMap(distDir, domAssets) {
+function computeDigestMap(distDir) {
   const map = {};
-  const indexPath = path.join(distDir, 'index.html');
-  map['index.html'] = hashFile(indexPath);
-
-  for (const rawAsset of domAssets) {
-    if (!rawAsset) continue;
-    const cleanRel = rawAsset.replace(/^\.\//, '').replace(/^\//, '');
-    const assetPath = path.join(distDir, cleanRel);
-    if (fs.existsSync(assetPath)) {
-      const relKey = path.relative(distDir, assetPath).replace(/\\/g, '/');
-      map[relKey] = hashFile(assetPath);
+  function visit(dir) {
+    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+      const assetPath = path.join(dir, entry.name);
+      if (entry.isDirectory()) {
+        visit(assetPath);
+      } else if (entry.isFile()) {
+        const relKey = path.relative(distDir, assetPath).replace(/\\/g, '/');
+        map[relKey] = hashFile(assetPath);
+      }
     }
   }
+  visit(distDir);
   return map;
 }
 
@@ -289,7 +290,7 @@ function createWindow() {
         const currentUrl = win.webContents.getURL();
         const inspectionJson = await win.webContents.executeJavaScript(INSPECTION_EXPRESSION);
         const inspection = JSON.parse(inspectionJson);
-        const digestMap = computeDigestMap(distDir, inspection.domAssets || []);
+        const digestMap = computeDigestMap(distDir);
 
         process.stdout.write(`[Electron] Local Path: ${realDistIndexPath}\n`);
         process.stdout.write(`[Electron] Loaded URL: ${currentUrl}\n`);

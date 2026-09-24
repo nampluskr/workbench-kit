@@ -174,8 +174,12 @@ export class AboutDialogController {
           <div class="about-license-name"><strong>monaco-editor</strong> (0.56.0)</div>
           <div class="about-license-desc">Code editor: MIT — Copyright (c) 2016 - present Microsoft Corporation</div>
         </div>
+        <div class="about-license-entry">
+          <div class="about-license-name"><strong>D2Coding</strong> (1.3.3)</div>
+          <div class="about-license-desc">Editor and terminal font: SIL OFL 1.1 — Copyright (c) 2015 NAVER Corporation</div>
+        </div>
       </div>
-      <p class="about-licenses-note">Full license texts: <code>licenses/</code> (see <code>docs/refs/licenses.md</code>).</p>
+      <p class="about-licenses-note">Full license texts: <code>licenses/</code>.</p>
     `;
     dialogEl.appendChild(attributionEl);
 
@@ -196,18 +200,19 @@ export class AboutDialogController {
       `Version: ${this.version}`,
       `Date: ${this.commitDate}`,
       `Host: ${this.host}`,
-      chromiumVer ? `Chromium: ${chromiumVer}` : '',
+      chromiumVer ? `Chromium: ${chromiumVer}` : null,
       `OS: ${osVer}`,
       '',
-      'Third-Party Software & Attributions (docs/refs/licenses.md):',
+      'Third-Party Software & Attributions:',
       '- @vscode/codicons (0.0.46-24): Icons CC BY 4.0 / Code MIT — Copyright (c) Microsoft Corporation',
       '- vscode-icons: Icons CC BY-SA 4.0 / Code MIT — Copyright (c) 2016-present Roberto Huertas and vscode-icons contributors',
       '- seti-ui: MIT — Copyright (c) 2014 Jesse Weed',
       '- dockview-core (8.2.0): MIT — Copyright (c) 2021 mathuo',
       '- monaco-editor (0.56.0): MIT — Copyright (c) 2016 - present Microsoft Corporation',
+      '- D2Coding (1.3.3): SIL OFL 1.1 — Copyright (c) 2015 NAVER Corporation',
       '',
       'Full license texts: licenses/'
-    ].filter(Boolean).join('\n');
+    ].filter((line): line is string => line !== null).join('\n');
 
     copyBtn.addEventListener('click', () => {
       copyToClipboard(copyText).then((ok) => {

@@ -561,11 +561,11 @@ window.__runV02Phase7Suite = async function runV02Phase7Suite() {
           active.params.targetId === firstFile.node.id
         );
       });
-      note('Find in tree', 'F3', async () => {
+      note('Find in tree', 'Ctrl+F', async () => {
         const list = byId('sidebar-content').querySelector('.tree-list');
         if (list) {
           list.focus();
-          list.dispatchEvent(new KeyboardEvent('keydown', { key: 'F3', bubbles: true, cancelable: true }));
+          list.dispatchEvent(new KeyboardEvent('keydown', { key: 'f', ctrlKey: true, bubbles: true, cancelable: true }));
         }
         await wait(80);
         const open = tree.getIsFindOpen && tree.getIsFindOpen();

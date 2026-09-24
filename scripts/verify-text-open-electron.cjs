@@ -142,7 +142,10 @@ app.whenReady().then(async () => {
       const k = openPanel('korean.csv');
       r.cp949OpensAsViewer = k?.params?.mode === 'viewer' && k?.params?.encoding === 'cp949';
       r.cp949Content = content('korean.csv') === 'name,한글\\n1,한글\\n';
-      a.setActivePanelMode('editor');
+      const cp949Root = a.editor.getContentRenderer(k.id).element;
+      const cp949Input = cp949Root.querySelector('.monaco-editor textarea') || cp949Root;
+      cp949Input.focus();
+      cp949Input.dispatchEvent(new KeyboardEvent('keydown', { key: 'F4', bubbles: true, cancelable: true }));
       await wait(200);
       r.cp949RefusesEditor = k.params.mode === 'viewer' && status().includes('CP949 file');
       // Even with content changed behind the read-only view (a restored,

@@ -827,8 +827,8 @@ export class TreeController {
   private handleKeyDown(e: KeyboardEvent): void {
     if (!this.root) return;
 
-    // F3 or Ctrl+Alt+F: Find in tree (FR-A13, FR-A19)
-    if (e.key === 'F3' || (e.ctrlKey && e.altKey && (e.key === 'f' || e.key === 'F'))) {
+    // Ctrl+F or Ctrl+Alt+F: Find in tree (FR-A13, FR-A19).
+    if (e.ctrlKey && !e.shiftKey && !e.metaKey && (e.key === 'f' || e.key === 'F')) {
       e.preventDefault();
       e.stopPropagation();
       this.openFindWidget();

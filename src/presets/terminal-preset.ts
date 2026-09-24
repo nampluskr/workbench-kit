@@ -121,9 +121,8 @@ export function registerTerminalPreset(registry: ResourceKindRegistry): void {
       // a 14px Hangul glyph, so one Hangul character stops being exactly two
       // ASCII columns and every mixed line drifts out of the grid (user
       // report, 2026-09-20). D2Coding designs both together and holds the
-      // 2:1 cell. `monospace` behind it holds 2:1 too but resolves to
-      // GulimChe here, so it is a fallback only.
-      fontFamily: "'D2Coding', monospace",
+      // 2:1 cell. The app-specific face comes from the bundle, not the OS.
+      fontFamily: "'Workbench D2Coding', monospace",
       fontSize: 14,
       fontWeight: 'normal',
       fontWeightBold: 'bold',

@@ -15,6 +15,27 @@
 
 사람이 구현 중 요청한, backlog에 없는 작업을 요청 건마다 남긴다.
 
+- **D2Coding을 앱 배포물에 포함** (2026-09-24, 사용자 요청)
+  - 기존 에디터와 터미널의 D2Coding 사용을 시스템 설치에 의존하지 않게 했다.
+    공식 1.3.3 릴리스 압축파일의 SHA-256(`c2a6e364...47f31e2`)을 GitHub 릴리스
+    다이제스트와 대조하고, Regular·Bold 원본 TTF와 `OFL.txt`를 반입했다.
+  - `src/style.css`의 `@font-face`는 앱 전용 이름 `Workbench D2Coding`과 번들
+    URL만 사용한다(`local()` 없음). Monaco, xterm, 터미널 DOM 폴백이 같은 이름을
+    쓴다. 시작 시 두 굵기의 로드를 확인한 뒤 앱을 만들며, 로드 실패 또는 10초
+    시간 초과 시 대체 글꼴로 시작하지 않고 화면에 오류를 표시한다.
+  - Vite 빌드가 OFL 본문을 `dist/licenses/`에 넣는다. About의 고지와
+    `licenses/README.md`에도 D2Coding을 추가했다. 두 호스트의 배포 검사 해시 맵은
+    이제 CSS·JS뿐 아니라 글꼴과 라이선스를 포함한 전체 배포 파일을 대조한다.
+  - 검증: `typecheck`, `verify:dist` 통과. `verify:dist`는 공식 TTF 해시, 두 호스트의
+    Regular·Bold 로드 상태, 6개 배포 파일의 해시 일치를 확인한다.
+    `verify:word-wrap`은 활성 Monaco 보기의 앱 글꼴과 한글:ASCII 2:1 폭을,
+    `verify:terminal-renderer`는 xterm의 앱 글꼴·WebGL·2:1 폭을 확인해 통과했다.
+    `verify:text-open`도 통과했다.
+  - 기존 검사 `verify:open-modes`는 러너에 `fs:probe-text-file` IPC 핸들러가 없어
+    중단된다. `verify:v06-phase6`은 없는 `content-test-target`을 여는 기존 단언
+    등이 실패한다. 두 러너는 이번 변경에서 수정하지 않았다.
+  - 세션 내 리뷰어와 반대 벤더 검토 결과·처리는 `docs/reviews/A25.md`에 기록했다.
+
 - **텍스트·문서 파일 자동 줄바꿈 (`View > Appearance > Word Wrap`)** (2026-09-24, 사용자 요청)
   - **요청**: 메모장의 "자동 줄바꿈"처럼 탭 너비에 맞춰 줄을 접어 보여 준다. 기본은 켜짐이고,
     메뉴 행은 `Show Line Numbers` 바로 위에 둔다.
@@ -1852,3 +1873,16 @@ Folder가 교체→추가)을 정산하는 Phase다.
 **다음**
 
 v0.3의 6개 Phase가 모두 끝났다. 사용자가 직접 수동 테스트를 진행한다.
+
+## 계획 외 수정 — F3/F4 보기·편집 단축키 (2026-09-24)
+
+- 탐색기 트리의 찾기를 `Ctrl+F`로 옮기고 `Ctrl+Alt+F`를 호환 키로 유지했다. 포커스된 파일에서 `F3`/`F4`가 기존 우클릭 `Open as Viewer`/`Open as Editor`와 같은 명령을 실행한다.
+- 현재 파일 탭의 `F3`/`F4`는 각각 Viewer/Editor로 설정한다. 기존 모드 변경 경로를 사용해 상태바와 탭 표시가 갱신된다. 메뉴가 열려 있거나 키 이벤트가 활성 파일 탭 밖에서 발생하면 처리하지 않는다.
+- README와 예약 키 문서, 이전 검증의 트리 검색 키 기대값을 갱신했다. `npm run typecheck`, `npm run build`, `npm run verify:open-modes`, `npm run verify:text-open` 통과. 전체 레거시 스위트의 기존 실패는 `docs/reviews/A26.md`에 기록했다.
+- 세션 내 리뷰와 Claude `opus-5.5` 반대 벤더 검토를 수행했다. 세부 지적·보완·3회 한도는 `docs/reviews/A26.md` 참조.
+
+## 계획 외 수정 — Help > About 스크롤 제거 (2026-09-24)
+
+- 여섯 라이선스 고지를 두 열로 배치하고 메타데이터와 여백을 줄였다. 낮은 창에서는 간격을 추가로 조정해 카드 내부 및 대화상자에 스크롤이 생기지 않도록 했다. 라이선스 경로 안내와 Copy·OK 버튼도 화면 안에 남는다.
+- Copy가 빈 줄을 제거하던 문제를 수정하고 오래된 `docs/refs/licenses.md` 표기를 복사 내용에서 제거했다.
+- `npm run typecheck`, `npm run build`, `npm run verify:open-modes`, `npm run verify:dist` 통과. Electron의 800×600 및 640×480 창에서 모든 라이선스 항목·안내·버튼의 가로·세로 범위를 측정했다. 세션 내 리뷰와 반대 벤더 검토 결과는 `docs/reviews/A27.md`에 기록했다.

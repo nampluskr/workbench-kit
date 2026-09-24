@@ -182,6 +182,19 @@ const initialFileKeys = Object.keys(diskManifestInitial).sort();
 assert(initialFileKeys.includes('index.html'), 'Golden set: index.html exists in dist');
 assert(initialFileKeys.some(k => k.startsWith('assets/') && k.endsWith('.js')), 'Golden set: At least one JS bundle in dist/assets');
 assert(initialFileKeys.some(k => k.startsWith('assets/') && k.endsWith('.css')), 'Golden set: At least one CSS bundle in dist/assets');
+const bundledFontFiles = initialFileKeys.filter(k => k.startsWith('assets/D2Coding') && k.endsWith('.ttf'));
+assert(bundledFontFiles.length === 2, 'Golden set: D2Coding Regular and Bold font files exist in dist/assets');
+const upstreamFontHashes = {
+  'D2Coding-Ver1.3.3-20260725': 'c064f343b5cfc131f083377ba606b748f9b61a5bbd89708e4010b9066dff5a24',
+  'D2CodingBold-Ver1.3.3-20260725': '770afd3304d03924a05744335315f9dbb51f30870a3e24b05ffba9abd2f9400f',
+};
+for (const [name, digest] of Object.entries(upstreamFontHashes)) {
+  assert(
+    bundledFontFiles.some(file => file.startsWith(`assets/${name}-`) && diskManifestInitial[file] === digest),
+    `Golden set: ${name} matches the verified official 1.3.3 release`
+  );
+}
+assert(initialFileKeys.includes('licenses/LICENSE-D2Coding.txt'), 'Golden set: D2Coding OFL license exists in dist/licenses');
 
 const distIndexPath = path.join(distDir, 'index.html');
 const canonicalDistIndex = fs.existsSync(distIndexPath) ? fs.realpathSync(distIndexPath) : '';
@@ -407,6 +420,13 @@ assert(
   electronInspection && pywebviewInspection && electronInspection.computedBg === pywebviewInspection.computedBg,
   `Both hosts computed identical stylesheet background color (${electronInspection?.computedBg})`
 );
+for (const [host, inspection] of [['Electron', electronInspection], ['pywebview', pywebviewInspection]]) {
+  const faces = inspection?.bundledFontFaces || [];
+  assert(
+    faces.length === 2 && ['400', '700'].every(weight => faces.some(face => face.weight === weight && face.status === 'loaded')),
+    `${host} loaded bundled D2Coding Regular and Bold faces (${JSON.stringify(faces)})`
+  );
+}
 
 // 5c. Three-Way File List & Digest Map Equality (C2-2, FR-H2, NFR-2)
 const electronKeys = Object.keys(electronDigestMap || {}).sort();
@@ -414,15 +434,15 @@ const pywebviewKeys = Object.keys(pywebviewDigestMap || {}).sort();
 
 assert(
   JSON.stringify(electronKeys) === JSON.stringify(initialFileKeys),
-  `Electron consumed file set matches build output file set (${electronKeys.join(', ')})`
+  `Electron attested file set matches build output file set (${electronKeys.join(', ')})`
 );
 assert(
   JSON.stringify(pywebviewKeys) === JSON.stringify(initialFileKeys),
-  `pywebview consumed file set matches build output file set (${pywebviewKeys.join(', ')})`
+  `pywebview attested file set matches build output file set (${pywebviewKeys.join(', ')})`
 );
 assert(
   JSON.stringify(electronKeys) === JSON.stringify(pywebviewKeys),
-  'Both hosts read the exact same artifact file set (0 extra, 0 missing)'
+  'Both hosts attested the exact same artifact file set (0 extra, 0 missing)'
 );
 
 let hashDifferences = 0;

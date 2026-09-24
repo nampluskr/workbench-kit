@@ -1,14 +1,28 @@
 # workbench-kit
 
-## File and folder tabs (v0.3)
+## 파일과 폴더 탭 (v0.3)
 
-In either desktop host, File > Open File opens a real UTF-8 text file in Viewer mode. Click `File: Viewer` in the status bar (or use View > Tab Mode) to switch that tab to Editor mode. When closing a changed tab, choose Save in the confirmation dialog to write edits to disk; there is no direct Ctrl+S command yet. The reverse mode switch keeps the current buffer and any unsaved changes.
+두 데스크톱 호스트 모두 `File > Open File...`로 UTF-8 텍스트 파일을 열면 Viewer 모드가
+적용된다. 파일 탭에서 `F3`/`F4`를 누르면 Viewer/Editor 모드로 전환할 수 있고, 상태바의
+`File: Viewer`를 클릭해도 모드를 바꿀 수 있다. `View > Tab Mode`는 앞으로 열 파일 탭의
+기본 모드를 정한다. 수정한 탭을 닫을 때 확인창에서 `Save`를 선택하면 변경 내용을 디스크에
+저장한다. Editor에서 Viewer로 돌아가도 현재 내용과 저장하지 않은 변경 사항은 유지된다.
 
-File > Open Folder adds the folder to Roots and opens its File List. Explorer click/Enter opens a file or folder in the active editor group using Viewer/File List. Right-click an Explorer tree item to choose Viewer or Editor for a file, or File List, Command Prompt, or PowerShell for a folder. Different modes occupy separate tabs; an existing matching tab is activated, and a clean active Untitled tab is reused. View > Tab Mode's "(New Tab)" shell commands always start another session. Shell tabs are independent terminal sessions, not live conversions of File List tabs. Right-click actions are deliberately limited to the Explorer tree, not the editor area.
+`File > Open Folder...`는 폴더를 Roots에 추가한다. 탐색기 트리에서 파일을 클릭하거나
+`Enter`를 누르면 활성 에디터 칸에서 열린다. 파일에 포커스를 두고 `F3`/`F4`를 누르면
+우클릭 메뉴의 `Open as Viewer`/`Open as Editor`와 같이 각각 보기/편집 모드로 연다.
+트리 안에서 찾기는 `Ctrl+F`다. 트리에서 모드를 지정해 열면 모드마다 별도의 탭을 쓰며,
+이미 열린 탭이 있으면 그 탭을 활성화한다. 수정되지 않은 빈 `Untitled` 탭은 재사용한다.
+폴더 탭의 우클릭 메뉴에서 File List, Command Prompt, PowerShell을 열 수 있다. 셸 탭은
+각각 독립된 터미널 세션이다.
 
-The terminal requires `node-pty` in Electron and `pywinpty` in pywebview (both are declared dependencies). Browser-only `npm run dev` does not provide native file or terminal access.
+터미널은 Electron에서 `node-pty`, pywebview에서 `pywinpty`가 필요하며 두 패키지 모두
+의존성에 선언되어 있다. 브라우저에서 실행하는 `npm run dev`에는 실제 파일·터미널 접근
+기능이 없다.
 
-Focused checks: `npm run verify:open-modes`, `npm run verify:terminal-host`, and `python scripts/verify-terminal-host-py.py` (using the configured WinPython interpreter).
+관련 검증 명령은 `npm run verify:open-modes`, `npm run verify:terminal-host`,
+`python scripts/verify-terminal-host-py.py`다. 마지막 명령은 설정된 WinPython 환경에서
+실행한다.
 
 여러 데스크톱 앱이 공유하는 **공통 껍데기 한 벌**을 미리 만든다. 창, 메뉴, 탐색기
 트리, 좌우로 가른 칸, 탭 줄, 상태 표시줄, 설정 저장, 실행 환경 연결이 그것이다. 새
@@ -154,7 +168,9 @@ npm run dev
 | 범위 선택 | `Shift+ArrowUp` / `Shift+ArrowDown` | 같음 | 같음 |
 | 전체 선택 | `Ctrl+A` | `Ctrl+A` | 같음 |
 | 포커스 고정 스크롤 | `Ctrl+ArrowUp` / `Ctrl+ArrowDown` | 같음 | 같음 |
-| 트리에서 찾기 | `F3` 또는 `Ctrl+Alt+F` | (글자를 바로 입력하면 검색) | 다름 — 찾기 위젯을 명시적으로 연다 |
+| 트리에서 찾기 | `Ctrl+F` 또는 `Ctrl+Alt+F` | (글자를 바로 입력하면 검색) | 다름 — 찾기 위젯을 명시적으로 연다 |
+| 트리에서 파일 보기 / 편집 열기 | `F3` / `F4` | 없음 | 포커스된 파일에 적용 |
+| 현재 파일 탭 보기 / 편집 전환 | `F3` / `F4` | 없음 | 현재 파일 탭에 적용 |
 | 선택 해제 / 찾기 닫기 | `Escape` | `Escape` | 같음 |
 
 ### 6. 탐색기 폭 조절 손잡이
