@@ -36,8 +36,14 @@ monaco.languages.setMonarchTokensProvider('json', {
 });
 // Editor contributions are opt-in when importing the bare API instead of
 // editor.main.js (which would also re-import all ~80 languages). Only the
-// ones D-18 turns on are pulled in individually.
+// ones D-18 turns on are pulled in individually. Comment, clipboard and
+// multi-cursor back the Edit menu (D-13, user request 2026-09-24): the
+// clipboard contribution is what lets a menu row cut/copy/paste once the
+// click has taken focus away from the editor.
 import 'monaco-editor/editor/contrib/find/browser/findController';
+import 'monaco-editor/editor/contrib/comment/browser/comment';
+import 'monaco-editor/editor/contrib/clipboard/browser/clipboard';
+import 'monaco-editor/editor/contrib/multicursor/browser/multicursor';
 
 import type { ColorThemeId } from './icontheme';
 
@@ -89,6 +95,42 @@ export function setEditorColorTheme(theme: ColorThemeId): void {
  */
 let lineNumbersVisible = false;
 const liveTextViews = new Set<TextEditorView>();
+/**
+ * The live text view inside `root` — how the Edit menu finds its target in
+ * the active tab's content without knowing what kind of tab it is (D-4).
+ */
+export function findTextViewWithin(root: Element): TextEditorView | null {
+  for (const view of liveTextViews) {
+    if (root.contains(view.element)) return view;
+  }
+  return null;
+}
+
+/**
+ * Edit menu commands (D-13). `write` ones change the text, so a read-only
+ * view refuses them; the rest only move the cursor or selection, or open
+ * the find widget.
+ */
+export type EditCommandId =
+  | 'undo' | 'redo' | 'cut' | 'copy' | 'paste' | 'find' | 'replace'
+  | 'commentLine' | 'blockComment' | 'selectAll'
+  | 'addNextOccurrence' | 'cursorAbove' | 'cursorBelow';
+
+const EDIT_COMMANDS: Record<EditCommandId, { action: string; write: boolean }> = {
+  undo: { action: 'undo', write: true },
+  redo: { action: 'redo', write: true },
+  cut: { action: 'editor.action.clipboardCutAction', write: true },
+  copy: { action: 'editor.action.clipboardCopyAction', write: false },
+  paste: { action: 'editor.action.clipboardPasteAction', write: true },
+  find: { action: 'actions.find', write: false },
+  replace: { action: 'editor.action.startFindReplaceAction', write: true },
+  commentLine: { action: 'editor.action.commentLine', write: true },
+  blockComment: { action: 'editor.action.blockComment', write: true },
+  selectAll: { action: 'editor.action.selectAll', write: false },
+  addNextOccurrence: { action: 'editor.action.addSelectionToNextFindMatch', write: false },
+  cursorAbove: { action: 'editor.action.insertCursorAbove', write: false },
+  cursorBelow: { action: 'editor.action.insertCursorBelow', write: false },
+};
 
 export function getLineNumbersVisible(): boolean {
   return lineNumbersVisible;
@@ -105,8 +147,10 @@ export function setLineNumbersVisible(visible: boolean): void {
  * Reusable monaco-backed text/code view (D-18, FR-P1 ~ FR-P6). The shell
  * carries monaco as a default part; any preset may use this instead of
  * importing monaco itself (FR-P6). Turned on: syntax colorization, find/
- * replace, undo/redo, read-only mode. Turned off: quick suggestions, hover/
- * definition (language service), minimap, multi-cursor (X-12, FR-P5), and —
+ * replace, undo/redo, read-only mode, comment toggling and multi-cursor
+ * (off under X-12 until D-13 turned it back on). Turned off: quick
+ * suggestions, hover/definition (language service), minimap (X-12, FR-P5),
+ * and —
  * unless View > Show Line Numbers is checked — line numbers themselves
  * (off by default, user request, 2026-09-17).
  */
@@ -117,7 +161,6 @@ export class TextEditorView {
   private savedValue: string;
   private dirtyChangeCallbacks: ((dirty: boolean) => void)[] = [];
   private contentChangeCallbacks: (() => void)[] = [];
-  private isCollapsingSelection = false;
 
   constructor(options: TextViewOptions) {
     this.element = document.createElement('div');
@@ -158,17 +201,6 @@ export class TextEditorView {
       scrollbar: { verticalScrollbarSize: 5, horizontalScrollbarSize: 5 },
     });
 
-    // Multi-cursor off (X-12, FR-P5): collapse any secondary cursor back to
-    // one, regardless of which monaco command or mouse gesture created it.
-    this.editor.onDidChangeCursorSelection(() => {
-      if (this.isCollapsingSelection) return;
-      const selections = this.editor.getSelections();
-      if (selections && selections.length > 1) {
-        this.isCollapsingSelection = true;
-        this.editor.setSelections([selections[0]]);
-        this.isCollapsingSelection = false;
-      }
-    });
 
     this.model.onDidChangeContent(() => {
       const isDirty = this.model.getValue() !== this.savedValue;
@@ -186,6 +218,38 @@ export class TextEditorView {
 
   public getValue(): string {
     return this.model.getValue();
+  }
+
+  /** Whether an Edit menu command can run here now (a read-only view refuses text changes). */
+  public canRunEditCommand(id: EditCommandId): boolean {
+    const command = EDIT_COMMANDS[id];
+    if (command.write && this.isReadOnly()) return false;
+    if (id === 'undo') return this.model.canUndo();
+    if (id === 'redo') return this.model.canRedo();
+    return true;
+  }
+
+  /**
+   * Runs an Edit menu command. Focus goes back to the text first: the menu
+   * click took it, and monaco's clipboard and find actions act on the
+   * focused editor.
+   */
+  public runEditCommand(id: EditCommandId): void {
+    if (!this.canRunEditCommand(id)) return;
+    this.editor.focus();
+    // trigger(), not getAction().run(): undo/redo/select-all are core
+    // commands with no editor action behind them.
+    this.editor.trigger('menu', EDIT_COMMANDS[id].action, null);
+  }
+
+  /** Binds Ctrl+S inside this view to `fn` — what saving means is the caller's (FR-P7). */
+  public onSaveKey(fn: () => void): void {
+    this.editor.addAction({
+      id: 'workbench.save',
+      label: 'Save',
+      keybindings: [monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS],
+      run: () => fn(),
+    });
   }
 
   /** Test-support only: checks both the model ID and a registered grammar. */

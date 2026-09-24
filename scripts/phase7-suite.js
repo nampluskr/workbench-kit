@@ -139,10 +139,10 @@ window.__runPhase7TestSuite = async function runPhase7TestSuite() {
     const categoryLabels = Array.from(document.querySelectorAll('.menu-category-row .menu-category-label')).map((el) => el.textContent.trim());
     record(
       'P7-FR-N5-GROUPS',
-      JSON.stringify(categoryLabels) === JSON.stringify(['File', 'View', 'Help']),
+      JSON.stringify(categoryLabels) === JSON.stringify(['File', 'Edit', 'View', 'Help']),
       // Round-2 finding: a raw element count doesn't prove WHICH 3 groups
       // they are — check the actual visible labels.
-      `Opening the hamburger reveals exactly the 3 top-level groups with correct labels, in order: ${JSON.stringify(categoryLabels)} (FR-N5)`
+      `Opening the hamburger reveals exactly the 4 top-level groups (Edit added by D-13) with correct labels, in order: ${JSON.stringify(categoryLabels)} (FR-N5)`
     );
     // v0.1 FR-N6 is replaced by the current File contract. The ID is kept so
     // the historical matrix still resolves.
@@ -154,6 +154,7 @@ window.__runPhase7TestSuite = async function runPhase7TestSuite() {
       { id: 'file:open-file', label: 'Open File...' },
       { id: 'file:open-folder', label: 'Open Folder...' },
       { id: 'file:open-recent', label: 'Recent Folders' },
+      { id: 'file:save', label: 'Save' },
       { id: 'file:close-tab', label: 'Close Active Tab' },
       { id: 'file:close-editor-group', label: 'Close All Tabs in Group' },
       { id: 'file:close-all-tabs', label: 'Close All Tabs' },
@@ -173,11 +174,12 @@ window.__runPhase7TestSuite = async function runPhase7TestSuite() {
       { id: 'view:layout', label: 'Layout' },
       { id: 'view:appearance', label: 'Appearance' },
       { id: 'view:tab-mode', label: 'Tab Mode' },
+      { id: 'view:file-filter', label: 'File Filter' },
     ];
     record(
       'P7-FR-N7',
       JSON.stringify(viewRows) === JSON.stringify(viewExpected),
-      `View menu has exactly the Layout, Appearance, and Tab Mode groups, in order: ${JSON.stringify(viewRows.map((r) => r.label))}`
+      `View menu has exactly the Layout, Appearance, Tab Mode, and File Filter groups, in order: ${JSON.stringify(viewRows.map((r) => r.label))}`
     );
     // v0.1's "우클릭 메뉴 사용" switch is gone from View (SPEC 0.1, v0.1 FR-G6 → v0.2
     // FR-M2). What stays is the right-click device being off by default (D-22).

@@ -5,6 +5,7 @@ const os = require('os');
 const crypto = require('crypto');
 const { execFile } = require('child_process');
 const pty = require('node-pty');
+const fsOps = require('./fs-ops.cjs');
 
 const isSmokeTest = process.argv.includes('--smoke-test');
 if (isSmokeTest) {
@@ -71,6 +72,10 @@ ipcMain.handle('fs:write-text-file', async (_e, filePath, contents) => {
   await fs.promises.writeFile(filePath, contents, 'utf8');
   return true;
 });
+
+ipcMain.handle('fs:create-file', (_e, filePath) => fsOps.createFile(filePath));
+ipcMain.handle('fs:create-folder', (_e, dirPath) => fsOps.createFolder(dirPath));
+ipcMain.handle('fs:rename-path', (_e, oldPath, newPath) => fsOps.renamePath(oldPath, newPath));
 
 const terminals = new Map();
 let terminalCounter = 0;

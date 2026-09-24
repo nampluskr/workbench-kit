@@ -208,6 +208,28 @@ class WindowApi:
             stream.write(contents)
         return True
 
+    # Explorer create / rename (D-14): same meaning as the Electron host's
+    # fs-ops.cjs — never overwrite, an existing target is an error.
+    def create_file(self, file_path):
+        # 'x' fails with FileExistsError instead of truncating.
+        with open(file_path, 'x', encoding='utf-8'):
+            pass
+        return True
+
+    def create_folder(self, dir_path):
+        os.mkdir(dir_path)
+        return True
+
+    def rename_path(self, old_path, new_path):
+        # os.rename already refuses an existing target on Windows; the check
+        # keeps the message the same as Electron's and lets a case-only
+        # rename (a.txt -> A.txt) through.
+        case_only = os.path.normcase(os.path.abspath(old_path)) == os.path.normcase(os.path.abspath(new_path))
+        if not case_only and os.path.exists(new_path):
+            raise FileExistsError(f"'{os.path.basename(new_path)}' already exists")
+        os.rename(old_path, new_path)
+        return True
+
     def terminal_start(self, kind, cwd):
         if kind not in ('cmd', 'powershell'):
             raise RuntimeError('Unsupported shell')
@@ -1688,6 +1710,19 @@ def main():
         port_is_free = False
     finally:
         probe.close()
+
+    # A persistent profile also keeps WebView2's HTTP cache, and that cache
+    # was serving a PREVIOUS build's index.html and bundle after a rebuild
+    # (user report, 2026-09-24: Electron showed the change, pywebview did not;
+    # a smoke run on the real profile loaded ./assets/index-*.js names no
+    # longer in dist/). pywebview's asset route does set no-cache headers,
+    # but bottle.static_file() returns a fresh response that drops them, so
+    # the page falls back to heuristic caching. The HTTP cache is disposable
+    # — localStorage (folder tabs, file filter, modes) lives in a separate
+    # folder and is untouched — so empty it before every start.
+    http_cache_dir = os.path.join(storage_path, "EBWebView", "Default", "Cache")
+    if os.path.isdir(http_cache_dir):
+        shutil.rmtree(http_cache_dir, ignore_errors=True)
 
     def start_with_cleanup(**kwargs):
         try:

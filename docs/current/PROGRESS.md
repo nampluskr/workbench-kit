@@ -15,6 +15,221 @@
 
 사람이 구현 중 요청한, backlog에 없는 작업을 요청 건마다 남긴다.
 
+- **D-13 · D-14 확정, 반대 벤더 검증 생략** (2026-09-24, 사용자 지시)
+  - 사용자가 D-13(Edit 메뉴·Save·다중 커서)과 D-14(탐색기 만들기·`F2` 이름 바꾸기)를
+    확정했다. `DECISIONS.md`에서 두 항목의 초안 표시를 지웠다.
+  - 두 변경은 공통 코어(`menu.ts`, `texteditor.ts`, `tree.ts`)를 고쳐 반대 벤더 검증
+    대상이지만, 사용자가 **실행하지 않기로** 했다(사용자 직접 테스트로 대신).
+    세션 내 자동 검사(`verify:edit-menu` 21개, `verify:explorer-fileops` 27개,
+    pywebview 호스트 검사 8개, `verify:*` 22개 회귀 비교)만 거쳤다.
+
+- **탐색기에서 파일·폴더 실제 생성, `F2` 이름 바꾸기** (2026-09-24, 사용자 요청 · D-14 초안)
+  - **배경**: New File / New Folder 버튼은 이름 입력 행만 띄우고, `main.ts`의 예시
+    처리기가 `App would create ...` 메시지만 보여 줬다. 실제로는 만들어지지 않았다.
+  - **사용자 결정**:
+    - 이름을 바꾸면 열린 탭이 새 경로를 따라간다.
+    - 새 파일은 선택하고 Editor 모드로 연다.
+    - 이름 바꾸기는 `F2`로만 시작한다.
+  - **코드**:
+    - 호스트:
+      - `src/hosts/electron/fs-ops.cjs`(신규): `createFile`(`wx`), `createFolder`,
+        `renamePath`(대상이 있으면 거부, 대소문자만 바꾸는 경우는 허용)
+      - `main.cjs`: IPC 3개(`fs:create-file`·`fs:create-folder`·`fs:rename-path`)
+      - `preload.cjs`: 위 세 동작 노출
+      - pywebview `WindowApi.create_file`·`create_folder`·`rename_path`: 같은 의미
+    - `src/providers/filesystem.ts`: 브리지 타입과 `createFile`·`createFolder`·
+      `renamePath`
+    - `src/core/tree.ts`(범용 장치만):
+      - `promptRename(nodeId, { selectionEnd, onCommit })`: 행 라벨 자리에 입력칸.
+        Enter나 blur로 확정하고 Escape로 취소한다. 루트에는 열지 않는다.
+      - 새 항목 입력의 `initialValue`
+    - `src/presets/explorer-file-ops.ts`(신규, 앱 층):
+      - Windows 이름 검사
+      - 만들기: 새로 고치고, 선택하고, 파일이면 Editor로 연다. 실패하면 입력 행을
+        다시 연다.
+      - 이름 바꾸기: 파일은 확장자 앞까지 선택한다. 펼쳐져 있던 폴더는 다시 펼친다.
+      - `retargetOpenTabs`: file / file-list 탭의 `targetId`와 제목을 새 경로로 바꾼다.
+    - `src/main.ts`: 예시 처리기를 교체했다. 탐색기 영역에 `F2`를 연결한다(트리 행
+      포커스, 수정키 없음).
+    - `src/style.css`: `.tree-rename-field`
+  - **문서**: `docs/current/DECISIONS.md`에 D-14 초안을 추가했다(사용자 확인 대기).
+  - **검증**:
+    - `typecheck`, `build`, `verify:dist`, `verify:phase2`(D-29) 통과.
+    - 신규 `verify:explorer-fileops` 27개 통과. 실제 `fs-ops.cjs`를 쓰고 임시 폴더에서
+      디스크를 직접 대조했다.
+      - 새 파일(빈 파일, 선택, Editor 탭), 하위 폴더 안의 새 폴더
+      - 이미 있는 이름이나 잘못된 문자: 디스크 불변, 상태 메시지, 입력값을 유지한 채
+        입력 행 재오픈
+      - `F2`: 확장자 앞까지 선택, Escape 취소, 루트 거부
+      - 수정 중인 파일의 이름 바꾸기: 탭 제목·경로 변경, 내용과 ● 유지, `Save`가 새
+        경로에 기록(옛 파일은 다시 생기지 않음)
+      - 폴더 이름 바꾸기: 안의 파일 탭과 file-list 탭이 따라가고 펼침 유지
+      - 이미 있는 이름으로 바꾸기 거부, 대소문자만 바꾸기 허용
+    - pywebview 호스트 메서드를 임시 폴더에서 직접 호출하는 검사 8개 통과
+      (같은 의미 확인).
+    - 회귀: `verify:*` 22개를 이전 결과(`results-edit`)와 비교해 새 실패 0건.
+      `verify:edit-menu` 21개도 여전히 통과한다.
+  - **제약**:
+    - 이름을 바꾼 파일 탭의 되돌리기 기록은 새로 시작한다.
+    - 터미널 탭의 작업 폴더는 따라가지 않는다.
+    - 필터(D-12)에 걸리는 확장자로 만든 파일은 만들어지지만 트리에는 보이지 않는다.
+  - **반대 벤더 검증**: 코어(`tree.ts`)를 고쳤으므로 대상이다. 실행 여부는 사용자가
+    결정한다.
+
+- **Edit 메뉴, File > Save(`Ctrl+S`), 다중 커서 켜기** (2026-09-24, 사용자 요청 · D-13 초안)
+  - **무엇을**: 햄버거 메뉴를 `File · Edit · View · Help`로 바꿨다. Edit에는 VS Code
+    순서로 Undo/Redo, Cut/Copy/Paste, Find/Replace, Toggle Line/Block Comment,
+    Select All, Add Next Occurrence, Add Cursor Above/Below를 두었다. File에는 `Save`
+    (`Ctrl+S`)를 더했다. 사용자 결정: 메뉴 항목에 있는 기능만 넣는다(줄 이동·복제 등
+    메뉴 밖 단축키는 넣지 않음). 다중 커서는 켠다(v0.1 X-12 중 이 항목을 뒤집음).
+  - **코드**:
+    - `src/core/texteditor.ts`: monaco 기여 `comment`·`clipboard`·`multicursor`를 불러온다.
+      보조 커서를 하나로 접던 리스너를 지웠다. 범용 장치 `findTextViewWithin(root)`,
+      `canRunEditCommand`/`runEditCommand`, `onSaveKey`를 더했다.
+      `runEditCommand`는 `editor.focus()` 뒤 `trigger()`로 실행한다. Undo/Redo/Select
+      All은 editor action이 없는 코어 명령이라 `getAction().run()`으로는 실행되지 않았다.
+    - `src/core/menu.ts`: `'edit'` 묶음과 `DEFAULT_EDIT_ITEMS`, `file:save` 행을 더했다.
+      최상위 행용 `setDisabledProvider`를 두어, 비활성 행은 흐리게 그리고 클릭·`Enter`를
+      무시하며 화살표 이동에서 건너뛴다.
+    - `src/main.ts`: Edit 행을 활성 탭 안의 텍스트 보기에 연결하고, `Save`는 활성 탭이
+      변경 상태일 때만 `kindRegistry.save()`를 부른다.
+    - `src/presets/file-preset.ts`: 자기 보기에 `Ctrl+S`를 등록한다. 변경 상태일 때만
+      저장한다. 셸은 이 키를 가져가지 않는다(예약 키 §4).
+    - `src/style.css`: 비활성 행에 키보드 포커스가 있어도 강조하지 않는다.
+  - **비활성 규칙**: 텍스트 보기가 없는 탭(file-list, 터미널, 빈 탭)은 Edit 전부 비활성.
+    Viewer(읽기 전용)는 글을 바꾸는 행이 비활성. 되돌릴 것이 없으면 Undo/Redo도 비활성.
+  - **문서**: `docs/current/DECISIONS.md`에 D-13 초안을 추가했다(사용자 확인 대기).
+    `docs/reserved-keys.md`의 메뉴 묶음 표기를 `File → Edit → View → Help`로 고쳤다.
+    예약 키 자체는 바뀌지 않았다.
+  - **검증**:
+    - `npm run typecheck`, `build` 통과. `verify:dist`, `verify:phase2`(D-29) 통과.
+    - 신규 `verify:edit-menu`(`scripts/verify-edit-menu-electron.cjs`) 21개 통과.
+      - 묶음 순서와 Edit 행·단축키 표기
+      - 메뉴 행으로 주석, Undo/Redo, Cut/Paste, Find가 실제로 동작
+      - 실제 키 입력(`sendInputEvent`): `Ctrl+/`, `Ctrl+D` 두 번 → 커서 2개,
+        `Ctrl+S` → 파일 기록과 ● 해제
+      - `File > Save`
+      - Viewer에서 쓰기 행 비활성·읽기 행 활성, file-list에서 전부 비활성
+      - 키보드로 Edit 묶음 도달, 비활성 행에서 `Enter` 무시
+    - 기존 검사 기대값 갱신:
+      - `phase7` `P7-FR-N5-GROUPS`(4묶음), `P7-FR-N6`(`Save` 행)
+      - `v02-phase4` `V2P4-FR-M11`(화살표 4개)
+      - `phase6` `P6-FR-P5-MULTICURSOR`(커서 2개 유지)와 소스 검사(접기 리스너 없음,
+        multicursor 기여 있음)
+    - 회귀: `verify:*` 22개를 이전 결과(`results-ctx`)와 비교했다. 위 두 건(`V2P4-FR-M11`,
+      phase6 소스 검사)을 고친 뒤 새 실패는 0건이다. `V2P4-FR-M1/M4/M6`는 기존 실패
+      그대로이고, 표시되는 목록에 `Save`가 더해졌을 뿐이다.
+    - 번들: JS 8,618,633 → 8,728,908 B(+110,275 B, +1.3%). 세 기여 모듈 분량이다.
+  - **테스트에서 배운 것**: monaco 0.56은 키 입력을 textarea가 아니라
+    `native-edit-context` 요소로 받는다. 스크립트로 textarea에 `focus()`해도 monaco는
+    포커스를 얻지 못하므로, 키 검사는 실제 마우스 클릭(`sendInputEvent`)으로 포커스를 준다.
+  - **남은 확인**: pywebview(WebView2)에서 메뉴 `Paste`가 클립보드를 읽는지는 사용자 직접
+    확인이 필요하다(Electron은 통과). 반대 벤더 검증은 코어(`menu.ts`, `texteditor.ts`)를
+    고쳤으므로 대상이다. 실행 여부는 사용자가 결정한다.
+
+- **상태표시줄 경로를 고정폭 대신 주소줄과 같은 글꼴로** (2026-09-24, 사용자 요청)
+  - `src/style.css` `.statusbar-path`·`.statusbar-app-item`: `\`가 `₩`로 보이지 않게
+    09-15에 넣은 고정폭 글꼴 목록(`Consolas, 'SFMono-Regular', Menlo, monospace`)을
+    folder file-list 주소줄·툴팁과 같은 `Arial, var(--font-family)`로 바꿨다. 라틴
+    글꼴이 앞에 있어 `\`는 그대로 백슬래시로 그려지고, 한글은 시스템 글꼴로 간다.
+  - 검증: `npm run build`, `verify:phase2`, `verify:dist` 통과. Electron에서 경로 칸
+    글꼴이 Arial로 계산되고, 9가지 경로의 글자 순서(양 끝 `_` `.` `/` `\` 포함)와
+    긴 경로의 앞부분 잘림이 그대로임을 재확인했다. 스크린샷에서 `\`가 백슬래시로
+    보인다.
+
+- **우클릭 메뉴의 첫 줄 강조가 고정되던 문제 수정** (2026-09-24, 사용자 보고)
+  - 증상: 폴더탭 레일 탭을 우클릭하면 `Rename` 줄 강조가 남은 채, 다른 줄에 마우스를
+    올려도 없어지지 않았다(두 줄이 동시에 강조).
+  - 원인: `src/core/contextmenu.ts`가 키보드 조작을 위해 열 때 첫 줄에 `focused`를
+    붙이는데, 마우스 올림은 CSS `:hover`로만 칠하고 `focused`를 옮기지 않았다.
+  - 수정: 줄에 `mouseenter`가 오면 `setFocus()`로 `focused`를 그 줄로 옮긴다(방향키와
+    같은 경로). `src/style.css`에서 `.context-menu-item-row:hover` 규칙을 없애
+    강조를 `focused` 하나로만 그린다 — 남겨 두면 마우스를 둔 채 방향키를 누를 때 두
+    줄이 칠해졌다. 트리의 우클릭 메뉴에도 같이 적용된다(공통 장치).
+  - 검증: `npm run typecheck`, `npm run build`, `verify:phase2`, `verify:dist` 통과.
+    Electron에서 실제 마우스 이벤트로 레일 탭을 우클릭하고 다섯 줄을 차례로 올리고
+    방향키를 눌러, 모든 상태에서 칠해진 줄이 하나뿐임을 확인했다. `verify:*` 22개
+    스위트 실패 목록이 직전과 같다(새 실패 0건).
+
+- **pywebview가 이전 빌드를 보여 주던 문제 수정** (2026-09-24, 사용자 보고)
+  - 증상: 새 빌드가 Electron에는 반영되는데 pywebview에는 반영되지 않았다.
+  - 원인: pywebview는 재시작 간 localStorage 유지를 위해 영구 WebView2 프로필과
+    고정 주소(`127.0.0.1:47823`)를 쓰는데, 그 프로필의 HTTP 캐시(243MB)가 이전
+    `index.html`과 번들을 계속 내주고 있었다. 실제 프로필로 `--smoke-test`를 돌리자
+    디스크에 없는 `./assets/index-CL_jiZpy.js`를 읽고 있었다. pywebview의 에셋
+    경로는 no-cache 헤더를 설정하지만 `bottle.static_file()`이 새 응답을 돌려주며
+    그 헤더가 빠져 휴리스틱 캐시가 적용된 것으로 보인다.
+  - `src/hosts/pywebview/main.py`: 시작 전에 `<storage_path>/EBWebView/Default/Cache`
+    (HTTP 캐시)만 지운다. localStorage는 별도 폴더(`Local Storage`)라 유지된다.
+  - 검증: 같은 실제 프로필로 `--smoke-test`를 다시 돌려 현재 번들
+    (`index-Cdqp3Mic.js`)을 읽는 것과 `Local Storage` 폴더가 남아 있는 것을 확인했다.
+
+- **File Filter 메뉴 정리와 체크박스 테마 적용** (2026-09-24, 사용자 요청)
+  - `src/main.ts`: `View > File Filter`에서 비활성 표시 행 `Include: …`/`Exclude: …`와
+    구분선을 없애고 `Edit Filter...`, `Clear Filter`만 남겼다(현재 조건은 Activity
+    Bar 아이콘과 툴팁이 보여 준다). `scripts/verify-file-filter-electron.cjs`의 메뉴
+    단언을 이에 맞췄다.
+  - `src/style.css` `.file-filter-check input`: OS 기본 체크박스가 테마와 무관하게
+    흰 칸이라, `appearance: none`으로 테마 토큰(`--bg-color` 배경, `--focus-ring`
+    테두리)과 codicon 체크 글리프로 다시 그렸다.
+  - 검증: `npm run build`, `verify:phase2`, `verify:dist` 통과, `verify:file-filter`
+    25/25 통과. 세 테마 스크린샷에서 체크박스가 테마를 따르는 것을 확인했다.
+
+- **file-list 주소칸의 `\`가 `₩`로 보이던 문제 수정** (2026-09-24, 사용자 요청)
+  - 원인: 주소칸이 앱 기본 글꼴(system-ui)을 쓰는데, 한국어 Windows에서 이 글꼴은
+    `\`를 `₩`로 그린다(상태표시줄 경로·툴팁과 같은 문제).
+  - `src/style.css` `.folder-file-list-path-input`: 툴팁과 같이 라틴 글꼴 `Arial`을
+    글꼴 목록 맨 앞에 뒀다(D-29 금지 글꼴 회피). 한글은 시스템 글꼴로 그려진다.
+  - 검증: `npm run build`, `verify:phase2`·`verify:dist`·`verify:phase3` 통과.
+    Electron 스크린샷에서 주소칸이 `C:\Users\...`로 표시됨을 확인했다.
+
+- **파일 확장자 필터 (Include / Exclude)** (2026-09-23, 사용자 요청, D-12 초안)
+  - 결정(사용자): Explorer 트리와 file-list 모두에 적용, 테마와 같은 전역 설정(재시작
+    뒤 유지), 체크 목록과 직접 입력, 즉시 적용, 폴더는 항상 표시, Activity Bar 버튼
+    (필터가 걸리면 `codicon-filter-filled`)과 `View > File Filter` 메뉴.
+  - `src/providers/extension-filter.ts`(신규): 필터 상태·판정(`matchesFile`, Exclude
+    우선)·`localStorage`(`workbench:file-filter`) 저장·입력 해석
+    (`parseExtensionList`)·본 확장자 수집. `extractExt()`를 `folder-preset.ts`에서
+    이리로 옮겼다. 확장자를 아는 코드라 코어 밖에 둔다(D-4).
+  - `src/providers/filesystem.ts`: 트리의 `getChildren()`이 파일만 거른다. 거르기
+    전 확장자를 알려 필터 창 후보로 쓴다.
+  - `src/presets/folder-preset.ts`: `entriesByPath`에는 전체를 두고 렌더할 때만
+    거른다(필터를 풀면 디스크를 다시 읽지 않고 되살아남). 필터가 바뀌면 다시 그리고,
+    하단 상태줄에 `· N hidden by filter`를 붙인다.
+  - `src/presets/extension-filter-panel.ts`(신규): 필터 창. Include(`All files (*.*)`
+    + 체크 목록 + 직접 입력), Exclude(체크 목록 + 직접 입력), `Clear`. Include의
+    마지막 확장자를 해제하면 전체로 돌아간다. Esc·바깥 클릭으로 닫힌다.
+  - 공통 코어는 범용 장치만: `src/core/activitybar.ts`에 필터 버튼 항목과
+    `setItemLabel()`·`getItemElement()`, `src/core/menu.ts`의 View에 `File Filter`
+    하위 메뉴. 연결은 `src/main.ts`(아이콘·툴팁 갱신, 트리 `refresh()`, 메뉴 행).
+  - v0.2 D-3("세로 띠에는 영역 토글만")과 충돌해 `docs/current/DECISIONS.md`에
+    **D-12**를 사용자 승인으로 초안 작성했고, 2026-09-24 사용자가 확정했다.
+  - `scripts/phase7-suite.js` `P7-FR-N7`의 View 기대 목록에 `File Filter`를 더했다.
+  - 신규 `npm run verify:file-filter`(`scripts/verify-file-filter-electron.cjs`):
+    실제 UI를 눌러 25개 단언 — 기본 아이콘, 창 열기, Include·Exclude(Exclude
+    우선), 직접 입력, `(no extension)`, 트리·목록 동시 반영, 폴더·`..` 유지, 트리
+    펼침 유지, 상태줄 숨김 개수, 메뉴 행과 `Clear Filter` 비활성, Clear 복원,
+    마지막 해제 시 전체 복귀, Esc·바깥 클릭 닫힘, 저장과 재로드 후 복원.
+  - 검증: `npm run typecheck`, `npm run build`, `npm run verify:dist`,
+    `npm run verify:phase2` 통과. `verify:file-filter` 25/25 통과. `verify:*` 22개
+    스위트를 직전 결과와 비교해 새 실패 0건(`P7-FR-N7` 통과, `verify:phase3`는 한글
+    주석 수정으로 전건 통과, `V2P4-FR-M2`·`M6`은 기존 실패 메시지에 `File Filter`만
+    추가됨). 세 테마 스크린샷으로 필터 창과 채워진 아이콘 확인.
+  - 후속(2026-09-24, 사용자 요청): 필터 창 확장자 목록의 세로 스크롤바가 OS 기본
+    모양이라, `src/style.css`의 공통 스크롤바 규칙(폭 5px, 둥근 thumb, 테마
+    track/thumb/hover/active 색)에 `.file-filter-list`를 더했다. 확장자 16개로
+    목록이 스크롤되는 상태에서 스크롤바 폭 5px 실측, 세 테마 스크린샷 확인.
+    `npm run build`, `npm run verify:phase2`, `npm run verify:dist` 통과.
+  - 반대 벤더 적대적 검증은 사용자 결정(2026-09-24)으로 생략하고 사용자 직접
+    테스트로 대신한다(공통 코어 `activitybar.ts`·`menu.ts` 변경 포함).
+
+- **`src/main.ts` 한글 주석을 영어로** (2026-09-23, 사용자 요청)
+  - 트리 우클릭 선택 동작 주석(`a668d49`에서 들어옴)의 한글 인용
+    `"선택으로 표시 변경"`을 영어로 바꿨다. 동작 변경 없음.
+  - 검증: `npm run typecheck`, `npm run build` 통과. `verify:phase3` 전건 통과
+    (기존 유일 실패였던 "main.ts 주석 영어" 해소), `verify:v02-phase7`의
+    "src/ 아래 한글 0건"(FR-L1) 통과.
+
 - **OS 툴팁을 테마 툴팁으로 교체** (2026-09-23, 사용자 요청)
   - 배경: 탭·버튼 등 37곳의 `title` 툴팁을 OS가 그려 테마를 무시하고, 어두운
     테마에서 흰 바탕과 굵은 테두리가 튀었다. CSS로는 바꿀 수 없다.

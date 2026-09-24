@@ -20,7 +20,21 @@ export interface PromptNewItemOptions {
   type: PromptItemType;
   parentId?: string;
   icon?: IconDescriptor;
+  /** Text the input starts with — an app re-opening the row after a failed create keeps what was typed (D-14). */
+  initialValue?: string;
   onCommit: (result: { name: string; type: PromptItemType; parentId?: string }) => void;
+}
+
+/**
+ * Inline rename of an existing row (D-14). The shell only swaps the label for
+ * an input and hands the typed name over; renaming anything is the app's job
+ * (v0.1 D-30).
+ */
+export interface PromptRenameOptions {
+  /** End of the initial selection — the app passes where a name's stem ends; the shell knows no extensions (D-4). */
+  selectionEnd?: number;
+  /** Called once with the new text, only when it is non-empty and differs from the label. */
+  onCommit: (newName: string) => void;
 }
 
 export interface VisibleTreeItem {
@@ -91,6 +105,7 @@ export class TreeController {
 
   // Inline input widget state (FR-A23, WK-047)
   private promptState: PromptNewItemOptions | null = null;
+  private renameState: ({ nodeId: string } & PromptRenameOptions) | null = null;
   private refreshOpId = 0;
 
   // Event callbacks
@@ -140,6 +155,7 @@ export class TreeController {
     this.findMatches = [];
     this.findMatchIndex = -1;
     this.promptState = null;
+    this.renameState = null;
 
     if (node) {
       // By default root is expanded so immediate children are shown
@@ -427,14 +443,55 @@ export class TreeController {
       this.expandedIds.add(this.root.id);
     }
 
+    this.renameState = null;
     this.promptState = options;
     this.render();
 
     // Auto-focus input
-    const inputEl = this.container.querySelector('.tree-input-field') as HTMLInputElement | null;
+    const inputEl = this.container.querySelector('.tree-input-field:not(.tree-rename-field)') as HTMLInputElement | null;
     if (inputEl) {
       inputEl.focus();
       inputEl.select();
+    }
+  }
+
+  /**
+   * Opens the inline rename input on a row (D-14). Not on the root: it is the
+   * folder the tree was opened on, not an entry inside it. Returns whether
+   * the input opened.
+   */
+  public promptRename(nodeId: string, options: PromptRenameOptions): boolean {
+    const node = this.getNodeById(nodeId);
+    if (!this.root || !node || node.id === this.root.id) return false;
+    this.promptState = null;
+    this.renameState = { nodeId, ...options };
+    this.focusedId = nodeId;
+    this.render();
+    const input = this.container.querySelector('.tree-rename-field') as HTMLInputElement | null;
+    if (!input) {
+      this.renameState = null;
+      return false;
+    }
+    input.focus();
+    const end = Math.max(0, Math.min(options.selectionEnd ?? input.value.length, input.value.length));
+    input.setSelectionRange(0, end);
+    return true;
+  }
+
+  public isRenaming(): boolean {
+    return this.renameState !== null;
+  }
+
+  /** Closes the rename input. `refocus` is false when focus already moved elsewhere (blur). */
+  private finishRename(value: string | null, refocus: boolean): void {
+    const state = this.renameState;
+    if (!state) return;
+    this.renameState = null;
+    const node = this.getNodeById(state.nodeId);
+    this.render();
+    if (refocus) this.focusTree();
+    if (value !== null && value.length > 0 && node && value !== node.label) {
+      state.onCommit(value);
     }
   }
 
@@ -1212,6 +1269,9 @@ export class TreeController {
       // so a theme's special-named-folder icon lookup (e.g. "node_modules")
       // still matches.
       const displayLabel = item.node.isContainer ? `[${item.node.label}]` : item.node.label;
+      const labelHtml = this.renameState?.nodeId === item.node.id
+        ? `<input type="text" class="tree-input-field tree-rename-field" value="${escapeHtml(item.node.label)}" />`
+        : `<span class="tree-label">${escapeHtml(displayLabel)}</span>`;
 
       html += `
         <div class="tree-row ${isSelected ? 'selected' : ''} ${isFocused ? 'focused' : ''}"
@@ -1222,7 +1282,7 @@ export class TreeController {
           ${indentUnitsHtml}
           ${twistieHtml}
           ${iconHtml}
-          <span class="tree-label">${escapeHtml(displayLabel)}</span>
+          ${labelHtml}
         </div>
       `;
 
@@ -1251,7 +1311,7 @@ export class TreeController {
             ${promptIndentUnitsHtml}
             <span class="tree-twistie tree-twistie-spacer"></span>
             ${promptIconHtml}
-            <input type="text" class="tree-input-field" placeholder="Name" />
+            <input type="text" class="tree-input-field" placeholder="Name" value="${escapeHtml(this.promptState.initialValue ?? '')}" />
           </div>
         `;
       }
@@ -1319,7 +1379,8 @@ export class TreeController {
 
   private renderTreeListOnly(): void {
     const listContainer = this.container.querySelector('.tree-list');
-    if (!listContainer) {
+    // The rows-only path draws no rename input; keep an open one alive.
+    if (!listContainer || this.renameState) {
       this.render();
       return;
     }
@@ -1423,8 +1484,28 @@ export class TreeController {
       this.updateFindCountUI();
     }
 
+    // Inline rename input (D-14): Enter or leaving the field commits, Escape
+    // cancels; its keys and clicks stay inside the field.
+    const renameInput = this.container.querySelector('.tree-rename-field') as HTMLInputElement | null;
+    if (renameInput && this.renameState) {
+      renameInput.addEventListener('keydown', (e) => {
+        e.stopPropagation();
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          this.finishRename(renameInput.value, true);
+        } else if (e.key === 'Escape') {
+          e.preventDefault();
+          this.finishRename(null, true);
+        }
+      });
+      renameInput.addEventListener('blur', () => this.finishRename(renameInput.value, false));
+      for (const type of ['mousedown', 'click', 'dblclick'] as const) {
+        renameInput.addEventListener(type, (e) => e.stopPropagation());
+      }
+    }
+
     // Inline input widget events (FR-A23, WK-047)
-    const promptInput = this.container.querySelector('.tree-input-field') as HTMLInputElement | null;
+    const promptInput = this.container.querySelector('.tree-input-field:not(.tree-rename-field)') as HTMLInputElement | null;
     if (promptInput && this.promptState) {
       promptInput.addEventListener('keydown', (e) => {
         e.stopPropagation();

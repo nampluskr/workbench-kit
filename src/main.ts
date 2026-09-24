@@ -3,7 +3,7 @@ import { setupWindowControls, setupResizeGrips, closeWindow } from './core/windo
 import { ConfirmDialogController } from './core/dialog';
 import { AboutDialogController } from './core/about';
 import { StatusMessageController } from './core/statusmessage';
-import { TextEditorView, setEditorColorTheme, getLineNumbersVisible, setLineNumbersVisible } from './core/texteditor';
+import { TextEditorView, setEditorColorTheme, getLineNumbersVisible, setLineNumbersVisible, findTextViewWithin, type EditCommandId } from './core/texteditor';
 import { MenuController } from './core/menu';
 import { ActivityBarController } from './core/activitybar';
 import { ViewStateManager } from './core/viewstate';
@@ -27,6 +27,9 @@ import { MenuItem } from './core/menu';
 import { ActivityBarItem } from './core/activitybar';
 import { ViewAction } from './core/sidebar';
 import { TooltipController } from './core/tooltip';
+import { clearFilter, describeExtensions, getFilter, isFilterActive, onFilterChange } from './providers/extension-filter';
+import { ExtensionFilterPanel } from './presets/extension-filter-panel';
+import { ExplorerFileOps } from './presets/explorer-file-ops';
 
 /** Injected at build time by vite.config.ts (v0.2 FR-C7, FR-C8). */
 declare const __WB_VERSION__: string;
@@ -114,6 +117,8 @@ export class WorkbenchApp {
   public iconTheme: IconThemeManager;
   public tree: TreeController;
   public folderTabs: FolderTabsController;
+  /** Explorer create / rename on disk (D-14). */
+  public explorerFileOps!: ExplorerFileOps;
   public explorerTitlebar: ExplorerTitlebarController;
   public fsProvider: FileSystemTreeProvider;
   public editor: EditorController;
@@ -431,17 +436,30 @@ export class WorkbenchApp {
       }
     });
 
-    // View titlebar's New File / New Folder: the shell opens the inline input
-    // row; the app does the actual creation (v0.2 FR-X4, D-6). This wiring is
-    // an example (INTENT 7) — a real app registers its own handler through the
-    // app surface. It reuses the host directory bridge, no new native code.
-    this.explorerTitlebar.setNewItemHandler((req) => {
-      const parentNode = req.parentId ? this.tree.getNodeById(req.parentId) : this.tree.getRoot();
-      const parentPath = (parentNode?.data as { path?: string } | undefined)?.path || parentNode?.id;
-      this.statusMessages.showMessage(
-        `App would create ${req.type === 'container' ? 'folder' : 'file'} "${req.name}" in ${parentPath ?? '(root)'}`
-      );
-      void this.tree.refresh();
+    // View titlebar's New File / New Folder and F2 rename: the shell opens the
+    // inline inputs; the app does the actual create / rename on disk (v0.2
+    // FR-X4, D-6, D-14). Renamed paths carry their open tabs along.
+    this.explorerFileOps = new ExplorerFileOps({
+      tree: this.tree,
+      editor: this.editor,
+      showMessage: (text) => this.statusMessages.showMessage(text),
+      showError: (text) => this.statusMessages.showError(text),
+      refreshViews: async () => {
+        // Refresh button path: the tree plus every file-list tab (WK-117).
+        this.explorerTitlebar.refresh();
+        await this.tree.refresh();
+      },
+    });
+    this.explorerTitlebar.setNewItemHandler((req) => void this.explorerFileOps.create(req));
+    // F2 is not a shell key (reserved-keys.md §4) — the app binds it on the
+    // Explorer, for the focused tree row only.
+    this.layout.sidebarContent.addEventListener('keydown', (e) => {
+      if (e.key !== 'F2' || e.ctrlKey || e.altKey || e.shiftKey || e.metaKey) return;
+      if (!(e.target as HTMLElement | null)?.closest?.('.tree-list')) return;
+      const nodeId = this.tree.getFocusedId();
+      if (!nodeId) return;
+      e.preventDefault();
+      this.explorerFileOps.beginRename(nodeId);
     });
 
     // Explorer width: a drag handle between the tree and the editor area
@@ -552,6 +570,42 @@ export class WorkbenchApp {
     this.activityBar.setAction('activity:toggle-titlebar', toggleTitlebar);
     this.activityBar.setAction('activity:toggle-statusbar', toggleStatusbar);
     this.activityBar.setAction('activity:toggle-foldertabs', () => this.viewState.toggleFolderTabs());
+
+    // File extension filter (user request, 2026-09-23 — D-12): one global
+    // setting the Explorer tree and every folder file-list tab read. The
+    // Activity Bar button opens the filter popup and turns filled while a
+    // filter is on; its hover text spells the filter out.
+    const fileFilterPanel = new ExtensionFilterPanel();
+    const openFileFilter = () => fileFilterPanel.toggle(this.activityBar.getItemElement('activity:file-filter'));
+    this.activityBar.setAction('activity:file-filter', openFileFilter);
+    const showFileFilterState = () => {
+      const f = getFilter();
+      this.activityBar.setItemIcon('activity:file-filter', isFilterActive() ? 'codicon-filter-filled' : 'codicon-filter');
+      this.activityBar.setItemLabel(
+        'activity:file-filter',
+        isFilterActive()
+          ? `File Filter — Include: ${describeExtensions(f.include, 'none')} · Exclude: ${describeExtensions(f.exclude, 'none')}`
+          : 'File Filter'
+      );
+    };
+    showFileFilterState();
+    onFilterChange(() => {
+      showFileFilterState();
+      // Folder file-list tabs re-render themselves; the tree re-reads,
+      // keeping its expansion and selection (TreeController.refresh()).
+      void this.tree.refresh();
+    });
+    // Just the two commands (user request, 2026-09-24: the read-only
+    // Include/Exclude rows are gone — the Activity Bar button's icon and
+    // hover text already show the current filter).
+    this.menu.setSubmenuProvider('view:file-filter', () => [
+      {
+        id: 'view:file-filter:edit',
+        label: 'Edit Filter...',
+        action: () => fileFilterPanel.open(this.activityBar.getItemElement('activity:file-filter')),
+      },
+      { id: 'view:file-filter:clear', label: 'Clear Filter', disabled: !isFilterActive(), action: () => clearFilter() },
+    ]);
 
     // Ensure menu controller state is closed when entering Zen mode (FR-F5, D-12)
     this.viewState.onZenEnter(() => this.menu.closeMenu());
@@ -686,8 +740,8 @@ export class WorkbenchApp {
       // Right-click changes the selection to this row (a no-op if it was
       // already the selected one) and nothing else beyond that — no file
       // preview-open — before the menu appears (v0.3 WK-120, corrected
-      // WK-122 then reverted back to this by WK-123, user request:
-      // "선택으로 표시 변경"='swap the selection if different', not also
+      // WK-122 then reverted back to this by WK-123, user request: "change
+      // the selection marker" = swap the selection if different, not also
       // opening the file the way a left click does).
       if (nodeId) this.tree.focusItemById(nodeId);
       const items = nodeId ? this.contextMenuItemsForTreeNode(nodeId) : [];
@@ -700,6 +754,37 @@ export class WorkbenchApp {
     this.menu.setAction('file:close-tab', () => this.editor.closeActiveTab());
     this.menu.setAction('file:close-editor-group', () => void this.editor.closeAllTabsInGroup());
     this.menu.setAction('file:close-all-tabs', () => void this.editor.closeAllTabs());
+
+    // File > Save and the Edit menu (D-13) act on the active tab. Save goes
+    // through the same app save handler as the close dialog; the Edit rows
+    // drive the text view in that tab and are greyed out when there is none
+    // (file list, terminal, empty tab) or the view refuses the command.
+    const activeDirtyPanel = () => {
+      const panel = this.editor.getActivePanel();
+      return panel?.params?.isDirty ? panel : null;
+    };
+    this.menu.setAction('file:save', () => {
+      const panel = activeDirtyPanel();
+      if (panel) void this.kindRegistry.save(panel.id);
+    });
+    this.menu.setDisabledProvider('file:save', () => !activeDirtyPanel());
+    const activeTextView = () => {
+      const panel = this.editor.getActivePanel();
+      const root = panel ? this.editor.getContentRenderer(panel.id)?.element : undefined;
+      return root ? findTextViewWithin(root) : null;
+    };
+    const editRows: [string, EditCommandId][] = [
+      ['edit:undo', 'undo'], ['edit:redo', 'redo'],
+      ['edit:cut', 'cut'], ['edit:copy', 'copy'], ['edit:paste', 'paste'],
+      ['edit:find', 'find'], ['edit:replace', 'replace'],
+      ['edit:comment-line', 'commentLine'], ['edit:block-comment', 'blockComment'],
+      ['edit:select-all', 'selectAll'], ['edit:add-next-occurrence', 'addNextOccurrence'],
+      ['edit:cursor-above', 'cursorAbove'], ['edit:cursor-below', 'cursorBelow'],
+    ];
+    for (const [rowId, command] of editRows) {
+      this.menu.setAction(rowId, () => activeTextView()?.runEditCommand(command));
+      this.menu.setDisabledProvider(rowId, () => !activeTextView()?.canRunEditCommand(command));
+    }
 
     // Overrides the built-in `file:exit` action (setAction takes priority
     // over the item's own embedded action) so quitting with unsaved changes

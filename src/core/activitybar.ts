@@ -10,12 +10,17 @@ export interface ActivityBarItem {
  * placed to match the screen — the title bar toggle first, the status bar
  * toggle last. Zen and the colour theme moved beside the window controls;
  * splitting stays in each group's header and in the menu.
+ *
+ * v0.3 D-12 is the one exception: the file filter button, placed after the
+ * area toggles it filters (Roots, Tree). The shell only draws the button —
+ * what it filters, and when its icon turns filled, is the app's call.
  */
 export const DEFAULT_ACTIVITY_BAR_TOP_ITEMS: ActivityBarItem[] = [
   { id: 'activity:toggle-titlebar', label: 'Toggle Title Bar', iconClass: 'codicon-fold-down' },
   // Folder Tabs (ROOTS) rail sits to the left of Tree (EXPLORER), placed above it.
   { id: 'activity:toggle-foldertabs', label: 'Toggle Folder Tabs', iconClass: 'codicon-list-unordered' },
   { id: 'activity:toggle-sidebar', label: 'Toggle Explorer', iconClass: 'codicon-list-tree' },
+  { id: 'activity:file-filter', label: 'File Filter', iconClass: 'codicon-filter' },
 ];
 
 export const DEFAULT_ACTIVITY_BAR_BOTTOM_ITEMS: ActivityBarItem[] = [
@@ -90,6 +95,24 @@ export class ActivityBarController {
       this.bottomContainer.querySelector(`[data-item-id="${id}"]`)) as HTMLElement | null;
     const iconEl = btn?.querySelector('i');
     if (iconEl) iconEl.className = `codicon ${iconClass}`;
+  }
+
+  /** Updates an item's label — its hover text and accessible name — in place, like `setItemIcon`. */
+  public setItemLabel(id: string, label: string): void {
+    const item = this.findItem(id);
+    if (!item) return;
+    item.label = label;
+    const btn = (this.topContainer.querySelector(`[data-item-id="${id}"]`) ||
+      this.bottomContainer.querySelector(`[data-item-id="${id}"]`)) as HTMLElement | null;
+    if (!btn) return;
+    btn.title = label;
+    btn.setAttribute('aria-label', label);
+  }
+
+  /** The rendered button for an item, e.g. to anchor a popup beside it. */
+  public getItemElement(id: string): HTMLElement | null {
+    return (this.topContainer.querySelector(`[data-item-id="${id}"]`) ||
+      this.bottomContainer.querySelector(`[data-item-id="${id}"]`)) as HTMLElement | null;
   }
 
   public render(): void {

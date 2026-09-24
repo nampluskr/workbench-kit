@@ -144,6 +144,23 @@ export function registerFilePreset(registry: ResourceKindRegistry, deps?: FilePr
         updateParams({ loadError: true });
       });
     }
+    const save = async () => {
+      if (loading || loadFailed) return false;
+      const contents = view.getValue();
+      try {
+        if (!(await writeTextFile(targetId, contents))) return false;
+      } catch {
+        return false;
+      }
+      view.markSaved(contents);
+      pushContentParams();
+      // An edit made while the write was in progress is still unsaved.
+      return !view.isDirty();
+    };
+    // Ctrl+S is the app's key, not the shell's (reserved-keys.md §4, D-13).
+    view.onSaveKey(() => {
+      if (view.isDirty()) void save();
+    });
     return {
       element: view.element,
       dispose: () => {
@@ -152,19 +169,7 @@ export function registerFilePreset(registry: ResourceKindRegistry, deps?: FilePr
         view.dispose();
       },
       onDirtyChange: (cb: (dirty: boolean) => void) => view.onDidChangeDirty(cb),
-      save: async () => {
-        if (loading || loadFailed) return false;
-        const contents = view.getValue();
-        try {
-          if (!(await writeTextFile(targetId, contents))) return false;
-        } catch {
-          return false;
-        }
-        view.markSaved(contents);
-        pushContentParams();
-        // An edit made while the write was in progress is still unsaved.
-        return !view.isDirty();
-      },
+      save,
       setMode: (newMode: string) => {
         currentMode = newMode;
         view.setReadOnly(loading || loadFailed || newMode === 'viewer');

@@ -1162,9 +1162,11 @@ body.is-resizing-sidebar {
 
 /* Same thickness as the tab row's bar (user request, 2026-09-14); the monaco
    editor's own bars are sized to match in texteditor.ts. The Folder Tabs
-   rail's own list matches .tree-list here too (user request, 2026-09-17). */
+   rail's own list matches .tree-list here too (user request, 2026-09-17), and
+   so do the File Filter popup's extension lists (user request, 2026-09-24). */
 .tree-list::-webkit-scrollbar,
 .foldertabs-list::-webkit-scrollbar,
+.file-filter-list::-webkit-scrollbar,
 .sidebar-content::-webkit-scrollbar,
 .dv-content-container::-webkit-scrollbar {
   width: 5px;
@@ -1173,6 +1175,7 @@ body.is-resizing-sidebar {
 
 .tree-list::-webkit-scrollbar-track,
 .foldertabs-list::-webkit-scrollbar-track,
+.file-filter-list::-webkit-scrollbar-track,
 .sidebar-content::-webkit-scrollbar-track,
 .dv-content-container::-webkit-scrollbar-track,
 .workbench-menu-dropdown::-webkit-scrollbar-track,
@@ -1182,6 +1185,7 @@ body.is-resizing-sidebar {
 
 .tree-list::-webkit-scrollbar-thumb,
 .foldertabs-list::-webkit-scrollbar-thumb,
+.file-filter-list::-webkit-scrollbar-thumb,
 .sidebar-content::-webkit-scrollbar-thumb,
 .dv-content-container::-webkit-scrollbar-thumb,
 .workbench-menu-dropdown::-webkit-scrollbar-thumb,
@@ -1192,6 +1196,7 @@ body.is-resizing-sidebar {
 
 .tree-list::-webkit-scrollbar-thumb:hover,
 .foldertabs-list::-webkit-scrollbar-thumb:hover,
+.file-filter-list::-webkit-scrollbar-thumb:hover,
 .sidebar-content::-webkit-scrollbar-thumb:hover,
 .dv-content-container::-webkit-scrollbar-thumb:hover,
 .workbench-menu-dropdown::-webkit-scrollbar-thumb:hover,
@@ -1201,6 +1206,7 @@ body.is-resizing-sidebar {
 
 .tree-list::-webkit-scrollbar-thumb:active,
 .foldertabs-list::-webkit-scrollbar-thumb:active,
+.file-filter-list::-webkit-scrollbar-thumb:active,
 .sidebar-content::-webkit-scrollbar-thumb:active,
 .dv-content-container::-webkit-scrollbar-thumb:active,
 .workbench-menu-dropdown::-webkit-scrollbar-thumb:active,
@@ -1490,6 +1496,13 @@ body.is-resizing-sidebar {
   border-color: var(--menu-hover-bg);
 }
 
+/* F2 rename (D-14): the input takes the label's place in the row, in the
+   label's own font, and may shrink with a narrow Explorer. */
+.tree-rename-field {
+  min-width: 0;
+  font-family: inherit;
+}
+
 /* 4. Main Area */
 .workbench-main-area {
   flex: 1;
@@ -1531,12 +1544,15 @@ body.is-resizing-sidebar {
  * convention it keeps for compatibility. The character itself is a real "\"
  * the whole way through (host, bridge, DOM text); only the glyph is wrong.
  * statusbar-path and any app status bar item are the statusbar spots that
- * can show Windows paths, so they get an explicit non-substituting font stack
- * instead of inheriting --font-family (user report, 2026-09-15).
+ * can show Windows paths, so they put a Latin font first — it draws a real
+ * backslash, and Hangul still falls through to the system font (user report,
+ * 2026-09-15). This used to be a monospace stack; it now matches the folder
+ * file-list address bar and the tooltip, proportional like the rest of the
+ * UI (user request, 2026-09-24).
  */
 .statusbar-path,
 .statusbar-app-item {
-  font-family: Consolas, 'SFMono-Regular', Menlo, monospace;
+  font-family: Arial, var(--font-family);
 }
 
 .statusbar-item {
@@ -1692,7 +1708,10 @@ body.is-resizing-sidebar {
   border: 1px solid transparent;
   border-radius: 2px;
   padding: 0 3px;
-  font-family: inherit;
+  /* A Windows path: a Latin font first keeps "\" a real backslash instead
+     of the Korean UI font's won sign — same fix as .workbench-tooltip and
+     the statusbar-path note (user request, 2026-09-24). */
+  font-family: Arial, var(--font-family);
   font-size: inherit;
   outline: none;
 }
@@ -2001,6 +2020,143 @@ body.is-resizing-sidebar {
   display: none;
 }
 
+/*
+ * File Filter popup (user request, 2026-09-23 — D-12), opened beside the
+ * Activity Bar's filter button. Same ground, border and shadow as the menu
+ * dropdown; placed through the CSSOM by extension-filter-panel.ts.
+ */
+.file-filter-panel {
+  position: fixed;
+  z-index: 1100;
+  width: 220px;
+  padding: 7px 10px 10px;
+  background-color: var(--menu-bg);
+  color: var(--sidebar-fg);
+  border: 1px solid var(--border-color);
+  border-radius: 3px;
+  box-shadow: 0 5px 15px rgba(0, 0, 0, 0.35);
+  font-size: 13px;
+}
+
+.file-filter-title {
+  font-weight: 600;
+  margin-bottom: 5px;
+}
+
+.file-filter-section {
+  margin-top: 7px;
+}
+
+.file-filter-section-title {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  opacity: 0.7;
+  margin-bottom: 3px;
+}
+
+.file-filter-list {
+  max-height: 150px;
+  overflow-y: auto;
+  margin: 3px 0 5px 10px;
+}
+
+.file-filter-check {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  height: 22px;
+  cursor: pointer;
+}
+
+.file-filter-check.disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+/* The native checkbox paints a white box whatever the theme (user request,
+   2026-09-24) — drawn here from theme tokens instead, with the codicon check
+   glyph the menu uses for its own check marks. */
+.file-filter-check input {
+  appearance: none;
+  -webkit-appearance: none;
+  flex: 0 0 auto;
+  width: 14px;
+  height: 14px;
+  margin: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background-color: var(--bg-color);
+  border: 1px solid var(--focus-ring);
+  border-radius: 3px;
+  color: var(--sidebar-fg);
+  cursor: inherit;
+}
+
+.file-filter-check input:checked::before {
+  font: normal normal normal 13px/1 codicon;
+  content: '\eab2'; /* codicon-check */
+}
+
+.file-filter-check input:focus-visible {
+  outline: 1px solid var(--focus-ring);
+  outline-offset: 1px;
+}
+
+.file-filter-empty {
+  opacity: 0.6;
+  font-style: italic;
+  line-height: 22px;
+}
+
+.file-filter-input {
+  width: 100%;
+  box-sizing: border-box;
+  height: 22px;
+  padding: 0 5px;
+  background-color: var(--bg-color);
+  color: inherit;
+  border: 1px solid var(--border-color);
+  border-radius: 2px;
+  font-family: inherit;
+  font-size: inherit;
+  outline: none;
+}
+
+.file-filter-input:focus {
+  border-color: var(--focus-ring);
+}
+
+.file-filter-input:disabled {
+  opacity: 0.45;
+}
+
+.file-filter-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 10px;
+}
+
+.file-filter-btn {
+  background-color: var(--button-bg, var(--menu-hover-bg));
+  color: inherit;
+  border: 1px solid var(--border-color);
+  padding: 3px 15px;
+  cursor: pointer;
+  font-size: 13px;
+}
+
+.file-filter-btn:hover:not(:disabled) {
+  background-color: var(--menu-hover-bg);
+  color: var(--menu-hover-fg);
+}
+
+.file-filter-btn:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
 .workbench-menu-dropdown {
   position: absolute;
   top: var(--titlebar-height);
@@ -2104,7 +2260,8 @@ body.is-resizing-sidebar {
   opacity: 0.6;
 }
 
-.menu-item-row.disabled:hover {
+.menu-item-row.disabled:hover,
+.menu-item-row.disabled.kbd-focused {
   background-color: transparent;
   color: inherit;
 }
@@ -2207,7 +2364,9 @@ body.is-resizing-sidebar {
   white-space: nowrap;
 }
 
-.context-menu-item-row:hover,
+/* One marker only: hovering a row moves `.focused` to it (contextmenu.ts), so
+   no separate :hover rule — with one, resting the pointer on a row while
+   arrowing elsewhere lit two rows at once (user report, 2026-09-24). */
 .context-menu-item-row.focused {
   background-color: var(--menu-hover-bg);
   color: var(--menu-hover-fg);

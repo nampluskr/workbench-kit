@@ -90,6 +90,11 @@ export class ContextMenuController {
         item.action?.();
         this.hide();
       });
+      // The pointer moves the one focus marker with it, as in the hamburger
+      // menu — otherwise the first row's opening highlight stayed put while
+      // another row was hovered, two rows looking selected at once (user
+      // report, 2026-09-24).
+      row.addEventListener('mouseenter', () => this.setFocus(index));
       menuEl.appendChild(row);
     });
 
@@ -169,9 +174,14 @@ export class ContextMenuController {
     if (selectableIndices.length === 0) return;
     const currentPos = selectableIndices.indexOf(this.focusedIndex);
     const nextPos = (currentPos + delta + selectableIndices.length) % selectableIndices.length;
+    this.setFocus(selectableIndices[nextPos]);
+  }
 
+  /** Moves the single focus marker to `index` — shared by the arrow keys and the pointer. */
+  private setFocus(index: number): void {
+    if (index === this.focusedIndex) return;
     this.getRowEl(this.focusedIndex)?.classList.remove('focused');
-    this.focusedIndex = selectableIndices[nextPos];
+    this.focusedIndex = index;
     this.getRowEl(this.focusedIndex)?.classList.add('focused');
   }
 }

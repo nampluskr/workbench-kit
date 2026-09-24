@@ -45,7 +45,7 @@
 | 키 | 동작 |
 | --- | --- |
 | `ArrowUp` / `ArrowDown` | 항목 사이 이동 (하위 메뉴가 열려 있으면 그 안에서) |
-| `ArrowRight` | 하위 메뉴가 있는 항목(`Recent Folders` · `Layout` · `Appearance` · 테마 선택)이면 다음 깊이의 하위 메뉴를 연다. 아니면 다음 묶음(File → View → Help) |
+| `ArrowRight` | 하위 메뉴가 있는 항목(`Recent Folders` · `Layout` · `Appearance` · 테마 선택)이면 다음 깊이의 하위 메뉴를 연다. 아니면 다음 묶음(File → Edit → View → Help) |
 | `ArrowLeft` | 가장 깊게 열린 하위 메뉴를 한 단계 닫는다. 하위 메뉴가 없으면 이전 묶음으로 이동한다 |
 | `Enter` | 포커스된 항목 실행 (하위 메뉴가 있는 항목이면 연다) |
 | `Delete` | `Recent Folders` 하위 메뉴에서 포커스된 경로를 목록에서 지운다 (v0.2 FR-M7) |
@@ -115,7 +115,7 @@ Zen 모드이거나 탐색기가 숨겨져 있으면 손잡이가 안 보이고 
 
 | 자리 | 경로 |
 | --- | --- |
-| 메뉴(File · View · Help) | `F10`으로 열고, 화살표 키로 항목을 옮기고, `Enter`로 실행한다 |
+| 메뉴(File · Edit · View · Help) | `F10`으로 열고, 화살표 키로 항목을 옮기고, `Enter`로 실행한다 |
 | 세로 띠 | 네이티브 `<button>`이라 `Tab`으로 포커스하고 `Enter`/`Space`로 누른다 |
 | 탭 줄(Split Right · Split Down · New Tab) | 네이티브 `<button>`이라 `Tab`으로 포커스하고 `Enter`/`Space`로 누른다 |
 | 탐색기 뷰 액션(New File · New Folder · Refresh · Collapse All) | 네이티브 `<button>`이라 `Tab`으로 포커스하고 `Enter`/`Space`로 누른다 (v0.2 FR-X2 · FR-X4) |

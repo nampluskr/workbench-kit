@@ -28,7 +28,7 @@ export interface MenuSubItem {
 }
 
 export interface MenuGroup {
-  id: 'file' | 'view' | 'help';
+  id: 'file' | 'edit' | 'view' | 'help';
   label: string;
   items: MenuItem[];
 }
@@ -42,6 +42,10 @@ export const DEFAULT_FILE_ITEMS: readonly MenuItem[] = Object.freeze([
   Object.freeze({ id: 'file:open-folder', label: 'Open Folder...', shortcut: 'Ctrl+K Ctrl+O' }),
   Object.freeze({ id: 'file:open-recent', label: 'Recent Folders', type: 'submenu' as const }),
   separator('file:separator-recent'),
+  // Save acts on the active tab through the app's save handler (D-13): the
+  // shell only offers the row, as it already does in the close dialog.
+  Object.freeze({ id: 'file:save', label: 'Save', shortcut: 'Ctrl+S' }),
+  separator('file:separator-save'),
   Object.freeze({ id: 'file:close-tab', label: 'Close Active Tab', shortcut: 'Ctrl+W' }),
   Object.freeze({ id: 'file:close-editor-group', label: 'Close All Tabs in Group', shortcut: 'Ctrl+K W' }),
   Object.freeze({ id: 'file:close-all-tabs', label: 'Close All Tabs' }),
@@ -49,11 +53,35 @@ export const DEFAULT_FILE_ITEMS: readonly MenuItem[] = Object.freeze([
   Object.freeze({ id: 'file:exit', label: 'Exit', shortcut: 'Alt+F4', action: () => closeWindow() }),
 ]);
 
+// D-13 (user request, 2026-09-24): VS Code's Edit menu order, plus the
+// multi-cursor rows from its Selection menu. The keys stay the text view's
+// (reserved-keys.md §4) — a row only shows them.
+export const DEFAULT_EDIT_ITEMS: readonly MenuItem[] = Object.freeze([
+  Object.freeze({ id: 'edit:undo', label: 'Undo', shortcut: 'Ctrl+Z' }),
+  Object.freeze({ id: 'edit:redo', label: 'Redo', shortcut: 'Ctrl+Y' }),
+  separator('edit:separator-history'),
+  Object.freeze({ id: 'edit:cut', label: 'Cut', shortcut: 'Ctrl+X' }),
+  Object.freeze({ id: 'edit:copy', label: 'Copy', shortcut: 'Ctrl+C' }),
+  Object.freeze({ id: 'edit:paste', label: 'Paste', shortcut: 'Ctrl+V' }),
+  separator('edit:separator-clipboard'),
+  Object.freeze({ id: 'edit:find', label: 'Find', shortcut: 'Ctrl+F' }),
+  Object.freeze({ id: 'edit:replace', label: 'Replace', shortcut: 'Ctrl+H' }),
+  separator('edit:separator-find'),
+  Object.freeze({ id: 'edit:comment-line', label: 'Toggle Line Comment', shortcut: 'Ctrl+/' }),
+  Object.freeze({ id: 'edit:block-comment', label: 'Toggle Block Comment', shortcut: 'Shift+Alt+A' }),
+  separator('edit:separator-comment'),
+  Object.freeze({ id: 'edit:select-all', label: 'Select All', shortcut: 'Ctrl+A' }),
+  Object.freeze({ id: 'edit:add-next-occurrence', label: 'Add Next Occurrence', shortcut: 'Ctrl+D' }),
+  Object.freeze({ id: 'edit:cursor-above', label: 'Add Cursor Above', shortcut: 'Ctrl+Alt+Up' }),
+  Object.freeze({ id: 'edit:cursor-below', label: 'Add Cursor Below', shortcut: 'Ctrl+Alt+Down' }),
+]);
+
 // v0.2 FR-M2 · FR-M6.
 export const DEFAULT_VIEW_ITEMS: readonly MenuItem[] = Object.freeze([
   Object.freeze({ id: 'view:layout', label: 'Layout', type: 'submenu' as const }),
   Object.freeze({ id: 'view:appearance', label: 'Appearance', type: 'submenu' as const }),
   Object.freeze({ id: 'view:tab-mode', label: 'Tab Mode', type: 'submenu' as const }),
+  Object.freeze({ id: 'view:file-filter', label: 'File Filter', type: 'submenu' as const }),
 ]);
 
 // v0.2 FR-M3.
@@ -74,6 +102,9 @@ export class MenuController {
   private readonly coreFileItems: readonly MenuItem[] = Object.freeze(
     DEFAULT_FILE_ITEMS.map((it) => Object.freeze({ ...it }))
   );
+  private readonly coreEditItems: readonly MenuItem[] = Object.freeze(
+    DEFAULT_EDIT_ITEMS.map((it) => Object.freeze({ ...it }))
+  );
   private readonly coreViewItems: readonly MenuItem[] = Object.freeze(
     DEFAULT_VIEW_ITEMS.map((it) => Object.freeze({ ...it }))
   );
@@ -83,6 +114,7 @@ export class MenuController {
   private appFileItems: MenuItem[] = [];
   private itemActions: Map<string, () => void> = new Map();
   private checkedProviders: Map<string, () => boolean> = new Map();
+  private disabledProviders: Map<string, () => boolean> = new Map();
   private submenuProviders: Map<string, () => MenuSubItem[]> = new Map();
 
   constructor(private hamburgerBtn: HTMLButtonElement, private rootContainer: HTMLElement) {
@@ -229,14 +261,23 @@ export class MenuController {
     return (group?.items || []).filter((it) => it.type !== 'separator');
   }
 
+  private firstEnabledIndex(categoryId: string): number {
+    const index = this.getSelectableItems(categoryId).findIndex((it) => !this.isItemDisabled(it.id));
+    return index >= 0 ? index : 0;
+  }
+
   private getFocusedItem(): MenuItem | undefined {
     return this.getSelectableItems(this.activeCategoryId)[this.focusedItemIndex];
   }
 
   private moveItemFocus(delta: number): void {
     const items = this.getSelectableItems(this.activeCategoryId);
-    if (items.length === 0) return;
-    this.focusedItemIndex = (this.focusedItemIndex + delta + items.length) % items.length;
+    if (!items.some((it) => !this.isItemDisabled(it.id))) return;
+    let next = this.focusedItemIndex;
+    do {
+      next = (next + delta + items.length) % items.length;
+    } while (this.isItemDisabled(items[next].id));
+    this.focusedItemIndex = next;
     this.renderMenu();
   }
 
@@ -245,7 +286,7 @@ export class MenuController {
     const currentIndex = groups.findIndex((g) => g.id === this.activeCategoryId);
     const nextIndex = (currentIndex + delta + groups.length) % groups.length;
     this.activeCategoryId = groups[nextIndex].id;
-    this.focusedItemIndex = 0;
+    this.focusedItemIndex = this.firstEnabledIndex(this.activeCategoryId);
     this.openSubmenuPath = [];
     this.focusedSubIndices = [];
     this.renderMenu();
@@ -310,7 +351,7 @@ export class MenuController {
       return;
     }
     const item = this.getFocusedItem();
-    if (!item) return;
+    if (!item || this.isItemDisabled(item.id)) return;
     if (item.type === 'submenu') {
       this.openSubmenu(item.id, 0);
       return;
@@ -335,6 +376,10 @@ export class MenuController {
 
   public getFileItems(): readonly MenuItem[] {
     return this.coreFileItems;
+  }
+
+  public getEditItems(): readonly MenuItem[] {
+    return this.coreEditItems;
   }
 
   public getViewItems(): readonly MenuItem[] {
@@ -362,6 +407,7 @@ export class MenuController {
 
     return [
       { id: 'file', label: 'File', items: combinedFileItems },
+      { id: 'edit', label: 'Edit', items: [...this.coreEditItems] },
       { id: 'view', label: 'View', items: [...this.coreViewItems] },
       { id: 'help', label: 'Help', items: [...this.coreHelpItems] },
     ];
@@ -380,6 +426,7 @@ export class MenuController {
   }
 
   public triggerItem(id: string): void {
+    if (this.isItemDisabled(id)) return;
     const act = this.itemActions.get(id) || this.findItem(id)?.action;
     if (act) {
       act();
@@ -389,6 +436,15 @@ export class MenuController {
   /** A check mark beside the row, read from live state each time the menu is drawn. */
   public setCheckedProvider(id: string, isChecked: () => boolean): void {
     this.checkedProviders.set(id, isChecked);
+  }
+
+  /** Greys a top-level row out, read from live state each time the menu is drawn. */
+  public setDisabledProvider(id: string, isDisabled: () => boolean): void {
+    this.disabledProviders.set(id, isDisabled);
+  }
+
+  public isItemDisabled(id: string): boolean {
+    return this.disabledProviders.get(id)?.() ?? false;
   }
 
   public setSubmenuProvider(id: string, rows: () => MenuSubItem[]): void {
@@ -445,10 +501,12 @@ export class MenuController {
         const isActiveGroup = group.id === this.activeCategoryId;
         const isKeyboardFocused = isActiveGroup && indexInGroup === this.focusedItemIndex;
         const isSubmenu = item.type === 'submenu';
+        const isDisabled = this.isItemDisabled(item.id);
 
         const itemRow = document.createElement('div');
         itemRow.className =
           'menu-item-row' +
+          (isDisabled ? ' disabled' : '') +
           (isKeyboardFocused ? ' kbd-focused' : '') +
           (isSubmenu ? ' has-submenu' : '') +
           (isSubmenu && isActiveGroup && this.openSubmenuPath[0] === item.id ? ' submenu-open' : '');
@@ -492,6 +550,7 @@ export class MenuController {
             }
             return;
           }
+          if (isDisabled) return;
           this.closeMenu();
           const act = this.itemActions.get(item.id) || item.action;
           if (act) {

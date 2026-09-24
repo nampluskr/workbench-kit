@@ -1,4 +1,5 @@
 import { ITreeDataProvider, TreeNode } from '../core/tree';
+import { matchesFile, reportSeenExtensions } from './extension-filter';
 
 export interface HostDirectoryEntry {
   name: string;
@@ -32,6 +33,13 @@ export interface HostFileSystemBridge {
   writeTextFile?: (path: string, contents: string) => Promise<boolean>;
   read_text_file?: (path: string) => Promise<string>;
   write_text_file?: (path: string, contents: string) => Promise<boolean>;
+  /** Explorer create / rename (D-14). Each rejects rather than overwrite an existing target. */
+  createFile?: (path: string) => Promise<boolean>;
+  createFolder?: (path: string) => Promise<boolean>;
+  renamePath?: (oldPath: string, newPath: string) => Promise<boolean>;
+  create_file?: (path: string) => Promise<boolean>;
+  create_folder?: (path: string) => Promise<boolean>;
+  rename_path?: (oldPath: string, newPath: string) => Promise<boolean>;
   terminalStart?: (kind: string, cwd: string) => Promise<string>;
   terminalRead?: (id: string) => Promise<{ output: string; exited: boolean }>;
   terminalWrite?: (id: string, data: string) => Promise<void>;
@@ -95,6 +103,27 @@ export async function writeTextFile(path: string, contents: string): Promise<boo
   if (host?.writeTextFile) return host.writeTextFile(path, contents);
   if (host?.write_text_file) return host.write_text_file(path, contents);
   throw new Error('File saving is unavailable in this host');
+}
+
+export async function createFile(path: string): Promise<boolean> {
+  const host = getHostFsBridge();
+  if (host?.createFile) return host.createFile(path);
+  if (host?.create_file) return host.create_file(path);
+  throw new Error('Creating files is unavailable in this host');
+}
+
+export async function createFolder(path: string): Promise<boolean> {
+  const host = getHostFsBridge();
+  if (host?.createFolder) return host.createFolder(path);
+  if (host?.create_folder) return host.create_folder(path);
+  throw new Error('Creating folders is unavailable in this host');
+}
+
+export async function renamePath(oldPath: string, newPath: string): Promise<boolean> {
+  const host = getHostFsBridge();
+  if (host?.renamePath) return host.renamePath(oldPath, newPath);
+  if (host?.rename_path) return host.rename_path(oldPath, newPath);
+  throw new Error('Renaming is unavailable in this host');
 }
 
 export async function readDirectory(path: string): Promise<HostDirectoryEntry[]> {
@@ -229,6 +258,12 @@ export class FileSystemTreeProvider implements ITreeDataProvider {
     } else if (host?.read_dir) {
       entries = (await host.read_dir(dirPath)) as HostDirectoryEntry[];
     }
+
+    // The global extension filter (D-12) hides files only — folders always
+    // stay, so a filtered tree can still be walked. Every file's extension
+    // is reported first, so the filter panel can offer it even while hidden.
+    reportSeenExtensions(entries.filter((e) => !e.isContainer).map((e) => e.name));
+    entries = entries.filter((e) => e.isContainer || matchesFile(e.name));
 
     // Sort: directories first, then alphabetical
     entries.sort((a, b) => {

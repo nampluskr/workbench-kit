@@ -3,6 +3,7 @@ import type { AppEditorSurface, EditorOpenOptions } from '../core/editor';
 import { readDirectory, getDriveTotalBytes, type HostDirectoryEntry } from '../providers/filesystem';
 import { IconThemeManager } from '../core/icontheme';
 import { RowListController, RowListItem, RowListColumn, RowListSortDirection } from '../core/rowlist';
+import { extractExt, isFilterActive, matchesFile, onFilterChange, reportSeenExtensions } from '../providers/extension-filter';
 
 export const FOLDER_KIND = 'folder';
 
@@ -45,12 +46,6 @@ const COLUMNS: RowListColumn[] = [
   { id: 'date', label: 'Date', width: 125, resizable: false },
 ];
 
-/** No extension for a dotfile like ".env" (the leading dot is not a separator) or a name with no dot at all. */
-function extractExt(name: string): string {
-  const idx = name.lastIndexOf('.');
-  if (idx <= 0) return '';
-  return name.slice(idx + 1);
-}
 
 /** Locale-aware, case-insensitive, and numeric ("file2" before "file10") — Explorer's own file-name ordering (v0.3 WK-118, user request). */
 function naturalCompare(a: string, b: string): number {
@@ -271,7 +266,10 @@ export function registerFolderPreset(registry: ResourceKindRegistry, deps: Folde
       }
     };
 
-    /** Total Commander's own bottom-bar format (v0.3 WK-125, user request): `<marked>/<drive total> in <marked>/<total> file(s), <marked>/<total> dir(s)`. */
+    /** Whether an entry is shown under the global extension filter (D-12) — folders always are. */
+    const isVisible = (entry: HostDirectoryEntry) => entry.isContainer || matchesFile(entry.name);
+
+    /** Total Commander's own bottom-bar format (v0.3 WK-125, user request): `<marked>/<drive total> in <marked>/<total> file(s), <marked>/<total> dir(s)`. Counts shown rows only; files the extension filter hides are noted at the end. */
     const updateFooter = () => {
       const markedIds = rowList.getMarkedIds();
       let markedBytes = 0;
@@ -279,8 +277,10 @@ export function registerFolderPreset(registry: ResourceKindRegistry, deps: Folde
       let markedDirCount = 0;
       let totalFileCount = 0;
       let totalDirCount = 0;
+      let hiddenCount = 0;
       for (const entry of entriesByPath.values()) {
-        if (entry.isContainer) totalDirCount++;
+        if (!isVisible(entry)) hiddenCount++;
+        else if (entry.isContainer) totalDirCount++;
         else totalFileCount++;
       }
       for (const id of markedIds) {
@@ -296,17 +296,25 @@ export function registerFolderPreset(registry: ResourceKindRegistry, deps: Folde
       }
       footerEl.textContent =
         `${formatSize(markedBytes)} / ${formatSize(driveTotalBytes)} in ` +
-        `${markedFileCount} / ${totalFileCount} file(s), ${markedDirCount} / ${totalDirCount} dir(s)`;
+        `${markedFileCount} / ${totalFileCount} file(s), ${markedDirCount} / ${totalDirCount} dir(s)` +
+        (isFilterActive() && hiddenCount > 0 ? ` · ${hiddenCount} hidden by filter` : '');
     };
 
-    /** Applies the current sort to already-fetched entries and re-renders — no directory re-read needed (a header click alone never touches disk). */
+    /**
+     * Applies the current sort and extension filter to already-fetched
+     * entries and re-renders — no directory re-read needed (a header click
+     * or a filter change alone never touches disk). `entriesByPath` keeps
+     * EVERY entry, hidden ones included, so loosening the filter brings
+     * them back without a reload.
+     */
     const applyEntries = (entries: HostDirectoryEntry[]) => {
       const sorted = sortEntries(entries, sortColumn, sortDirection);
       entriesByPath = new Map(sorted.map((e) => [e.path, e]));
+      const shown = sorted.filter(isVisible);
       const parent = parentOf(currentPath);
       const rows: RowListItem[] = parent !== null
-        ? [{ id: PARENT_ENTRY_ID, label: '..', isContainer: true, markable: false, columns: { ext: '', size: '', date: '' } }, ...sorted.map(toRowItem)]
-        : sorted.map(toRowItem);
+        ? [{ id: PARENT_ENTRY_ID, label: '..', isContainer: true, markable: false, columns: { ext: '', size: '', date: '' } }, ...shown.map(toRowItem)]
+        : shown.map(toRowItem);
       rowList.setItems(rows);
       rowList.setSortState(sortColumn, sortDirection);
       updateFooter();
@@ -333,6 +341,7 @@ export function registerFolderPreset(registry: ResourceKindRegistry, deps: Folde
         const [entries, driveBytes] = await Promise.all([readDirectory(path), getDriveTotalBytes(path)]);
         if (disposed || generation !== loadGeneration) return;
         driveTotalBytes = driveBytes;
+        reportSeenExtensions(entries.filter((e) => !e.isContainer).map((e) => e.name));
         applyEntries(entries);
         setStatus(null);
       } catch (error) {
@@ -406,10 +415,14 @@ export function registerFolderPreset(registry: ResourceKindRegistry, deps: Folde
 
     // The tab target remains the original root even after address-bar navigation.
     rootButton.addEventListener('click', () => { if (!disposed) void load(targetId); });
+    // A filter change re-renders from the entries already read (D-12).
+    const unsubscribeFilter = onFilterChange(() => {
+      if (!disposed) applyEntries([...entriesByPath.values()]);
+    });
     void load(currentPath);
     return {
       element,
-      dispose: () => { disposed = true; rowList.dispose(); },
+      dispose: () => { disposed = true; unsubscribeFilter(); rowList.dispose(); },
       refresh: () => void load(currentPath),
     };
   });
