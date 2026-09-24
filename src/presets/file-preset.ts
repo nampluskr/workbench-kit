@@ -1,7 +1,7 @@
 import type { ResourceKindRegistry } from '../registry/kind-registry';
 import type { AppEditorSurface, EditorOpenOptions } from '../core/editor';
 import { TextEditorView } from '../core/texteditor';
-import { readTextFile, writeTextFile } from '../providers/filesystem';
+import { readLegacyTextFile, readTextFile, writeTextFile } from '../providers/filesystem';
 import type { IconThemeManager } from '../core/icontheme';
 
 // The file preset owns disk I/O and mode behavior; the editor shell remains
@@ -82,8 +82,17 @@ export interface FilePresetDeps {
   iconTheme: IconThemeManager;
 }
 
+/**
+ * A CP949 (not UTF-8) text file is shown read-only and never switches to
+ * Editor: saving writes UTF-8, which would silently re-encode it (D-15).
+ */
+export function isLegacyEncoded(params: Record<string, unknown>): boolean {
+  return params.encoding === 'cp949';
+}
+
 /** Same default the view itself applies below: a file tab without a mode opens read-only. */
 function resolveFileMode(params: Record<string, unknown>): string {
+  if (isLegacyEncoded(params)) return 'viewer';
   return typeof params.mode === 'string' ? params.mode : 'viewer';
 }
 
@@ -102,7 +111,7 @@ export function registerFilePreset(registry: ResourceKindRegistry, deps?: FilePr
       return {
         icon: deps.iconTheme.resolveIcon(title || targetId, false),
         restIcon: viewer ? 'lock' : null,
-        tooltip: `${targetId} — ${viewer ? 'Viewer (read-only)' : 'Editor'}`,
+        tooltip: `${targetId} — ${isLegacyEncoded(params) ? 'Viewer (read-only, CP949)' : viewer ? 'Viewer (read-only)' : 'Editor'}`,
       };
     });
   }
@@ -125,10 +134,32 @@ export function registerFilePreset(registry: ResourceKindRegistry, deps?: FilePr
     let loading = !hasSnapshot;
     let loadFailed = params.loadError === true;
     let currentMode = initialMode;
+    let legacy = isLegacyEncoded(params);
     if (!hasSnapshot) {
       view.setReadOnly(true);
-      void readTextFile(targetId).then((contents) => {
+      // UTF-8 first; a file that is not UTF-8 is read again as CP949 and
+      // stays read-only (D-15).
+      const read = async (): Promise<string> => {
+        if (legacy) return readLegacyTextFile(targetId);
+        try {
+          return await readTextFile(targetId);
+        } catch (utf8Error) {
+          let text: string;
+          try {
+            text = await readLegacyTextFile(targetId);
+          } catch {
+            throw utf8Error;
+          }
+          legacy = true;
+          return text;
+        }
+      };
+      void read().then((contents) => {
         if (disposed) return;
+        if (legacy) {
+          currentMode = 'viewer';
+          updateParams({ encoding: 'cp949', mode: 'viewer' });
+        }
         view.setValue(contents, true);
         view.markSaved();
         loading = false;
@@ -145,7 +176,10 @@ export function registerFilePreset(registry: ResourceKindRegistry, deps?: FilePr
       });
     }
     const save = async () => {
-      if (loading || loadFailed) return false;
+      // Never write a CP949 file: writeTextFile encodes UTF-8 (D-15). The view
+      // is read-only, but a tab restored from edited params could still be
+      // dirty (A24 #2).
+      if (loading || loadFailed || legacy) return false;
       const contents = view.getValue();
       try {
         if (!(await writeTextFile(targetId, contents))) return false;
@@ -171,6 +205,7 @@ export function registerFilePreset(registry: ResourceKindRegistry, deps?: FilePr
       onDirtyChange: (cb: (dirty: boolean) => void) => view.onDidChangeDirty(cb),
       save,
       setMode: (newMode: string) => {
+        if (legacy && newMode !== 'viewer') return;
         currentMode = newMode;
         view.setReadOnly(loading || loadFailed || newMode === 'viewer');
         updateParams({ mode: newMode });

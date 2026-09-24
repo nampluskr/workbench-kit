@@ -17,6 +17,7 @@
     "verify:file-filter": "electron scripts/verify-file-filter-electron.cjs",
     "verify:edit-menu": "electron scripts/verify-edit-menu-electron.cjs",
     "verify:explorer-fileops": "electron scripts/verify-explorer-fileops-electron.cjs",
+    "verify:text-open": "electron scripts/verify-text-open-electron.cjs",
     "verify:terminal-host": "electron scripts/verify-terminal-host-electron.cjs",
     "verify:terminal-renderer": "electron scripts/verify-terminal-renderer-electron.cjs",
     "verify:phase2": "node scripts/verify-phase2.mjs",

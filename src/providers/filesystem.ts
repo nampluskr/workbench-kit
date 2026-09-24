@@ -17,6 +17,9 @@ export interface HostDriveEntry {
   label: string;
 }
 
+/** What a file's head reads as: UTF-8 text, CP949 text, or not text at all (D-15). */
+export type TextProbe = 'utf-8' | 'cp949' | 'binary';
+
 export interface HostFileSystemBridge {
   openFolderDialog?: () => Promise<string | null>;
   openFileDialog?: () => Promise<string | null>;
@@ -40,6 +43,12 @@ export interface HostFileSystemBridge {
   create_file?: (path: string) => Promise<boolean>;
   create_folder?: (path: string) => Promise<boolean>;
   rename_path?: (oldPath: string, newPath: string) => Promise<boolean>;
+  /** Text-or-binary check of a file's head (D-15). */
+  probeTextFile?: (path: string) => Promise<TextProbe>;
+  probe_text_file?: (path: string) => Promise<TextProbe>;
+  /** The whole file decoded as CP949, for a text file that is not UTF-8 (D-15). */
+  readLegacyTextFile?: (path: string) => Promise<string>;
+  read_legacy_text_file?: (path: string) => Promise<string>;
   terminalStart?: (kind: string, cwd: string) => Promise<string>;
   terminalRead?: (id: string) => Promise<{ output: string; exited: boolean }>;
   terminalWrite?: (id: string, data: string) => Promise<void>;
@@ -124,6 +133,21 @@ export async function renamePath(oldPath: string, newPath: string): Promise<bool
   if (host?.renamePath) return host.renamePath(oldPath, newPath);
   if (host?.rename_path) return host.rename_path(oldPath, newPath);
   throw new Error('Renaming is unavailable in this host');
+}
+
+/** Null when the host has no probe — the caller then opens as before. */
+export async function probeTextFile(path: string): Promise<TextProbe | null> {
+  const host = getHostFsBridge();
+  if (host?.probeTextFile) return host.probeTextFile(path);
+  if (host?.probe_text_file) return host.probe_text_file(path);
+  return null;
+}
+
+export async function readLegacyTextFile(path: string): Promise<string> {
+  const host = getHostFsBridge();
+  if (host?.readLegacyTextFile) return host.readLegacyTextFile(path);
+  if (host?.read_legacy_text_file) return host.read_legacy_text_file(path);
+  throw new Error('Reading CP949 text is unavailable in this host');
 }
 
 export async function readDirectory(path: string): Promise<HostDirectoryEntry[]> {

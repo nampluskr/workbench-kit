@@ -19,7 +19,7 @@ import { EditorController, EditorOpenMode, snapshotHasDirtyPanels } from './core
 import type { SerializedDockview, DockviewGroupPanel, IDockviewPanel } from 'dockview-core';
 import { ContextMenuController, ContextMenuItem } from './core/contextmenu';
 import { ResourceKindRegistry } from './registry/kind-registry';
-import { registerFilePreset, FILE_KIND, getFileModeLabel } from './presets/file-preset';
+import { registerFilePreset, FILE_KIND, getFileModeLabel, isLegacyEncoded } from './presets/file-preset';
 import { registerFolderPreset, FOLDER_KIND } from './presets/folder-preset';
 import { closeTerminalSession, registerTerminalPreset, TERMINAL_KIND } from './presets/terminal-preset';
 import { AppEditorSurface, createAppEditorSurface } from './core/editor';
@@ -30,6 +30,7 @@ import { TooltipController } from './core/tooltip';
 import { clearFilter, describeExtensions, getFilter, isFilterActive, onFilterChange } from './providers/extension-filter';
 import { ExtensionFilterPanel } from './presets/extension-filter-panel';
 import { ExplorerFileOps } from './presets/explorer-file-ops';
+import { checkTextFile, type TextEncodingId } from './presets/file-types';
 
 /** Injected at build time by vite.config.ts (v0.2 FR-C7, FR-C8). */
 declare const __WB_VERSION__: string;
@@ -119,6 +120,8 @@ export class WorkbenchApp {
   public folderTabs: FolderTabsController;
   /** Explorer create / rename on disk (D-14). */
   public explorerFileOps!: ExplorerFileOps;
+  /** Latest file-open request; an older one whose text check finishes later is dropped (D-15). */
+  private textOpenSeq = 0;
   public explorerTitlebar: ExplorerTitlebarController;
   public fsProvider: FileSystemTreeProvider;
   public editor: EditorController;
@@ -686,7 +689,6 @@ export class WorkbenchApp {
     // (a class method, not a local closure here) so folder-list rows
     // (WK-113) can share them byte-for-byte instead of re-deriving the same
     // three rounds of adversarial findings (A9 R1/R3) independently.
-    const kindOf = (isContainer: boolean | undefined) => (isContainer ? FOLDER_KIND : FILE_KIND);
 
     // A folder row no longer opens anything of its own on click/dblclick/
     // Enter (v0.3 WK-114, out-of-plan addition, 2026-09-23 — user request):
@@ -695,29 +697,25 @@ export class WorkbenchApp {
     // the folder tab rail's own right-click menu. Arrow-key navigation and
     // Space/dblclick expand-collapse are untouched — neither goes through
     // onOpen/onConfirm/onEnterOpen.
-    this.tree.onOpen((node) => { if (!node.isContainer) this.openFromEntry(node, 'preview'); });
+    // Every file open first checks that the file reads as text (D-15).
+    this.tree.onOpen((node) => {
+      if (!node.isContainer) void this.openIfText(node.id, node.label, (enc) => this.openFromEntry(node, 'preview', enc));
+    });
     // A double click on a file row: the user is keeping this one
     // (v0.2 FR-P4).
-    this.tree.onConfirm((node) => { if (!node.isContainer) this.openFromEntry(node, 'pinned'); });
-    this.tree.onEnterOpen((node) => { if (!node.isContainer) this.openEntryOnEnter(node); });
+    this.tree.onConfirm((node) => {
+      if (!node.isContainer) void this.openIfText(node.id, node.label, (enc) => this.openFromEntry(node, 'pinned', enc));
+    });
+    this.tree.onEnterOpen((node) => {
+      if (!node.isContainer) void this.openIfText(node.id, node.label, (enc) => this.openEntryOnEnter(node, enc));
+    });
     // Ctrl+Enter "open to side" (FR-A14) is another opening trigger, same
     // family as onOpen/onConfirm/onEnterOpen above — a folder no longer
     // opens through the Explorer by any of them (WK-114, out-of-plan
     // addition, 2026-09-23 — user request).
     this.tree.onOpenToSide((node) => {
       if (node.isContainer) return;
-      const activeGroup = this.editor.getActiveGroup();
-      const besideGroup = activeGroup ? this.editor.findBesideGroup(activeGroup) : undefined;
-      // No existing beside group means openBeside() will split a fresh
-      // empty one — nothing to silently replace, so no confirmation needed.
-      if (besideGroup && this.editor.isActivePanelDirty(besideGroup)) {
-        void (async () => {
-          if (!(await this.editor.confirmReplaceIfDirty(besideGroup))) return;
-          this.editor.openBeside(node.id, node.label, { meta: { kind: kindOf(node.isContainer), mode: node.isContainer ? 'file-list' : this.defaultFileMode } });
-        })();
-        return;
-      }
-      this.editor.openBeside(node.id, node.label, { meta: { kind: kindOf(node.isContainer), mode: node.isContainer ? 'file-list' : this.defaultFileMode } });
+      void this.openIfText(node.id, node.label, (enc) => this.openFileToSide(node, enc));
     });
 
     // The resource opener owns the tree's right-click choices.
@@ -1626,8 +1624,48 @@ export class WorkbenchApp {
     const selected = filePath ?? (await promptOpenFileDialog());
     if (selected) {
       const fileName = selected.split(/[/\\]/).pop() || selected;
-      this.openResource(selected, fileName, FILE_KIND, this.defaultFileMode, 'pinned');
+      await this.openIfText(selected, fileName, (enc) =>
+        this.openResource(selected, fileName, FILE_KIND, this.fileModeFor(enc), 'pinned', false, enc));
     }
+  }
+
+  /**
+   * Opens a file only when its content reads as text (D-15): a known binary
+   * extension, or a head with NUL bytes or undecodable bytes, is refused
+   * with a status-bar message and no tab. Only the latest request lands, so
+   * a slow check on an earlier click cannot replace a later one.
+   */
+  private async openIfText(path: string, label: string, open: (encoding: TextEncodingId) => void): Promise<void> {
+    const seq = ++this.textOpenSeq;
+    const check = await checkTextFile(path);
+    if (seq !== this.textOpenSeq) return;
+    if (!check.ok) {
+      this.statusMessages.showError(`Cannot open '${label}' — binary file`);
+      return;
+    }
+    open(check.encoding);
+  }
+
+  /** A CP949 file always opens read-only (D-15). */
+  private fileModeFor(encoding: TextEncodingId | undefined, requested = this.defaultFileMode): string {
+    return encoding === 'cp949' ? 'viewer' : requested;
+  }
+
+  /** Ctrl+Enter from the tree (FR-A14), after the text check. */
+  private openFileToSide(node: OpenableEntry, encoding: TextEncodingId): void {
+    const meta = { kind: FILE_KIND, mode: this.fileModeFor(encoding), ...(encoding === 'cp949' ? { encoding } : {}) };
+    const activeGroup = this.editor.getActiveGroup();
+    const besideGroup = activeGroup ? this.editor.findBesideGroup(activeGroup) : undefined;
+    // No existing beside group means openBeside() will split a fresh
+    // empty one — nothing to silently replace, so no confirmation needed.
+    if (besideGroup && this.editor.isActivePanelDirty(besideGroup)) {
+      void (async () => {
+        if (!(await this.editor.confirmReplaceIfDirty(besideGroup))) return;
+        this.editor.openBeside(node.id, node.label, { meta });
+      })();
+      return;
+    }
+    this.editor.openBeside(node.id, node.label, { meta });
   }
 
   private openResource(
@@ -1636,7 +1674,8 @@ export class WorkbenchApp {
     kind: string,
     resourceMode: string,
     tabMode: EditorOpenMode,
-    forceNew = false
+    forceNew = false,
+    encoding?: TextEncodingId
   ): IDockviewPanel {
     const panel = this.editor.openItem(targetId, title, {
       mode: tabMode,
@@ -1644,6 +1683,7 @@ export class WorkbenchApp {
       meta: {
         kind,
         mode: resourceMode,
+        ...(encoding === 'cp949' ? { encoding } : {}),
         ...(kind === TERMINAL_KIND ? { terminalSessionKey: crypto.randomUUID() } : {}),
       },
     });
@@ -1664,10 +1704,10 @@ export class WorkbenchApp {
    * here rather than narrowing the type to file-only, since the shell layer
    * itself still must not branch on file/folder by name (INTENT 3, D-4).
    */
-  private openFromEntry(entry: OpenableEntry, mode: EditorOpenMode): void {
+  private openFromEntry(entry: OpenableEntry, mode: EditorOpenMode, encoding?: TextEncodingId): void {
     const openNow = (target: OpenableEntry, how: EditorOpenMode) =>
       this.openResource(target.id, target.label, target.isContainer ? FOLDER_KIND : FILE_KIND,
-        target.isContainer ? 'file-list' : this.defaultFileMode, how);
+        target.isContainer ? 'file-list' : this.fileModeFor(encoding), how, false, encoding);
 
     if (this.pendingOpenEntry) {
       const keepPinned = this.pendingOpenEntry.entry.id === entry.id && this.pendingOpenEntry.mode === 'pinned';
@@ -1676,7 +1716,7 @@ export class WorkbenchApp {
     }
 
     const activeGroupForCheck = this.editor.getActiveGroup();
-    const requestedMode = entry.isContainer ? 'file-list' : this.defaultFileMode;
+    const requestedMode = entry.isContainer ? 'file-list' : this.fileModeFor(encoding);
     const alreadyOpen = Boolean(activeGroupForCheck?.panels.some((p) =>
       p.params?.targetId === entry.id && p.params?.mode === requestedMode));
     const doomed = mode === 'preview' && !alreadyOpen ? this.editor.getPreviewPanel() : undefined;
@@ -1701,11 +1741,11 @@ export class WorkbenchApp {
    * case this second `Enter` is what confirms/pins it (v0.2 FR-P7, FR-T3,
    * D-16). Shared by the Explorer tree and folder-list rows (WK-113).
    */
-  private openEntryOnEnter(entry: OpenableEntry): void {
+  private openEntryOnEnter(entry: OpenableEntry, encoding?: TextEncodingId): void {
     const activeGroup = this.editor.getActiveGroup();
     const currentPreview = activeGroup ? this.editor.getPreviewPanel(activeGroup) : undefined;
     const alreadyPreviewing = currentPreview?.params?.targetId === entry.id;
-    this.openFromEntry(entry, alreadyPreviewing ? 'pinned' : 'preview');
+    this.openFromEntry(entry, alreadyPreviewing ? 'pinned' : 'preview', encoding);
   }
 
   /**
@@ -1722,8 +1762,10 @@ export class WorkbenchApp {
       ];
     }
     return [
-      { id: 'open:viewer', label: 'Open as Viewer', action: () => this.openResource(id, label, FILE_KIND, 'viewer', 'pinned') },
-      { id: 'open:editor', label: 'Open as Editor', action: () => this.openResource(id, label, FILE_KIND, 'editor', 'pinned') },
+      { id: 'open:viewer', label: 'Open as Viewer', action: () => void this.openIfText(id, label, (enc) =>
+        this.openResource(id, label, FILE_KIND, 'viewer', 'pinned', false, enc)) },
+      { id: 'open:editor', label: 'Open as Editor', action: () => void this.openIfText(id, label, (enc) =>
+        this.openResource(id, label, FILE_KIND, this.fileModeFor(enc, 'editor'), 'pinned', false, enc)) },
     ];
   }
 
@@ -1731,6 +1773,11 @@ export class WorkbenchApp {
     const panel = this.editor.getActivePanel();
     if (!panel) return;
     const kind = panel.params?.kind;
+    if (kind === FILE_KIND && mode === 'editor' && isLegacyEncoded(panel.params ?? {})) {
+      // Saving writes UTF-8, which would re-encode a CP949 file (D-15).
+      this.statusMessages.showError('CP949 file — read-only');
+      return;
+    }
     if (kind === FILE_KIND && (mode === 'editor' || mode === 'viewer')) {
       this.kindRegistry.setPanelMode(panel.id, mode);
       panel.update({ params: { mode } });

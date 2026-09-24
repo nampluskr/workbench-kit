@@ -76,6 +76,8 @@ ipcMain.handle('fs:write-text-file', async (_e, filePath, contents) => {
 ipcMain.handle('fs:create-file', (_e, filePath) => fsOps.createFile(filePath));
 ipcMain.handle('fs:create-folder', (_e, dirPath) => fsOps.createFolder(dirPath));
 ipcMain.handle('fs:rename-path', (_e, oldPath, newPath) => fsOps.renamePath(oldPath, newPath));
+ipcMain.handle('fs:probe-text-file', (_e, filePath) => fsOps.probeTextFile(filePath));
+ipcMain.handle('fs:read-legacy-text-file', (_e, filePath) => fsOps.readLegacyTextFile(filePath));
 
 const terminals = new Map();
 let terminalCounter = 0;

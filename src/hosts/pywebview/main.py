@@ -1,3 +1,4 @@
+import codecs
 import os
 import sys
 import json
@@ -229,6 +230,30 @@ class WindowApi:
             raise FileExistsError(f"'{os.path.basename(new_path)}' already exists")
         os.rename(old_path, new_path)
         return True
+
+    # Text-or-binary check before a file opens in an editor tab (D-15): same
+    # rule as the Electron host's fs-ops.cjs probeTextFile.
+    def probe_text_file(self, file_path):
+        with open(file_path, 'rb') as stream:
+            head = stream.read(64 * 1024)
+        if b'\0' in head:
+            return 'binary'
+        body = head[3:] if head.startswith(b'\xef\xbb\xbf') else head
+        for encoding, label in (('utf-8', 'utf-8'), ('cp949', 'cp949')):
+            try:
+                # final=False lets a character cut at the 64KB boundary through.
+                codecs.getincrementaldecoder(encoding)('strict').decode(body, final=False)
+                return label
+            except UnicodeDecodeError:
+                continue
+        return 'binary'
+
+    def read_legacy_text_file(self, file_path):
+        with open(file_path, 'rb') as stream:
+            data = stream.read()
+        if b'\0' in data:
+            raise RuntimeError('Binary files cannot be opened as text')
+        return data.decode('cp949')
 
     def terminal_start(self, kind, cwd):
         if kind not in ('cmd', 'powershell'):

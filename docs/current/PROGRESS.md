@@ -15,6 +15,79 @@
 
 사람이 구현 중 요청한, backlog에 없는 작업을 요청 건마다 남긴다.
 
+- **D-15 확정, 반대 벤더 검증(A24)** (2026-09-24, 사용자 지시)
+  - 사용자가 D-15를 확정했다. `DECISIONS.md`에서 초안 표시를 지웠다.
+  - 반대 벤더 검증: Codex `gpt-6-sol` 1/3회, 256초, 1턴. 결과는 Critical 0건, Major 4건.
+    기록은 `docs/reviews/A24.md`에 있다.
+    - #2(복원된 dirty CP949 탭이 UTF-8로 저장될 수 있음)를 고쳤다. `save()`가 CP949
+      파일이면 거부한다. `verify:text-open`에 두 단언을 더해 21개 전건 통과했다.
+    - #1(probe 실패 시 열기), #3(확인 창 대기 중 요청 순서), #4(이름 바꾸기로 금지
+      확장자가 된 열린 탭)는 반박 근거를 기록하고 고치지 않았다.
+  - 세션 내 리뷰어는 이 세션에 에이전트로 등록되어 있지 않아 실행하지 못했다.
+  - `docs/ADVERSARIAL-REVIEW.md`를 1.3으로 갱신했다(사용자 요청). Claude 검토 모델을
+    `opus-5.5`로 바꾸고 CLI는 `--model claude-opus-5-5`로 고정했다.
+    project-workflow 원본을 고친 뒤 이 사본에 복사했다.
+
+- **텍스트로 볼 수 있는 파일만 에디터 탭으로 열기** (2026-09-24, 사용자 요청 · D-15 초안)
+  - **배경**: 트리에서 어떤 파일을 눌러도 탭이 열렸다. 바이너리·실행 파일은 탭 안에
+    `Unable to open ... Binary files cannot be opened as text`만 보였다.
+  - **사용자 결정**:
+    - 거부되면 상태표시줄에 메시지를 띄운다.
+    - 판별은 확장자와 내용을 함께 본다.
+    - CP949 텍스트는 CP949로 읽어 Viewer(읽기 전용)로만 연다.
+  - **코드**:
+    - 호스트:
+      - `fs-ops.cjs`의 `probeTextFile`: 앞 64KB를 본다. NUL이면 binary, 아니면 UTF-8
+        (BOM 제외, stream 모드), 그다음 CP949(`euc-kr`) 순으로 확인한다.
+      - `fs-ops.cjs`의 `readLegacyTextFile`
+      - IPC `fs:probe-text-file`·`fs:read-legacy-text-file`, `preload.cjs` 노출
+      - pywebview `probe_text_file`·`read_legacy_text_file`: incremental decoder로 같은
+        의미
+    - `src/providers/filesystem.ts`: 브리지와 `probeTextFile`(호스트에 없으면 `null`),
+      `readLegacyTextFile`
+    - `src/presets/file-types.ts`(신규):
+      - `BINARY_EXTENSIONS`: 실행·라이브러리, 압축, 그림, 소리·영상, 오피스 문서,
+        DB·모델, 글꼴
+      - `checkTextFile`: 확장자로 먼저 거르고, 아니면 probe한다. probe에 실패하면
+        기존대로 연다.
+    - `src/main.ts`:
+      - `openIfText`: 요청마다 순번을 매겨 최신 요청만 열고, 거부되면 상태 메시지를
+        띄운다.
+      - 이 관문을 모든 열기 경로에 적용했다(트리 클릭·더블클릭·`Enter`·옆 칸,
+        우클릭 `Open as Viewer`/`Editor`, `Open File...`).
+      - CP949는 `viewer`로 열고 `encoding` 메타를 붙인다.
+      - `setActivePanelMode`는 CP949 탭의 Editor 전환을 거부한다.
+      - 쓰지 않게 된 `kindOf`를 지웠다.
+    - `src/presets/file-preset.ts`:
+      - UTF-8 읽기가 실패하면 CP949로 다시 읽는다. 성공하면
+        `encoding: 'cp949'`, `mode: 'viewer'`로 두고 `setMode('editor')`를 무시한다.
+      - 탭 툴팁은 `Viewer (read-only, CP949)`다.
+  - **문서**: `docs/current/DECISIONS.md`에 D-15 초안을 추가했다(사용자 확인 대기).
+  - **검증**:
+    - `typecheck`, `build`, `verify:dist`, `verify:phase2` 통과.
+    - 신규 `verify:text-open` 19개 통과(실제 `fs-ops.cjs`).
+      - 열림: txt, UTF-8 csv, BOM csv(BOM 제거·한글 유지), 확장자 없는 README, bat,
+        64KB 경계에서 한글이 잘린 긴 로그
+      - 거부(탭 0개, 상태 메시지, 선택 유지): exe(MZ+NUL), png(내용이 텍스트여도
+        확장자로), NUL이 든 dat
+      - 더블클릭, `Enter`, 우클릭 Open as Editor, `Open File`도 모두 거부한다.
+        텍스트 파일의 `Open File`은 계속 열린다.
+      - CP949 csv: Viewer로 열리고, 한글이 맞으며, Editor 전환이 거부된다.
+      - 빠른 연속 요청은 마지막 요청만 열린다.
+    - pywebview 호스트 메서드 직접 검사 8개 통과. 깨진 바이트 파일에서 Electron과 같은
+      결과를 낸다.
+    - 회귀: `verify:*` 22개를 이전 결과(`results-fileops`)와 비교했다.
+      - `phase4-suite.js`는 트리 열기 직후 대기 없이 탭을 확인하고 있었다. 열기가 이제
+        호스트 판별을 기다리는 비동기라 트리 키·클릭 뒤에 80ms 대기를 넣었다
+        (`sendTreeKey`가 대기를 반환). 고친 뒤에는 기존 실패 7건만 그대로 남는다.
+      - `verify:dist`의 호스트 검사식 일치 검사가 한 번 실패했다. 원인은
+        `src/hosts/electron/main.cjs`의 작업본이 통째로 CRLF로 바뀌어 있던 것이다.
+        LF로 되돌린 뒤 통과했다.
+      - 새 실패는 0건이다. `verify:edit-menu`, `verify:explorer-fileops`도 통과한다.
+  - **알림**: 이 세션이 고치지 않은 `docs/ADVERSARIAL-REVIEW.md` 변경이 작업본에 있다
+    (Codex 모델 `gpt-6-sol`, 실행별 30분·3턴 제한). 가이드 원본에서 다시 복사한 것으로
+    보여 손대지 않았다.
+
 - **D-13 · D-14 확정, 반대 벤더 검증 생략** (2026-09-24, 사용자 지시)
   - 사용자가 D-13(Edit 메뉴·Save·다중 커서)과 D-14(탐색기 만들기·`F2` 이름 바꾸기)를
     확정했다. `DECISIONS.md`에서 두 항목의 초안 표시를 지웠다.
