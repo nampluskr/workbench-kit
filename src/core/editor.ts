@@ -703,8 +703,14 @@ export class EditorController {
     return true;
   }
 
-  /** Closes a panel through its raw path — no dirty prompt (see confirmCloseAll). */
-  private forceClosePanel(panel: IDockviewPanel): void {
+  /**
+   * Closes a panel through its raw path — no dirty prompt (see
+   * confirmCloseAll). Public so an app-layer caller that has already
+   * deleted the underlying resource (Explorer delete, v0.3, user request
+   * 2026-09-25) can close its now-dangling tab without a "save first?"
+   * prompt — same reasoning as confirmCloseAll's own bulk force-close.
+   */
+  public forceClosePanel(panel: IDockviewPanel): void {
     (panel as unknown as { __rawClose?: () => void }).__rawClose?.();
   }
 

@@ -43,6 +43,9 @@ export interface HostFileSystemBridge {
   create_file?: (path: string) => Promise<boolean>;
   create_folder?: (path: string) => Promise<boolean>;
   rename_path?: (oldPath: string, newPath: string) => Promise<boolean>;
+  /** Explorer delete (v0.3, user request 2026-09-25). Permanent, not trash. */
+  deletePath?: (path: string) => Promise<boolean>;
+  delete_path?: (path: string) => Promise<boolean>;
   /** Text-or-binary check of a file's head (D-15). */
   probeTextFile?: (path: string) => Promise<TextProbe>;
   probe_text_file?: (path: string) => Promise<TextProbe>;
@@ -133,6 +136,13 @@ export async function renamePath(oldPath: string, newPath: string): Promise<bool
   if (host?.renamePath) return host.renamePath(oldPath, newPath);
   if (host?.rename_path) return host.rename_path(oldPath, newPath);
   throw new Error('Renaming is unavailable in this host');
+}
+
+export async function deletePath(path: string): Promise<boolean> {
+  const host = getHostFsBridge();
+  if (host?.deletePath) return host.deletePath(path);
+  if (host?.delete_path) return host.delete_path(path);
+  throw new Error('Deleting is unavailable in this host');
 }
 
 /** Null when the host has no probe — the caller then opens as before. */

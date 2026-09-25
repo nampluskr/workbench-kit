@@ -1926,3 +1926,80 @@ v0.3의 6개 Phase가 모두 끝났다. 사용자가 직접 수동 테스트를 
 - 여섯 라이선스 고지를 두 열로 배치하고 메타데이터와 여백을 줄였다. 낮은 창에서는 간격을 추가로 조정해 카드 내부 및 대화상자에 스크롤이 생기지 않도록 했다. 라이선스 경로 안내와 Copy·OK 버튼도 화면 안에 남는다.
 - Copy가 빈 줄을 제거하던 문제를 수정하고 오래된 `docs/refs/licenses.md` 표기를 복사 내용에서 제거했다.
 - `npm run typecheck`, `npm run build`, `npm run verify:open-modes`, `npm run verify:dist` 통과. Electron의 800×600 및 640×480 창에서 모든 라이선스 항목·안내·버튼의 가로·세로 범위를 측정했다. 세션 내 리뷰와 반대 벤더 검토 결과는 `docs/reviews/A27.md`에 기록했다.
+
+## 계획 외 수정 — Explorer Find 버튼 + 글꼴 정리 + 다크 테마 메뉴 구분선 대비 (2026-09-25)
+
+- 탐색기 뷰 제목줄의 New File 아이콘 앞에 codicon-search "Find in Explorer" 버튼을
+  추가했다. 클릭하면 트리가 이미 갖고 있던 `Ctrl+F` 찾기 위젯(`TreeController.
+  openFindWidget()`)을 그대로 연다 — 새 검색 로직을 만들지 않았다. `ExplorerTitlebarController`
+  생성자에 `searchBtn` 파라미터가 추가되어 `main.ts`의 호출부도 갱신했다. FR-X6의
+  "shell 액션은 절대 안 줄어든다" 명시 셀렉터 목록에도 새 id를 추가했다(1회차 반대
+  벤더 검토가 이 누락을 잡았다).
+- 상태표시줄 경로 / 폴더 file-list 주소표시줄 / 호버 툴팁 세 곳에 남아있던
+  백슬래시 렌더링용 `Arial` 폴백을 이미 번들된 `Workbench D2Coding`으로 바꿨다(사용자
+  요청) — D2Coding의 cmap이 U+005C를 원화 기호(U+20A9)와 별개 글리프로 갖고 있어
+  Windows 한글 로캘에서도 시스템 폰트 설치 여부와 무관하게 실제 백슬래시가 그려진다.
+  같은 자리에서 발견한 "13px 통일 vs 16px 상속" 불일치도 사용자 확인을 거쳐
+  주소표시줄만 13px로 명시했다(상태표시줄의 D-17 12px 예외는 그대로 뒀다).
+- 다크 테마의 `.menu-separator`(햄버거 메뉴·우클릭 메뉴 공용)가 `--border-color`
+  (#2b2b2b)와 `--menu-bg`(#272727)의 명도차가 4에 불과해 거의 안 보이던 문제를
+  고쳤다. 새 토큰 `--menu-separator-color`를 세 테마 모두에 두고, 다크 테마만
+  `--menu-hover-bg`(기존에 이미 "menu-bg보다 한 단계 밝은" 톤으로 정의돼 있던 값)를
+  재사용하도록 했다. 라이트·그레이 테마는 기존 `--border-color`를 그대로 물려 시각
+  변화가 없다.
+- 반대 벤더 적대적 검증(Codex `gpt-6-sol`): `docs/reviews/A28.md`. 2회차까지 진행 —
+  1회차에서 FR-X6 셀렉터 누락(Major, 수정함)과 "Find 클릭 시 New File 입력 중이던
+  타이핑 손실"(기존 `Ctrl+F`·Refresh·Collapse All도 이미 똑같이 겪는, `tree.ts`의
+  사전 존재 결함이라 무효로 판정)을 지적받았다. 최소 탐색기 폭 160px에서의 클리핑
+  악화는 이미 2026-09-17 사용자가 명시적으로 받아들인 트레이드오프를 5번째 액션이
+  더 좁히는 것뿐이라 코드로 고치지 않고 `main.ts`·`style.css` 주석에만 반영했다.
+  2회차에서 그 보완(FR-X6 셀렉터, 주석 정합성)이 반영됐음을 확인했고 새 Critical은
+  없었다.
+- `npm run typecheck`, `npm run build`, `npm run verify:dist`, `npm run verify:phase3`
+  통과. `npm test`는 이 세션 시작 전부터 있던 것으로 확인된 Phase 4/5/7의 기존 실패
+  (Electron 러너 간헐적 실패, `P4-FR-B4`/`P4-FR-L1-SET` 등)에서 멈췄다 — `git stash`로
+  변경분을 뺀 베이스라인에서 동일한 실패가 재현됨을 확인해 이번 변경이 만든 회귀가
+  아님을 검증했다.
+- 후속(같은 날, 사용자 요청): Find 버튼을 토글로 바꿔 열려 있을 때 다시 누르면
+  `closeFindWidget()`으로 닫힌다(`src/core/sidebar.ts`). `Escape`는 이미 트리의
+  find input 자체 `keydown` 핸들러(`tree.ts:1457-1461`)가 처리하고 있어 별도
+  구현이 필요 없었다 — 확인만 했다. `npm run typecheck`·`npm run build`·
+  `npm run verify:phase3`·`npm run verify:dist` 통과. 범위가 작고(버튼 1개 핸들러
+  토글) A28에서 이미 검증된 기능의 마무리라 별도 반대 벤더 회차는 새로 열지 않았다.
+
+## 계획 외 수정 — 탐색기 삭제 기능(Delete 키 + 우클릭, 전역 게이트) (2026-09-25)
+
+- 탐색기 트리에 Delete 키(다중 선택 전체 적용)와 우클릭 "Delete" 항목(WK-123 그대로 —
+  단일 항목만)을 추가했다. 영구 삭제, 휴지통 이동 아님(사용자 결정). 트리(core)는
+  선택된 노드를 앱 레이어로 넘기기만 하고(`tree.onDeleteRequested`/`emitDeleteRequested`,
+  D-30·D-22) 삭제 가능 여부·파일시스템 접근을 전혀 모른다.
+- 전역 "Delete enabled" 설정을 새 앱 레이어 모듈(`src/presets/delete-enabled.ts`)에 뒀다
+  — core가 아니다(common-core.md). 기본 꺼짐. View 메뉴 최상위 체크박스 한 줄
+  (`view:delete-enabled`)과 상태표시줄 클릭-토글 표시(`.statusbar-delete-indicator`)가
+  같은 `setDeleteEnabled()`를 부르므로 둘이 어긋나지 않는다.
+- 삭제 전 Delete/Cancel 2버튼 확인창(`DeleteConfirmDialogController`, 신규)을
+  추가했다 — 기존 `ConfirmDialogController`(Save/Don't Save/Cancel, dirty-tab-close
+  전용)는 그대로 두고 구조만 복제했다. 삭제 대상이 에디터에 수정 중(dirty) 탭으로
+  열려 있으면 저장 여부를 묻지 않고 강제로 닫는다(사용자 결정).
+- 듀얼 호스트 fs 브릿지에 `deletePath`를 create/rename와 같은 4단 구조로 추가했다
+  (`fs-ops.cjs`·`main.cjs`·`preload.cjs`·`pywebview/main.py`·`filesystem.ts`).
+- 반대 벤더 적대적 검증(Codex `gpt-6-sol`): `docs/reviews/A29.md`. **3회차(한도)
+  전부 소진**. 1회차 Critical 1건(트리 루트 자체가 삭제 대상이 될 수 있었음)·Major
+  2건(조상+하위 동시 선택 시 순서 의존 부분 실패, 확인창이 열려 있는 동안 설정을
+  꺼도 삭제가 진행됨) 전부 수정. 2회차에서 그 세 가지 존재를 확인하는 동시에 새
+  Major 1건(비활성 Folder Tab이 삭제된 경로를 계속 가리킴 — 기존 D-6 에러 탭
+  복구 UX로 흡수된다고 판단해 의도적으로 미수정, 근거 기록)을 찾았다. **3회차에서
+  또 다른 Critical**(확인창이 열려 있는 동안 Folder Tab을 바꿔 대상 자체가 트리의
+  새 루트가 되면 루트 제외 필터를 우회함)을 찾아 같은 패턴(resolve 후 재검사)으로
+  수정했지만, **이 마지막 수정은 반대 벤더로 재검증하지 못했다** — 회차 한도를
+  이미 다 썼기 때문이다. `scripts/verify-explorer-delete-electron.cjs`에 이
+  시나리오를 `tree.setRoot()`로 직접 재현하는 회귀 테스트를 추가해 23개 단언
+  전부 통과시켰지만, 실제 Folder Tabs UI 경로를 거친 완전한 재현은 아니다. 이
+  상태로 완료 처리할지 사용자에게 확인을 요청했고, **사용자가 "이대로 완료
+  처리해줘"로 승인**했다(2026-09-25) — 반대 벤더의 독립적 재확인 없이 코드 수정 +
+  회귀 테스트만으로 종결하는 것에 대한 명시적 승인.
+- `npm run typecheck`, `npm run build`, `npm run verify:dist`, `npm run verify:phase3`
+  (Delete 키 hand-off 계약 단언 추가), `npm run verify:explorer-fileops`(회귀 없음),
+  신규 `npm run verify:explorer-delete`(23개 단언, 실제 Electron + 실제
+  `fs-ops.cjs`) 전부 통과. `docs/reserved-keys.md` §3에 트리 포커스 `Delete` 행을
+  추가했다.

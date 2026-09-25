@@ -1,6 +1,6 @@
 import { createWorkbenchLayout, WorkbenchLayoutElements } from './core/layout';
 import { setupWindowControls, setupResizeGrips, closeWindow } from './core/window';
-import { ConfirmDialogController } from './core/dialog';
+import { ConfirmDialogController, DeleteConfirmDialogController } from './core/dialog';
 import { AboutDialogController, copyToClipboard } from './core/about';
 import { StatusMessageController } from './core/statusmessage';
 import { TextEditorView, setEditorColorTheme, getLineNumbersVisible, setLineNumbersVisible, getWordWrapEnabled, setWordWrapEnabled, findTextViewWithin, type EditCommandId } from './core/texteditor';
@@ -31,6 +31,7 @@ import { clearFilter, describeExtensions, getFilter, isFilterActive, onFilterCha
 import { ExtensionFilterPanel } from './presets/extension-filter-panel';
 import { ExplorerFileOps } from './presets/explorer-file-ops';
 import { checkTextFile, type TextEncodingId } from './presets/file-types';
+import { getDeleteEnabled, setDeleteEnabled, onDeleteEnabledChanged } from './presets/delete-enabled';
 
 /** Injected at build time by vite.config.ts (v0.2 FR-C7, FR-C8). */
 declare const __WB_VERSION__: string;
@@ -129,6 +130,7 @@ export class WorkbenchApp {
   public kindRegistry: ResourceKindRegistry;
   public contextMenu: ContextMenuController;
   public confirmDialog: ConfirmDialogController;
+  public deleteConfirmDialog: DeleteConfirmDialogController;
   public aboutDialog: AboutDialogController;
   public statusMessages: StatusMessageController;
   /** App-supplied item providers for the right-click device (FR-G6). Empty by default (D-22). */
@@ -259,6 +261,8 @@ export class WorkbenchApp {
     // Save-confirmation dialog (FR-L2 ~ FR-L7, D-28) and status message/progress line (D-21, D-32)
     this.confirmDialog = new ConfirmDialogController(this.layout.root);
     this.editor.setDialogController(this.confirmDialog);
+    // Explorer delete's own 2-button confirm (v0.3, user request 2026-09-25) — separate device, see dialog.ts.
+    this.deleteConfirmDialog = new DeleteConfirmDialogController(this.layout.root);
     this.statusMessages = new StatusMessageController(this.layout.statusbarMessage);
 
     // Help > About (FR-Q5, D-23, WK-037): required attribution for the two
@@ -273,6 +277,7 @@ export class WorkbenchApp {
     this.tree = new TreeController(this.layout.sidebarContent, this.iconTheme);
     this.explorerTitlebar = new ExplorerTitlebarController(
       this.layout.sidebarAppActions,
+      this.layout.sidebarSearchBtn,
       this.layout.sidebarNewFileBtn,
       this.layout.sidebarNewFolderBtn,
       this.layout.sidebarRefreshBtn,
@@ -471,8 +476,14 @@ export class WorkbenchApp {
         this.explorerTitlebar.refresh();
         await this.tree.refresh();
       },
+      confirmDelete: (message) => this.deleteConfirmDialog.show(message),
     });
     this.explorerTitlebar.setNewItemHandler((req) => void this.explorerFileOps.create(req));
+    // Delete key in the tree (v0.3, user request 2026-09-25) — the tree only
+    // hands off the selected nodes; explorerFileOps.delete() is the single
+    // gate (checks getDeleteEnabled()) shared with the context menu's
+    // Delete item below, so the two triggers never disagree.
+    this.tree.onDeleteRequested((nodes) => void this.explorerFileOps.delete(nodes));
     // An open menu owns the new tree shortcuts even when focus stays on the
     // tree list; capture before the tree's Ctrl+F handler runs.
     this.layout.sidebarContent.addEventListener('keydown', (e) => {
@@ -535,6 +546,12 @@ export class WorkbenchApp {
     this.menu.setAction('view:toggle-word-wrap', () => setWordWrapEnabled(!getWordWrapEnabled()));
     this.menu.setAction('view:toggle-line-numbers', () => setLineNumbersVisible(!getLineNumbersVisible()));
     this.menu.setAction('view:zen-mode', () => this.viewState.toggleZenMode());
+    // Global Explorer-delete safety gate (v0.3, user request 2026-09-25) —
+    // a top-level row, not nested in a submenu, since it's a safety setting
+    // rather than an appearance one. Also reflected in the status bar
+    // (see the statusbar-delete-indicator wiring below); both write
+    // through the same setDeleteEnabled() so they can't disagree.
+    this.menu.setAction('view:delete-enabled', () => setDeleteEnabled(!getDeleteEnabled()));
     // Each row's check mark is read from the live state whenever the menu is
     // drawn, so a change made by key, title bar or Activity Bar shows the next
     // time the menu opens (UT-MNU-002).
@@ -550,6 +567,7 @@ export class WorkbenchApp {
     this.menu.setCheckedProvider('view:toggle-foldertabs', () => this.viewState.getState().folderTabsVisible);
     this.menu.setCheckedProvider('view:toggle-word-wrap', () => getWordWrapEnabled());
     this.menu.setCheckedProvider('view:toggle-line-numbers', () => getLineNumbersVisible());
+    this.menu.setCheckedProvider('view:delete-enabled', () => getDeleteEnabled());
 
     // One positive setting replaces the former pair of mode rows. Checked is
     // per-folder editor state; unchecked is one editor layout shared by roots.
@@ -789,6 +807,17 @@ export class WorkbenchApp {
           });
         },
       });
+      // Right-click always collapses to this single node (WK-123, kept
+      // as-is — see the contextmenu listener below), so this only ever
+      // deletes the one right-clicked item; multi-select delete is the
+      // Delete key's job. Shares explorerFileOps.delete()'s single gate
+      // with the Delete key (v0.3, user request 2026-09-25).
+      items.push({ id: 'explorer:delete-separator', label: '', type: 'separator' });
+      items.push({
+        id: 'explorer:delete',
+        label: 'Delete',
+        action: () => void this.explorerFileOps.delete([node]),
+      });
       return items;
     };
     this.layout.sidebarContent.addEventListener('contextmenu', (e) => {
@@ -887,6 +916,34 @@ export class WorkbenchApp {
     // `layout.statusbarAppItems`; phase5-suite.js proves the slot with a
     // test item. FR-I10's view-titlebar app-action slot stays open too; a
     // real app registers through addSidebarViewAction.
+
+    // Explorer-delete indicator (v0.3, user request 2026-09-25) — no
+    // reusable "register a status bar item" API exists, so this appends a
+    // manual element into the app-item slot above, same as the
+    // phase5-suite.js precedent. Clicking it toggles the same setting the
+    // View menu row above does; both go through setDeleteEnabled(), so
+    // they never disagree.
+    const deleteStatusEl = document.createElement('span');
+    deleteStatusEl.className = 'statusbar-app-item statusbar-delete-indicator';
+    deleteStatusEl.setAttribute('role', 'button');
+    deleteStatusEl.tabIndex = 0;
+    deleteStatusEl.title = 'Click to toggle Allow Delete in Explorer';
+    const toggleDeleteEnabled = () => setDeleteEnabled(!getDeleteEnabled());
+    deleteStatusEl.addEventListener('click', toggleDeleteEnabled);
+    deleteStatusEl.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        toggleDeleteEnabled();
+      }
+    });
+    this.layout.statusbarAppItems.appendChild(deleteStatusEl);
+    const renderDeleteStatus = () => {
+      const on = getDeleteEnabled();
+      deleteStatusEl.textContent = on ? 'Delete: On' : 'Delete: Off';
+      deleteStatusEl.classList.toggle('delete-enabled', on);
+    };
+    onDeleteEnabledChanged(renderDeleteStatus);
+    renderDeleteStatus();
 
     // Focus areas — F6 / Shift+F6 between the tree and each group, Ctrl+Tab
     // inside a group, and a press on the explorer's empty space (v0.2 D-10,
@@ -1019,7 +1076,9 @@ export class WorkbenchApp {
     // 200 was chosen specifically to sit above that floor. This 160 value
     // is below that measured floor and will very likely reintroduce that
     // same clipping when dragged to the minimum (see style.css's matching
-    // .workbench-sidebar min-width comment).
+    // .workbench-sidebar min-width comment). A 5th shell action (Find, v0.3,
+    // user request 2026-09-25) raises that floor further — not remeasured,
+    // flagged here rather than guessed.
     const MIN = 160;
     const clamp = (px: number) => {
       const max = Math.max(MIN, Math.round((window.innerWidth || 1280) * 0.6));

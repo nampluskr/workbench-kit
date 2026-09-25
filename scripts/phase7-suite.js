@@ -877,19 +877,21 @@ window.__runPhase7TestSuite = async function runPhase7TestSuite() {
       tree.setExpanded(betaFolder.node.id, true);
       tree.setExpanded(echoFolder.node.id, true);
       await wait(20);
+      const searchShellBtn = document.getElementById('sidebar-action-search');
       const newFileShellBtn = document.getElementById('sidebar-action-new-file');
       const newFolderShellBtn = document.getElementById('sidebar-action-new-folder');
       const collapseAllBtn = document.getElementById('sidebar-action-collapse-all');
       const refreshBtn = document.getElementById('sidebar-action-refresh');
       const shellActionEls = Array.from(document.querySelectorAll('#sidebar-actions .sidebar-action-btn:not(.app-action-btn)'));
       const shellOrderOK =
-        shellActionEls.length === 4 &&
-        shellActionEls[0] === newFileShellBtn && shellActionEls[1] === newFolderShellBtn &&
-        shellActionEls[2] === refreshBtn && shellActionEls[3] === collapseAllBtn;
+        shellActionEls.length === 5 &&
+        shellActionEls[0] === searchShellBtn && shellActionEls[1] === newFileShellBtn &&
+        shellActionEls[2] === newFolderShellBtn && shellActionEls[3] === refreshBtn &&
+        shellActionEls[4] === collapseAllBtn;
       record(
         'P7-FR-A20',
         shellOrderOK && document.querySelectorAll('#sidebar-actions [data-id*="preset"], #sidebar-actions [title*="Preset" i]').length === 0,
-        'The Explorer view titlebar renders exactly the shell\'s own 4 actions — New File, New Folder, Refresh, Collapse All in order — distinguishable from any app-added ones, and 0 Preset Info (v0.1 FR-A20/A24 -> v0.2 FR-X2/FR-X3)'
+        'The Explorer view titlebar renders exactly the shell\'s own 5 actions — Find, New File, New Folder, Refresh, Collapse All in order — distinguishable from any app-added ones, and 0 Preset Info (v0.1 FR-A20/A24 -> v0.2 FR-X2/FR-X3 -> v0.3 Find)'
       );
       clickEl(collapseAllBtn);
       await wait(30);

@@ -4,7 +4,8 @@
 // common core (D-4, v0.1 D-30).
 import type { TreeController, TreeNode } from '../core/tree';
 import type { EditorController } from '../core/editor';
-import { createFile, createFolder, renamePath } from '../providers/filesystem';
+import { createFile, createFolder, renamePath, deletePath } from '../providers/filesystem';
+import { getDeleteEnabled } from './delete-enabled';
 
 export interface ExplorerFileOpsDeps {
   tree: TreeController;
@@ -13,6 +14,8 @@ export interface ExplorerFileOpsDeps {
   showError: (text: string) => void;
   /** Re-reads the tree and every view that lists a folder (the file-list tabs). */
   refreshViews: () => Promise<void>;
+  /** The delete confirm dialog (v0.3, user request 2026-09-25) — Delete/Cancel, not the 3-button dirty-close dialog. */
+  confirmDelete: (message: string) => Promise<'delete' | 'cancel'>;
 }
 
 /** Kinds whose tab follows a renamed path. A terminal is left alone: rebuilding it would restart its shell. */
@@ -178,5 +181,120 @@ export class ExplorerFileOps {
     }
     if (count > 0) editor.refreshTabDecorations();
     return count;
+  }
+
+  /**
+   * Delete key / right-click "Delete" on the Explorer tree (v0.3, user
+   * request 2026-09-25). Gated by the global "Delete enabled" setting —
+   * the tree hands off unconditionally (D-30, D-22); this is the one place
+   * that decides whether anything actually happens, so the Delete key and
+   * the context menu's Delete item can never drift out of sync on that
+   * gate. Permanent delete, no recycle bin. A dirty open tab on a deleted
+   * target is force-closed with no save prompt (user decision) — the file
+   * is already gone, so there is nowhere left to save it.
+   *
+   * Three guards added after adversarial review (A29, Codex `gpt-6-sol`):
+   * (1) the tree's own root is never a delete target — deleting the open
+   * folder itself left the tree pointed at a now-missing root; (2) when
+   * both an ancestor folder and one of its own descendants are selected
+   * (e.g. Ctrl+A), only the ancestor is actually deleted — the descendant
+   * is dropped from the target list instead of being attempted afterward
+   * and failing because it is already gone; (3) "delete enabled" is
+   * re-checked after the confirm dialog resolves, not only before it was
+   * shown, so toggling it off while the dialog is open (nothing traps
+   * focus there) cannot let a stale "yes" through.
+   */
+  public async delete(nodes: TreeNode[]): Promise<boolean> {
+    if (!getDeleteEnabled()) {
+      this.deps.showError('Delete is disabled — enable it from View > Allow Delete in Explorer');
+      return false;
+    }
+    if (nodes.length === 0) return false;
+    const { tree, editor } = this.deps;
+
+    const rootId = tree.getRoot()?.id;
+    const withoutRoot = rootId ? nodes.filter((n) => n.id !== rootId) : nodes;
+    if (withoutRoot.length === 0) {
+      this.deps.showError('Cannot delete the open folder itself');
+      return false;
+    }
+    if (withoutRoot.length < nodes.length) {
+      this.deps.showError('The open folder itself cannot be deleted — skipped');
+    }
+
+    // Drop any selected node that sits inside another selected node — its
+    // ancestor's deletion already removes it, so attempting it afterward
+    // would only fail with a confusing "Cannot delete" for something that
+    // is, correctly, already gone.
+    const targets = withoutRoot.filter((node) => {
+      const p = nodePath(node);
+      if (!p) return false;
+      return !withoutRoot.some((other) => {
+        if (other === node) return false;
+        const otherPath = nodePath(other);
+        return otherPath ? remapPath(p, otherPath, otherPath) !== null : false;
+      });
+    });
+    if (targets.length === 0) return false;
+
+    const folders = targets.filter((n) => n.isContainer).length;
+    const files = targets.length - folders;
+    const message = targets.length === 1
+      ? `Delete '${targets[0].label}'?`
+      : `Delete ${folders > 0 ? `${folders} folder${folders > 1 ? 's' : ''}` : ''}${folders > 0 && files > 0 ? ' and ' : ''}${files > 0 ? `${files} file${files > 1 ? 's' : ''}` : ''}?`;
+
+    const choice = await this.deps.confirmDelete(message);
+    if (choice !== 'delete') return false;
+    if (!getDeleteEnabled()) {
+      this.deps.showError('Delete was turned off while the confirmation was open — nothing was deleted');
+      return false;
+    }
+
+    // A29 round 3 Critical: the confirm dialog does not trap focus, so a
+    // Folder Tab (a separate root) can be switched to and activated while
+    // the dialog is still open — making one of `targets` the tree's LIVE
+    // root by the time the user clicks Delete, even though it was not the
+    // root when the initial filter above ran. Re-checking here, against
+    // the root at THIS moment, closes that window the same way the
+    // "delete enabled" re-check above closes its own.
+    const liveRootId = tree.getRoot()?.id;
+    const finalTargets = liveRootId ? targets.filter((n) => n.id !== liveRootId) : targets;
+    if (finalTargets.length === 0) {
+      this.deps.showError('Cannot delete the open folder itself');
+      return false;
+    }
+    if (finalTargets.length < targets.length) {
+      this.deps.showError('The open folder itself cannot be deleted — skipped');
+    }
+
+    let failed = 0;
+    const deletedPaths: string[] = [];
+    for (const node of finalTargets) {
+      const targetPath = nodePath(node);
+      if (!targetPath) continue;
+      try {
+        await deletePath(targetPath);
+        deletedPaths.push(targetPath);
+      } catch (error) {
+        failed++;
+        this.deps.showError(`Cannot delete '${node.label}': ${errorText(error)}`);
+      }
+    }
+
+    for (const targetPath of deletedPaths) {
+      for (const panel of editor.getPanels()) {
+        const params = (panel.params ?? {}) as { kind?: string; targetId?: string };
+        if (!params.kind || !RETARGET_KINDS.has(params.kind) || typeof params.targetId !== 'string') continue;
+        if (remapPath(params.targetId, targetPath, targetPath)) editor.forceClosePanel(panel);
+      }
+    }
+
+    // tree.refresh() already purges any now-missing id from selection/focus.
+    await this.deps.refreshViews();
+
+    if (failed === 0) {
+      this.deps.showMessage(finalTargets.length === 1 ? `Deleted '${finalTargets[0].label}'` : `Deleted ${finalTargets.length} items`);
+    }
+    return failed === 0;
   }
 }

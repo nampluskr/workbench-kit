@@ -14,6 +14,7 @@ export interface NewItemRequest {
 
 export class ExplorerTitlebarController {
   private appActionsEl: HTMLElement;
+  private searchBtn: HTMLButtonElement;
   private newFileBtn: HTMLButtonElement;
   private newFolderBtn: HTMLButtonElement;
   private refreshBtn: HTMLButtonElement;
@@ -31,6 +32,7 @@ export class ExplorerTitlebarController {
 
   constructor(
     appActionsEl: HTMLElement,
+    searchBtn: HTMLButtonElement,
     newFileBtn: HTMLButtonElement,
     newFolderBtn: HTMLButtonElement,
     refreshBtn: HTMLButtonElement,
@@ -38,6 +40,7 @@ export class ExplorerTitlebarController {
     treeController: TreeController
   ) {
     this.appActionsEl = appActionsEl;
+    this.searchBtn = searchBtn;
     this.newFileBtn = newFileBtn;
     this.newFolderBtn = newFolderBtn;
     this.refreshBtn = refreshBtn;
@@ -47,6 +50,19 @@ export class ExplorerTitlebarController {
   }
 
   private bindEvents(): void {
+    // Same find widget Ctrl+F already opens in the tree (FR-A13, FR-A19) —
+    // this button is just a discoverable, clickable entry point for it
+    // (user request, 2026-09-25). A second click toggles it closed again
+    // (user request, 2026-09-25) — Escape already closed it via the find
+    // input's own keydown handler (tree.ts); this just gives the button
+    // itself the same open/close symmetry.
+    this.searchBtn?.addEventListener('click', () => {
+      if (this.treeController.getIsFindOpen()) {
+        this.treeController.closeFindWidget();
+      } else {
+        this.treeController.openFindWidget();
+      }
+    });
     this.newFileBtn?.addEventListener('click', () => this.promptNew('leaf'));
     this.newFolderBtn?.addEventListener('click', () => this.promptNew('container'));
     this.refreshBtn?.addEventListener('click', () => this.refresh());

@@ -115,6 +115,7 @@ export class TreeController {
   private onEnterOpenCallbacks: ((node: TreeNode) => void)[] = [];
   private onOpenToSideCallbacks: ((node: TreeNode) => void)[] = [];
   private onRootChangeCallbacks: ((root: TreeNode | null) => void)[] = [];
+  private onDeleteRequestedCallbacks: ((nodes: TreeNode[]) => void)[] = [];
 
   constructor(container: HTMLElement, iconThemeManager: IconThemeManager) {
     this.container = container;
@@ -313,6 +314,21 @@ export class TreeController {
     this.onRootChangeCallbacks.push(cb);
     return () => {
       this.onRootChangeCallbacks = this.onRootChangeCallbacks.filter((c) => c !== cb);
+    };
+  }
+
+  /**
+   * Fires on Delete with a non-empty selection (v0.3, user request
+   * 2026-09-25). The tree never decides whether delete is allowed or
+   * touches the filesystem itself — it only knows there is a selection to
+   * hand off (D-30, D-22, .claude/rules/common-core.md). The app-layer
+   * callback is solely responsible for checking any "delete enabled"
+   * policy and for the confirm/I-O/refresh flow.
+   */
+  public onDeleteRequested(cb: (nodes: TreeNode[]) => void): () => void {
+    this.onDeleteRequestedCallbacks.push(cb);
+    return () => {
+      this.onDeleteRequestedCallbacks = this.onDeleteRequestedCallbacks.filter((c) => c !== cb);
     };
   }
 
@@ -810,6 +826,10 @@ export class TreeController {
     this.onOpenToSideCallbacks.forEach((cb) => cb(node));
   }
 
+  private emitDeleteRequested(nodes: TreeNode[]): void {
+    this.onDeleteRequestedCallbacks.forEach((cb) => cb(nodes));
+  }
+
   private scrollItemIntoView(nodeId: string): void {
     const rowEls = this.container.querySelectorAll('.tree-row');
     for (let i = 0; i < rowEls.length; i++) {
@@ -848,6 +868,22 @@ export class TreeController {
       e.preventDefault();
       e.stopPropagation();
       this.clearSelection();
+      return;
+    }
+
+    // Delete: hand off every selected item to the app layer (v0.3, user
+    // request 2026-09-25; D-30, D-22). The tree does not check whether
+    // delete is enabled and never touches the filesystem — that policy and
+    // the confirm/I-O flow are entirely the app callback's responsibility.
+    if (e.key === 'Delete' && !e.ctrlKey && !e.shiftKey && !e.altKey) {
+      e.preventDefault();
+      e.stopPropagation();
+      const ids = this.getSelectedIds();
+      if (ids.length === 0) return;
+      const nodes = ids
+        .map((id) => this.getNodeById(id))
+        .filter((n): n is TreeNode => n !== null);
+      if (nodes.length > 0) this.emitDeleteRequested(nodes);
       return;
     }
 

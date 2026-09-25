@@ -216,6 +216,20 @@ class WindowApi:
         os.mkdir(dir_path)
         return True
 
+    def delete_path(self, target_path):
+        # A symlink/junction is removed as the link itself, never followed
+        # into its target (matches the Electron host's fs.rm, which also
+        # never recurses through a link) — os.path.isdir() alone would
+        # follow a directory symlink and shutil.rmtree() its target's
+        # contents instead (v0.3, user request 2026-09-25).
+        if os.path.islink(target_path):
+            os.remove(target_path)
+        elif os.path.isdir(target_path):
+            shutil.rmtree(target_path)
+        else:
+            os.remove(target_path)
+        return True
+
     def rename_path(self, old_path, new_path):
         # os.rename already refuses an existing target on Windows; the check
         # keeps the message the same as Electron's and lets a case-only

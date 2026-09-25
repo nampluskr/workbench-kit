@@ -14,6 +14,7 @@ contextBridge.exposeInMainWorld('workbenchHost', {
   createFile: (filePath) => ipcRenderer.invoke('fs:create-file', filePath),
   createFolder: (dirPath) => ipcRenderer.invoke('fs:create-folder', dirPath),
   renamePath: (oldPath, newPath) => ipcRenderer.invoke('fs:rename-path', oldPath, newPath),
+  deletePath: (targetPath) => ipcRenderer.invoke('fs:delete-path', targetPath),
   probeTextFile: (filePath) => ipcRenderer.invoke('fs:probe-text-file', filePath),
   readLegacyTextFile: (filePath) => ipcRenderer.invoke('fs:read-legacy-text-file', filePath),
   terminalStart: (kind, cwd) => ipcRenderer.invoke('terminal:start', kind, cwd),

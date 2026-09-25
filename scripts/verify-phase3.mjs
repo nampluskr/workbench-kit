@@ -693,12 +693,44 @@ tree.closeFindWidget();
 assert(tree.getIsFindOpen() === false, 'closeFindWidget closes find widget');
 assert(mockContainer.querySelector('.tree-find-widget') === null, 'Find widget DOM removed');
 
+// --- Delete key hand-off contract (v0.3, user request 2026-09-25, D-30 · D-22) ---
+// The tree never checks a "delete enabled" setting and never touches the
+// filesystem — it only decides whether there is a selection to hand off.
+console.log('\n--- 4.5.1 Delete Key Hand-off Verification (v0.3, D-30, D-22) ---');
+let deleteRequestedNodes = null;
+const unsubscribeDelete = tree.onDeleteRequested((nodes) => { deleteRequestedNodes = nodes; });
+
+tree.clearSelection();
+assert(tree.getSelectedIds().length === 0, 'Selection is genuinely empty before the no-op check');
+dispatchTreeKey('Delete');
+assert(deleteRequestedNodes === null, 'Delete with 0 selection never emits onDeleteRequested');
+
+tree.restoreSelection(['item-1'], 'item-1');
+dispatchTreeKey('Delete');
+assert(
+  Array.isArray(deleteRequestedNodes) && deleteRequestedNodes.length === 1 && deleteRequestedNodes[0].id === 'item-1',
+  'Delete with a single selection emits onDeleteRequested with exactly that node'
+);
+
+deleteRequestedNodes = null;
+tree.restoreSelection(['item-1', 'item-2'], 'item-1');
+dispatchTreeKey('Delete');
+assert(
+  Array.isArray(deleteRequestedNodes) &&
+  deleteRequestedNodes.length === 2 &&
+  deleteRequestedNodes.map((n) => n.id).sort().join(',') === 'item-1,item-2',
+  'Delete with a multi-selection emits onDeleteRequested with every selected node (v0.3: Delete key supports bulk delete)'
+);
+unsubscribeDelete();
+
 // --- WK-046 & FR-A20 ~ FR-A22, FR-A24, D-30: View Titlebar Actions ---
 // v0.2: FR-A20/FR-A24 replaced by FR-X2 (four shell actions), FR-A23 by FR-X4
 // (SPEC 0.1). The IDs stay; the shell action set is now New File / New Folder /
 // Refresh / Collapse All.
 console.log('\n--- 4.6 View Titlebar Actions Verification (WK-046, FR-A20~A24 -> v0.2 FR-X2/FR-X4, D-30) ---');
 const mockAppActionsContainer = new MockElement('div');
+const searchBtn = new MockElement('button');
+searchBtn.classList.add('codicon', 'codicon-search');
 const newFileBtn = new MockElement('button');
 newFileBtn.classList.add('codicon', 'codicon-new-file');
 const newFolderBtn = new MockElement('button');
@@ -710,6 +742,7 @@ collapseBtn.classList.add('codicon', 'codicon-collapse-all');
 
 const explorerTitlebar = new ExplorerTitlebarController(
   mockAppActionsContainer,
+  searchBtn,
   newFileBtn,
   newFolderBtn,
   refreshBtn,
@@ -717,11 +750,12 @@ const explorerTitlebar = new ExplorerTitlebarController(
   tree
 );
 
-// Four shell actions verified by codicon class (v0.1 FR-A20 -> v0.2 FR-X2)
-assert(newFileBtn.classList.contains('codicon-new-file'), 'Shell action 1 is codicon-new-file (v0.1 FR-A20 -> v0.2 FR-X2)');
-assert(newFolderBtn.classList.contains('codicon-new-folder'), 'Shell action 2 is codicon-new-folder (FR-X2)');
-assert(refreshBtn.classList.contains('codicon-refresh'), 'Shell action 3 is codicon-refresh (FR-X2)');
-assert(collapseBtn.classList.contains('codicon-collapse-all'), 'Shell action 4 is codicon-collapse-all (FR-X2)');
+// Five shell actions verified by codicon class (v0.1 FR-A20 -> v0.2 FR-X2 -> v0.3 Find)
+assert(searchBtn.classList.contains('codicon-search'), 'Shell action 1 is codicon-search (v0.3 Find)');
+assert(newFileBtn.classList.contains('codicon-new-file'), 'Shell action 2 is codicon-new-file (v0.1 FR-A20 -> v0.2 FR-X2)');
+assert(newFolderBtn.classList.contains('codicon-new-folder'), 'Shell action 3 is codicon-new-folder (FR-X2)');
+assert(refreshBtn.classList.contains('codicon-refresh'), 'Shell action 4 is codicon-refresh (FR-X2)');
+assert(collapseBtn.classList.contains('codicon-collapse-all'), 'Shell action 5 is codicon-collapse-all (FR-X2)');
 assert(explorerTitlebar.getAppActions().length === 0, 'Initially exactly 0 app actions registered (v0.1 FR-A24 -> v0.2 FR-X2)');
 
 // Collapse All button invokes collapseAll (FR-A21)
@@ -964,11 +998,13 @@ const sidebarActionsHtml = sidebarActionsHtmlMatch[0];
 
 const buttonMatches = sidebarActionsHtml.match(/<button[\s\S]*?<\/button>/g) || [];
 // v0.1 FR-A20/FR-A24 (2 shell actions) -> v0.2 FR-X2 (4): New File / New Folder / Refresh / Collapse All.
-assert(buttonMatches.length === 4, `Layout declares strictly 4 shell actions (found: ${buttonMatches.length}) (v0.1 FR-A20 -> v0.2 FR-X2)`);
-const orderOK = ['sidebar-action-new-file', 'sidebar-action-new-folder', 'sidebar-action-refresh', 'sidebar-action-collapse-all']
+// v0.3 (user request, 2026-09-25): Find is a 5th, leftmost shell action — a
+// discoverable click target for the tree's existing Ctrl+F find widget.
+assert(buttonMatches.length === 5, `Layout declares strictly 5 shell actions (found: ${buttonMatches.length}) (v0.1 FR-A20 -> v0.2 FR-X2 -> v0.3 Find)`);
+const orderOK = ['sidebar-action-search', 'sidebar-action-new-file', 'sidebar-action-new-folder', 'sidebar-action-refresh', 'sidebar-action-collapse-all']
   .map((id) => sidebarActionsHtml.indexOf(id));
-assert(orderOK.every((n, i) => n > -1 && (i === 0 || n > orderOK[i - 1])), 'Shell actions are New File, New Folder, Refresh, Collapse All in order (FR-X2)');
-assert(sidebarActionsHtml.includes('codicon-new-file') && sidebarActionsHtml.includes('codicon-new-folder') && sidebarActionsHtml.includes('codicon-refresh') && sidebarActionsHtml.includes('codicon-collapse-all'), 'Shell actions carry the expected codicons (FR-X2)');
+assert(orderOK.every((n, i) => n > -1 && (i === 0 || n > orderOK[i - 1])), 'Shell actions are Find, New File, New Folder, Refresh, Collapse All in order (FR-X2)');
+assert(sidebarActionsHtml.includes('codicon-search') && sidebarActionsHtml.includes('codicon-new-file') && sidebarActionsHtml.includes('codicon-new-folder') && sidebarActionsHtml.includes('codicon-refresh') && sidebarActionsHtml.includes('codicon-collapse-all'), 'Shell actions carry the expected codicons (FR-X2)');
 assert(sidebarActionsHtml.includes('sidebar-app-actions'), 'Layout provides empty app actions mount point (FR-I10)');
 assert(sidebarActionsHtml.indexOf('sidebar-app-actions') < orderOK[0], 'App actions mount point sits left of the four shell actions (FR-I10)');
 assert(!/Preset Info/i.test(sidebarActionsHtml), 'The view titlebar has 0 Preset Info elements (FR-X3)');

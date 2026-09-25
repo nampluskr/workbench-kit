@@ -90,6 +90,12 @@
   --menu-hover-bg: #454545;
   --menu-hover-fg: #ffffff;
   --menu-shortcut-fg: #909090;
+  /* --border-color (#2b2b2b) sits only 4 levels above --menu-bg (#272727),
+     so the hamburger/right-click menu's own divider was reading as
+     invisible against it (user report, 2026-09-25). --menu-hover-bg is
+     already the theme's "one step up from --menu-bg" tone (see the note
+     above), so the separator reuses it instead of a new one-off value. */
+  --menu-separator-color: var(--menu-hover-bg);
   --tabs-bg: #1f1f1f;
   --tab-active-bg: #4e4e4e;
   --tab-active-fg: #ffffff;
@@ -157,6 +163,9 @@
   --menu-hover-bg: #e0e0e0;
   --menu-hover-fg: #1f1f1f;
   --menu-shortcut-fg: #505050;
+  /* --border-color already reads clearly against --menu-bg here — no
+     contrast fix needed (see the dark theme's own note above). */
+  --menu-separator-color: var(--border-color);
   --tabs-bg: #ffffff;
   --tab-active-bg: #d8d8d8;
   --tab-active-fg: #1f1f1f;
@@ -218,6 +227,9 @@
   --menu-hover-bg: #a6a6a6;
   --menu-hover-fg: #1a1a1a;
   --menu-shortcut-fg: #1a1a1a;
+  /* --border-color already reads clearly against --menu-bg here — no
+     contrast fix needed (see the dark theme's own note above). */
+  --menu-separator-color: var(--border-color);
   --tabs-bg: #c0c0c0;
   --tab-active-bg: #8e8e8e;
   --tab-active-fg: #1a1a1a;
@@ -1039,7 +1051,9 @@ body.is-resizing-foldertabs {
      actions need ~187px including header padding, and clipped at 170px;
      200px was chosen specifically to keep a margin above that floor. This
      160px value is BELOW that measured floor and will very likely
-     reintroduce that same clipping at the resized minimum. */
+     reintroduce that same clipping at the resized minimum. A 5th shell
+     action (Find, v0.3, user request 2026-09-25) raises that floor further
+     — not remeasured, flagged here rather than guessed. */
   min-width: 160px;
   background-color: var(--sidebar-bg);
   color: var(--sidebar-fg);
@@ -1114,9 +1128,9 @@ body.is-resizing-sidebar {
 }
 
 /*
- * The shell's four actions never shrink or clip (FR-X6). App-added actions
+ * The shell's five actions never shrink or clip (FR-X6). App-added actions
  * (FR-I10, any number) go in this box, which gives up space and clips first
- * when the header is narrow — the shell four and the EXPLORER title stay.
+ * when the header is narrow — the shell five and the EXPLORER title stay.
  */
 .sidebar-app-actions {
   display: flex;
@@ -1145,7 +1159,8 @@ body.is-resizing-sidebar {
   outline: none;
 }
 
-/* The shell's own four never give up their width. */
+/* The shell's own five never give up their width. */
+#sidebar-action-search,
 #sidebar-action-new-file,
 #sidebar-action-new-folder,
 #sidebar-action-refresh,
@@ -1560,15 +1575,16 @@ body.is-resizing-sidebar {
  * convention it keeps for compatibility. The character itself is a real "\"
  * the whole way through (host, bridge, DOM text); only the glyph is wrong.
  * statusbar-path and any app status bar item are the statusbar spots that
- * can show Windows paths, so they put a Latin font first — it draws a real
- * backslash, and Hangul still falls through to the system font (user report,
- * 2026-09-15). This used to be a monospace stack; it now matches the folder
- * file-list address bar and the tooltip, proportional like the rest of the
- * UI (user request, 2026-09-24).
+ * can show Windows paths, so they put the bundled D2Coding font first — its
+ * cmap maps U+005C to its own `backslash` glyph, distinct from the
+ * `uni20A9` won-sign glyph at U+20A9, so it draws a real backslash; Hangul
+ * still falls through to the system font (user report, 2026-09-15; Arial
+ * swapped for the already-bundled D2Coding, user request, 2026-09-25 — no
+ * dependency on a system font being installed).
  */
 .statusbar-path,
 .statusbar-app-item {
-  font-family: Arial, var(--font-family);
+  font-family: 'Workbench D2Coding', var(--font-family);
 }
 
 .statusbar-item {
@@ -1672,6 +1688,30 @@ body.is-resizing-sidebar {
   opacity: 0.85;
 }
 
+/* Explorer-delete gate indicator (v0.3, user request 2026-09-25) — same
+   sizing/interaction values as .statusbar-mode-btn just above (D-29 allows
+   no new pixel values, so this reuses that button's own). */
+.statusbar-delete-indicator {
+  display: inline-flex;
+  align-items: center;
+  height: 100%;
+  padding: 0 5px;
+  border-radius: 2px;
+  cursor: pointer;
+}
+
+.statusbar-delete-indicator:hover {
+  background-color: var(--button-hover-bg);
+}
+
+.statusbar-delete-indicator:focus-visible {
+  outline: 1px solid var(--focus-ring);
+}
+
+.statusbar-delete-indicator.delete-enabled {
+  color: var(--statusbar-error-fg, #f48771);
+}
+
 .folder-file-list {
   height: 100%;
   display: flex;
@@ -1724,11 +1764,17 @@ body.is-resizing-sidebar {
   border: 1px solid transparent;
   border-radius: 2px;
   padding: 0 3px;
-  /* A Windows path: a Latin font first keeps "\" a real backslash instead
-     of the Korean UI font's won sign — same fix as .workbench-tooltip and
-     the statusbar-path note (user request, 2026-09-24). */
-  font-family: Arial, var(--font-family);
-  font-size: inherit;
+  /* A Windows path: the bundled D2Coding font first keeps "\" a real
+     backslash instead of the Korean UI font's won sign — same fix as
+     .workbench-tooltip and the statusbar-path note (user request,
+     2026-09-24; Arial swapped for D2Coding, user request, 2026-09-25). */
+  font-family: 'Workbench D2Coding', var(--font-family);
+  /* Was `inherit` — no ancestor in this panel's chain sets a font-size, so
+     it fell through to the browser default, one size larger than the
+     folder tab rail and every tree list (13px, see .foldertabs-list and
+     .tree-list). Explicit 13px matches that scale (user request,
+     2026-09-25). */
+  font-size: 13px;
   outline: none;
 }
 
@@ -2028,11 +2074,13 @@ body.is-resizing-sidebar {
   box-shadow: 0 2px 7px rgba(0, 0, 0, 0.25);
   /* Hover text often carries a Windows path. system-ui resolves to a Korean
      UI font on a Korean Windows, which draws "\" as a won sign (see the
-     statusbar-path note above); a Latin font first keeps a real backslash,
-     and Hangul still falls through to the system font. Arial is already the
-     app stack's own fallback (--font-family), and D-29 rules out the usual
-     Windows UI face. */
-  font-family: Arial, var(--font-family);
+     statusbar-path note above); the bundled D2Coding font first keeps a
+     real backslash (its cmap maps U+005C to `backslash`, distinct from the
+     `uni20A9` won-sign glyph at U+20A9), and Hangul still falls through to
+     the system font. Arial swapped for D2Coding, user request, 2026-09-25 —
+     no dependency on a system font being installed; D-29 rules out the
+     usual Windows UI face. */
+  font-family: 'Workbench D2Coding', var(--font-family);
   font-size: 11px;
   line-height: 1.4;
   white-space: pre-wrap;
@@ -2364,7 +2412,7 @@ body.is-resizing-sidebar {
 
 .menu-separator {
   height: 1px;
-  background-color: var(--border-color);
+  background-color: var(--menu-separator-color);
   margin: 5px 0;
 }
 

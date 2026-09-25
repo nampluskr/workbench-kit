@@ -82,6 +82,11 @@ export const DEFAULT_VIEW_ITEMS: readonly MenuItem[] = Object.freeze([
   Object.freeze({ id: 'view:appearance', label: 'Appearance', type: 'submenu' as const }),
   Object.freeze({ id: 'view:tab-mode', label: 'Tab Mode', type: 'submenu' as const }),
   Object.freeze({ id: 'view:file-filter', label: 'File Filter', type: 'submenu' as const }),
+  separator('view:separator-delete'),
+  // Plain checkbox row, not a submenu (v0.3, user request 2026-09-25) — a
+  // single safety gate for Explorer delete, kept at top level rather than
+  // buried in Appearance, since it isn't about how things look.
+  Object.freeze({ id: 'view:delete-enabled', label: 'Allow Delete in Explorer' }),
 ]);
 
 // v0.2 FR-M3.

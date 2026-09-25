@@ -18,6 +18,14 @@ async function createFolder(dirPath) {
   return true;
 }
 
+async function deletePath(targetPath) {
+  // fs.rm on a symlink/junction removes the link itself, not what it points
+  // to (Node never follows it to recurse) — safe by construction, no extra
+  // guard needed (v0.3, user request 2026-09-25).
+  await fs.promises.rm(targetPath, { recursive: true });
+  return true;
+}
+
 async function renamePath(oldPath, newPath) {
   // fs.rename replaces an existing file on Windows, so check first — except
   // for a case-only rename (a.txt -> A.txt), where the "existing" target is
@@ -71,4 +79,4 @@ async function readLegacyTextFile(filePath) {
   return new TextDecoder('euc-kr', { fatal: true }).decode(bytes);
 }
 
-module.exports = { createFile, createFolder, renamePath, probeTextFile, readLegacyTextFile };
+module.exports = { createFile, createFolder, renamePath, deletePath, probeTextFile, readLegacyTextFile };
