@@ -16,4 +16,9 @@
   - 검증: Electron·pywebview 전용 검사에서 두 아이콘의 세 테마 실측 색, 위치·라벨, 클릭·Enter·F3·F4, 토글 꺼짐, 기본 모드, 비 `.md`, 편집 중 탭, 재시작을 확인. `typecheck`, `build`, `verify:dist`, `verify:phase3`, `verify:open-modes`, `verify:text-open` 통과. 세션 내 리뷰 및 반대 벤더 3회 결과는 `docs/reviews/A31.md`에 기록.
   - 특이사항: 마지막 반대 벤더 회차 뒤 수정한 같은 파일 재클릭 경로는 3회 한도 때문에 벤더 재검증 없이 두 호스트 재현 검사로 확인했다. 미해결 Critical은 없다.
 
+- **Phase 3 — 수식과 코드 강조** (2026-09-25)
+  - 무엇을 했나: VS Code 계열 markdown-it KaTeX 구문 분석, KaTeX HTML·번들 CSS·글꼴, highlight.js 코드 블록과 세 테마 토큰색을 추가했다. 원문 정화 뒤 생성된 수식만 별도로 정화해 넣는다.
+  - 결과: 인라인·블록 수식과 코드 토큰색이 두 호스트에서 표시된다. Phase 4 이미지 경로 이전의 원격 자원 태그를 차단했다.
+  - 검증: Electron·pywebview에서 실측 수식 크기·글꼴·CSS, 세 테마 본문 대비 코드색, 악성 수식·코드·원격 이미지 미실행을 확인. `typecheck`, `build`, `verify:phase3`, `verify:dist`, `verify:open-modes`, `verify:text-open` 통과. 리뷰는 `docs/reviews/A32.md`.
+
 ## 2. 계획 외 개선

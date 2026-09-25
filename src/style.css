@@ -3300,3 +3300,18 @@ body.is-resizing-sidebar {
   border: 1px solid var(--text-color);
   padding: 0.35em 0.7em;
 }
+
+.markdown-rendered pre {
+  overflow: auto;
+  padding: 1em;
+}
+
+[data-theme="dark"] .markdown-rendered .hljs-keyword { color: #c586c0; }
+[data-theme="dark"] .markdown-rendered .hljs-string { color: #ce9178; }
+[data-theme="dark"] .markdown-rendered .hljs-comment { color: #6a9955; }
+[data-theme="light"] .markdown-rendered .hljs-keyword { color: #af00db; }
+[data-theme="light"] .markdown-rendered .hljs-string { color: #a31515; }
+[data-theme="light"] .markdown-rendered .hljs-comment { color: #008000; }
+[data-theme="gray"] .markdown-rendered .hljs-keyword { color: #800080; }
+[data-theme="gray"] .markdown-rendered .hljs-string { color: #800000; }
+[data-theme="gray"] .markdown-rendered .hljs-comment { color: #006400; }

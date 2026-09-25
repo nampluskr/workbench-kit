@@ -1,5 +1,9 @@
 import MarkdownIt from 'markdown-it';
 import DOMPurify from 'dompurify';
+import katex from 'katex';
+import markdownItKatex from '@vscode/markdown-it-katex';
+import hljs from 'highlight.js';
+import 'katex/dist/katex.min.css';
 import type { ResourceKindRegistry } from '../../registry/kind-registry';
 import type { IconThemeManager } from '../icontheme';
 import { readLegacyTextFile, readTextFile, writeTextFile } from '../../providers/filesystem';
@@ -50,15 +54,61 @@ export function createMarkdownToggleIcon(enabled: boolean): SVGElement {
   return svg;
 }
 
+type MathEntry = { source: string; displayMode: boolean };
+type MathEnvironment = { math: MathEntry[]; nonce: string };
+
 const parser = new MarkdownIt({ html: true, linkify: false, typographer: false });
+parser.use((markdownItKatex as unknown as { default: typeof markdownItKatex }).default, { throwOnError: false });
+for (const rule of ['math_inline', 'math_inline_block', 'math_inline_bare_block', 'math_block']) {
+  parser.renderer.rules[rule] = (tokens, index, _options, environment) => {
+    const env = environment as MathEnvironment;
+    const id = env.math.push({ source: tokens[index].content, displayMode: rule !== 'math_inline' }) - 1;
+    const tag = rule === 'math_inline' ? 'span' : 'div';
+    return `<${tag} data-md-math="${env.nonce}-${id}"></${tag}>`;
+  };
+}
+parser.renderer.rules.fence = (tokens, index) => {
+  const token = tokens[index];
+  const language = token.info.trim().split(/\s+/)[0];
+  const highlighted = language && hljs.getLanguage(language)
+    ? hljs.highlight(token.content, { language, ignoreIllegals: true }).value
+    : parser.utils.escapeHtml(token.content);
+  return `<pre><code class="hljs">${highlighted}</code></pre>`;
+};
+
+const forbiddenElements = [
+  'form', 'button', 'input', 'select', 'option', 'textarea', 'map', 'area', 'style',
+  'img', 'picture', 'audio', 'video', 'source', 'track', 'object', 'embed', 'svg', 'math',
+];
 
 export function renderMarkdown(source: string): string {
   if (!DOMPurify.isSupported) throw new Error('HTML sanitization is unavailable');
-  return DOMPurify.sanitize(parser.render(source), {
-    FORBID_TAGS: ['form', 'button', 'input', 'select', 'option', 'textarea', 'map', 'area', 'style'],
+  const env: MathEnvironment = { math: [], nonce: crypto.randomUUID() };
+  const cleaned = DOMPurify.sanitize(parser.render(source, env), {
+    FORBID_TAGS: forbiddenElements,
     FORBID_ATTR: ['style'],
     SANITIZE_NAMED_PROPS: true,
   });
+  const container = document.createElement('div');
+  container.innerHTML = cleaned;
+  for (const placeholder of container.querySelectorAll('[data-md-math]')) {
+    const value = placeholder.getAttribute('data-md-math');
+    if (!value?.startsWith(`${env.nonce}-`)) continue;
+    const id = Number(value.slice(env.nonce.length + 1));
+    const entry = Number.isInteger(id) ? env.math[id] : undefined;
+    if (!entry) continue;
+    const html = katex.renderToString(entry.source, {
+      displayMode: entry.displayMode, output: 'html', trust: false, throwOnError: false,
+    });
+    const safeMath = DOMPurify.sanitize(html, {
+      FORBID_TAGS: forbiddenElements,
+      SANITIZE_NAMED_PROPS: true,
+    });
+    const template = document.createElement('template');
+    template.innerHTML = safeMath;
+    placeholder.replaceWith(template.content);
+  }
+  return container.innerHTML;
 }
 
 export function registerMarkdownRenderer(registry: ResourceKindRegistry, iconTheme: IconThemeManager): void {
