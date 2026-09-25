@@ -8,12 +8,28 @@
 기본 모드를 정한다. 수정한 탭을 닫을 때 확인창에서 `Save`를 선택하면 변경 내용을 디스크에
 저장한다. Editor에서 Viewer로 돌아가도 현재 내용과 저장하지 않은 변경 사항은 유지된다.
 
-`File > Open Folder...`는 폴더를 Roots에 추가한다. 탐색기 트리에서 파일을 클릭하거나
-`Enter`를 누르면 활성 에디터 칸에서 열린다. 파일에 포커스를 두고 `F3`/`F4`를 누르면
-우클릭 메뉴의 `Open as Viewer`/`Open as Editor`와 같이 각각 보기/편집 모드로 연다.
-트리 안에서 찾기는 `Ctrl+F`다. 트리에서 모드를 지정해 열면 모드마다 별도의 탭을 쓰며,
-이미 열린 탭이 있으면 그 탭을 활성화한다. 수정되지 않은 빈 `Untitled` 탭은 재사용한다.
-트리에서 파일이나 폴더를 우클릭하면 `Copy Path`, `Copy Relative Path`로 절대·상대 경로를 클립보드에 복사할 수 있다.
+`File > Open Folder...`(또는 `Ctrl+K Ctrl+O`)는 폴더를 **새 Folder Tab으로 추가한다**
+— 기존 것을 교체하지 않고 항상 더한다. 세로 Folder Tabs 레일에서 탭을 고르면 탐색기
+트리가 그 폴더로 바뀐다. 폴더별 탐색기 상태(펼침·선택·스크롤)는 탭마다 따로 저장되고
+재시작 뒤에도 복원된다. 사라진 폴더는 탭을 유지한 채 오류 상태로 표시되고, 우클릭
+`Locate Folder…`로 다시 연결할 수 있다. `View`에서 에디터 전환 방식을 `Shared Editor`
+(모든 폴더가 편집 레이아웃을 공유)와 `Folder Workspace`(폴더마다 독립된 편집
+작업공간) 중에서 고른다.
+
+탐색기 트리에서 파일을 클릭하거나 `Enter`를 누르면 활성 에디터 칸에서 열린다. 파일에
+포커스를 두고 `F3`/`F4`를 누르면 우클릭 메뉴의 `Open as Viewer`/`Open as Editor`와
+같이 각각 보기/편집 모드로 연다. 탐색기 뷰 제목줄의 돋보기 아이콘(또는 `Ctrl+F`/
+`Ctrl+Alt+F`)은 트리 안 찾기 위젯을 토글로 여닫는다. 트리에서 모드를 지정해 열면
+모드마다 별도의 탭을 쓰며, 이미 열린 탭이 있으면 그 탭을 활성화한다. 수정되지 않은 빈
+`Untitled` 탭은 재사용한다. 트리에서 파일이나 폴더를 우클릭하면 `Copy Path`,
+`Copy Relative Path`로 절대·상대 경로를 클립보드에 복사할 수 있다.
+
+**탐색기 삭제**는 기본적으로 꺼져 있다. `View > Allow Delete in Explorer`(또는
+상태표시줄의 `Delete: Off`/`Delete: On` 표시를 클릭)로 켜야 `Delete` 키(다중 선택 전체
+적용)와 우클릭 `Delete`(선택한 한 항목)가 동작한다. 켜져 있어도 실행 전 확인 대화상자를
+거치고, 영구 삭제라 휴지통으로 가지 않는다. 탐색기 루트(열려 있는 폴더 자체)는 어떤
+경로로도 지울 수 없다.
+
 폴더 탭의 우클릭 메뉴에서 File List, Command Prompt, PowerShell을 열 수 있다. 셸 탭은
 각각 독립된 터미널 세션이다.
 
@@ -41,8 +57,11 @@
 같은 공통 UI를 두 갈래가 공유한다 — 파이썬이 필요한 앱은 **pywebview**로, 필요 없는
 앱은 **Electron**으로 낸다.
 
-> **v0.2 마감.** Phase 1~7 전부 완료 — 임시/확정 탭, 선택·포커스 표시, 창 껍데기 배치,
-> 메뉴·칸 수명, 탐색기 구조, 테마·아이콘·치수, 표시 언어까지. 아이콘 테마는
+> **v0.3 마감.** Phase 1~6 전부 완료 — 여러 폴더를 Folder Tabs로 동시에 열고, 폴더별
+> 탐색기 상태를 저장·복원하고, 사라진 폴더를 오류 탭으로 표시하고, `Shared Editor`/
+> `Folder Workspace` 두 에디터 전환 모드를 고른다. 마감 직전 계획 외로 탐색기 Find
+> 버튼, 삭제 기능(Delete 키·우클릭, 전역 게이트), Copy Path/Copy Relative Path,
+> D2Coding 글꼴 통일, 다크 테마 메뉴 구분선 대비 수정이 붙었다. 아이콘 테마는
 > `VS Code Built-in` · `VS Code Icons` · `Simple` 셋, monaco 에디터 색은 VS Code의
 > `--vscode-*` 토큰을 따른다.
 
@@ -169,9 +188,10 @@ npm run dev
 | 범위 선택 | `Shift+ArrowUp` / `Shift+ArrowDown` | 같음 | 같음 |
 | 전체 선택 | `Ctrl+A` | `Ctrl+A` | 같음 |
 | 포커스 고정 스크롤 | `Ctrl+ArrowUp` / `Ctrl+ArrowDown` | 같음 | 같음 |
-| 트리에서 찾기 | `Ctrl+F` 또는 `Ctrl+Alt+F` | (글자를 바로 입력하면 검색) | 다름 — 찾기 위젯을 명시적으로 연다 |
+| 트리에서 찾기 | `Ctrl+F` 또는 `Ctrl+Alt+F`, 또는 뷰 제목줄의 돋보기 아이콘(토글) | (글자를 바로 입력하면 검색) | 다름 — 찾기 위젯을 명시적으로 연다 |
 | 트리에서 파일 보기 / 편집 열기 | `F3` / `F4` | 없음 | 포커스된 파일에 적용 |
 | 현재 파일 탭 보기 / 편집 전환 | `F3` / `F4` | 없음 | 현재 파일 탭에 적용 |
+| 선택 삭제 | `Delete`(다중 선택 전체) 또는 우클릭 `Delete`(선택한 한 항목) | `Delete` | **다름 — 기본 꺼짐.** `View > Allow Delete in Explorer`로 켜야 하고, 확인 대화상자를 거친다. 영구 삭제, 휴지통 없음 |
 | 선택 해제 / 찾기 닫기 | `Escape` | `Escape` | 같음 |
 
 ### 6. 탐색기 폭 조절 손잡이
@@ -208,7 +228,7 @@ monaco)가 받는 것뿐이다 — 다른 보기를 넣은 앱에서는 그 보�
 | --- | --- | --- |
 | `Ctrl+S` | 앱에 넘김 | 저장 |
 | `F2` | 앱에 넘김 | 이름 바꾸기 |
-| `Delete` | 앱에 넘김 (메뉴가 열려 있을 때만 예외) | 삭제 |
+| `Delete` | 탭 안(파일 탭 등)에 포커스가 있으면 앱에 넘김(메뉴가 열려 있을 때만 예외). **트리에 포커스가 있을 때는 다르다** — 5절 참조: 껍데기가 선택된 항목을 앱에 삭제 요청으로 위임하지만, 삭제 가능 여부·확인·실제 파일 접근은 여전히 전부 앱 몫이다 | 삭제 |
 | `Ctrl+C` / `Ctrl+V` | 앱에 넘김 | 복사 / 붙이기 |
 
 ---
@@ -218,14 +238,13 @@ monaco)가 받는 것뿐이다 — 다른 보기를 넣은 앱에서는 그 보�
 | 문서 | 무엇이 있나 |
 | --- | --- |
 | [`INTENT.md`](docs/current/INTENT.md) | 이 프로젝트가 무엇을 왜 하는가. 버전이 바뀌어도 변하지 않는 것 |
-| [`BRIEF.md`](docs/current/BRIEF.md) | 이번 버전(v0.2)에서 무엇을 왜 하는가. 하지 않을 것. 완료 조건 |
-| [`DECISIONS.md`](docs/current/DECISIONS.md) | 설계 결정 20개(D-1 ~ D-20)와 각각의 근거·배제한 대안 |
-| [`SPEC.md`](docs/current/SPEC.md) | 이번 버전이 만족해야 할 것 |
-| [`PLAN.md`](docs/current/PLAN.md) | Phase 1 ~ 7의 목적·대응 요구 ID·완료 조건, 그리고 적대적 검증 게이트 |
-| [`backlog.json`](docs/current/backlog.json) | task 34개, 전건 완료. `id` · `phase`(= `priority` P1 ~ P7) · 완료 조건 |
-| [`PROGRESS.md`](docs/current/PROGRESS.md) | task별 진행 기록과 계획 외 개선 26건, 마감 요약 |
+| [`BRIEF.md`](docs/current/BRIEF.md) | 이번 버전(v0.3)에서 무엇을 왜 하는가. 하지 않을 것. 완료 조건 |
+| [`DECISIONS.md`](docs/current/DECISIONS.md) | 설계 결정 15개(D-1 ~ D-15)와 각각의 근거·배제한 대안 |
+| [`PLAN.md`](docs/current/PLAN.md) | Phase 1 ~ 6의 목적·완료 조건, 그리고 적대적 검증 게이트(필수 통과: 1·4·6). `SPEC.md`는 이번 버전에 없다 — `BRIEF.md` 5절의 완료 조건을 대신 가리킨다 |
+| [`backlog.json`](docs/current/backlog.json) | task 28개(`WK-083` ~ `WK-110`), 전건 완료 |
+| [`PROGRESS.md`](docs/current/PROGRESS.md) | task별 진행 기록과 계획 외 개선 다수(F3/F4 단축키, Explorer Find 버튼, 탐색기 삭제 기능 등), 마감 요약 |
 
-이전 버전(v0.1) 문서는 [`docs/history/v0.1/`](docs/history/v0.1/)에 있다.
+이전 버전 문서는 [`docs/history/v0.1/`](docs/history/v0.1/) · [`docs/history/v0.2/`](docs/history/v0.2/)에 있다.
 
 ### 참고 자료 (`refs/`)
 
@@ -243,10 +262,12 @@ monaco)가 받는 것뿐이다 — 다른 보기를 넣은 앱에서는 그 보�
 
 ## 다음
 
-v0.2를 마감했다(2026-09-16). 남긴 것과 다음 버전 후보는
-[`PROGRESS.md`의 마감 요약](docs/current/PROGRESS.md)에 있다 — 트리 세로선 간격
-등 금지 값 예외 2건, 대비 미달 5건, pywebview 재확인 항목, monaco 문법 강조
-(범위 밖으로 제외)가 그 후보다. 다음 버전의 범위·번호는 사람이 정한다.
+v0.3을 마감했다(2026-09-25). 남긴 것은
+[`PROGRESS.md`의 마감 요약](docs/current/PROGRESS.md)에 있다. 다음 버전(v0.4)
+후보로 검토된 "Activity Bar 마크다운 아이콘 + 렌더링 미리보기"는
+[`next-version.md`의 N-2](docs/refs/next-version.md)에 자세히 남겨 뒀다 — 껍데기
+쪽은 이미 필요한 것을 다 갖추고 있어, 남은 건 전부 앱 레이어의 새 코드다. 다음
+버전의 범위·번호는 사람이 정한다.
 
 ## 가져다 쓰는 것
 
