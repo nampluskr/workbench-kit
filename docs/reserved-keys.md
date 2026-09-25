@@ -8,15 +8,23 @@
 
 | 키 | 동작 | 근거 |
 | --- | --- | --- |
-| `Ctrl+O` | 폴더 열기 (`File > Open Folder...`) | FR-A1, D-16, v0.2 FR-M4 |
+| `Ctrl+O` | 파일 열기 (`File > Open File...`) | 사용자 요청 (2026-09-19) |
+| `Ctrl+K Ctrl+O` | 폴더 열기 (`File > Open Folder...`) | 사용자 요청 (2026-09-19) |
 | `Ctrl+W` | 활성 탭 닫기 (`File > Close Active Tab`) | FR-N6b, v0.2 FR-M4 |
-| `Ctrl+\` | 좌우 스플릿 | FR-D1 |
-| `Ctrl+B` | 탐색기 감추기/보이기 (`View > Show Sidebar`) | v0.2 FR-M4 · FR-M5 |
+| `Ctrl+N` | 활성 칸에 새 빈 탭 열기 (`New Tab`) | 사용자 요청 (2026-09-18) |
+| `Ctrl+\` | 좌우 스플릿 (`View > Layout > Split Right`) | FR-D1 |
+| `Ctrl+K Ctrl+\` | 상하 스플릿 (`View > Layout > Split Down`) | 사용자 요청 (2026-09-18) |
+| `Ctrl+K W` | 활성 그룹 모든 탭 닫기 (`File > Close All Tabs in Group`) | 사용자 요청 (2026-09-18) |
+| `Ctrl+PageDown` / `Ctrl+PageUp` | 활성 칸 안에서 다음 / 이전 탭으로 전환 | 사용자 요청 (2026-09-18) |
+| `Ctrl+Tab` / `Ctrl+Shift+Tab` | 활성 칸 안에서 다음 / 이전 탭으로 전환 (호환) | v0.2 FR-F2, D-10 |
+| `Ctrl+0` | 탐색기로 포커스 이동 (사이드바 숨겨져 있으면 열고 포커스) | 사용자 요청 (2026-09-18) |
+| `Ctrl+1` | 첫 번째 에디터 그룹으로 포커스 이동 | 사용자 요청 (2026-09-18) |
+| `Ctrl+2` | 두 번째 에디터 그룹으로 포커스 이동 (1개뿐이면 우측 분할 생성) | 사용자 요청 (2026-09-18) |
+| `Ctrl+B` | `View > Layout > Show Sidebar` — 현재 표시된 Roots·Tree를 함께 감추고, 다음 입력에 직전 조합으로 복원 | v0.3 사용자 요청 (2026-09-18) |
 | `Alt+F4` | 끝내기 (`File > Exit`) — 메뉴와 같은 닫기 확인 경로. `Alt` 없는 `F4`는 예약하지 않는다 | v0.2 FR-M4 · FR-M5 |
 | `F10` | 햄버거 메뉴 열기/닫기 | FR-N5, D-7 |
-| `F11` | Zen 모드 전환 (`View > Zen Mode`) | D-12, v0.2 FR-M4 |
-| `Ctrl+Tab` / `Ctrl+Shift+Tab` | 활성 칸 안에서 다음 / 이전 탭으로 전환. 칸은 바뀌지 않는다 | v0.2 FR-F2, D-10 |
-| `Escape` | 열린 메뉴를 닫거나(메뉴가 열려 있을 때), Zen 모드를 빠져나온다(Zen일 때) | D-12 |
+| `F11` | Zen 모드 전환 (`View > Appearance > Zen Mode`) | D-12, v0.2 FR-M4 |
+| `Escape` | 열린 메뉴 닫기, Zen 모드 나가기, 또는 대기 중인 키 시퀀스(`Ctrl+K`) 취소 | D-12 |
 
 `Tab` / `Shift+Tab`은 **예약하지 않는다.** v0.1 그대로 브라우저 기본 포커스 이동(세로 띠 ·
 탭 줄 버튼 사이)과 탭 안 보기의 입력(에디터 들여쓰기 등)에 쓰인다. 영역 순환을 `Tab`에
@@ -37,8 +45,8 @@
 | 키 | 동작 |
 | --- | --- |
 | `ArrowUp` / `ArrowDown` | 항목 사이 이동 (하위 메뉴가 열려 있으면 그 안에서) |
-| `ArrowRight` | 하위 메뉴가 있는 항목(`Recent Folders` · `Color Theme` · `Icon Theme`)이면 그 하위 메뉴를 연다. 아니면 다음 묶음(File → View → Help) |
-| `ArrowLeft` | 하위 메뉴가 열려 있으면 닫는다. 아니면 이전 묶음 |
+| `ArrowRight` | 하위 메뉴가 있는 항목(`Recent Folders` · `Layout` · `Appearance` · 테마 선택)이면 다음 깊이의 하위 메뉴를 연다. 아니면 다음 묶음(File → Edit → View → Help) |
+| `ArrowLeft` | 가장 깊게 열린 하위 메뉴를 한 단계 닫는다. 하위 메뉴가 없으면 이전 묶음으로 이동한다 |
 | `Enter` | 포커스된 항목 실행 (하위 메뉴가 있는 항목이면 연다) |
 | `Delete` | `Recent Folders` 하위 메뉴에서 포커스된 경로를 목록에서 지운다 (v0.2 FR-M7) |
 | `Escape` | 메뉴 닫기 |
@@ -72,7 +80,14 @@
 | `Ctrl+ArrowUp` / `Ctrl+ArrowDown` | 포커스 불변 스크롤 |
 | `Ctrl+A` | 전체 선택 |
 | `Escape` | 선택 해제 (또는 찾기 위젯이 열려 있으면 찾기 위젯 닫기) |
-| `F3` / `Ctrl+Alt+F` | 트리 안에서 찾기 열기 |
+| `Ctrl+F` / `Ctrl+Alt+F` | 트리 안에서 찾기 열기 |
+| `F3` / `F4` | 포커스된 파일을 Viewer / Editor로 열기 (폴더에는 적용하지 않음) |
+| `Delete` | 선택된 항목 전체를 삭제 요청으로 앱에 위임한다(D-30 · D-22, v0.3 사용자 요청 2026-09-25). 트리 자신은 삭제 가능 여부를 모르고 파일시스템을 건드리지 않는다 — "삭제 가능" 설정이 꺼져 있으면 앱 콜백이 안내만 띄우고 아무 것도 지우지 않는다 |
+
+파일 탭에 포커스가 있을 때 `F3` / `F4`는 현재 탭을 Viewer / Editor로 설정한다.
+다른 종류의 탭에서는 해당 보기가 두 키를 받는다. 트리에 포커스가 있을 때의 `Delete`는
+4절의 탭-포커스 `Delete`(앱 몫)와 별개다 — 트리 포커스에서는 껍데기가 "위임"만
+가져가고, 실제 삭제·확인 대화상자·활성화 여부는 여전히 전부 앱의 일이다.
 
 ## 3b. 탐색기 폭 조절 손잡이에 포커스가 있을 때만 (v0.2 FR-X5 · NFR-8)
 
@@ -107,7 +122,7 @@ Zen 모드이거나 탐색기가 숨겨져 있으면 손잡이가 안 보이고 
 
 | 자리 | 경로 |
 | --- | --- |
-| 메뉴(File · View · Help) | `F10`으로 열고, 화살표 키로 항목을 옮기고, `Enter`로 실행한다 |
+| 메뉴(File · Edit · View · Help) | `F10`으로 열고, 화살표 키로 항목을 옮기고, `Enter`로 실행한다 |
 | 세로 띠 | 네이티브 `<button>`이라 `Tab`으로 포커스하고 `Enter`/`Space`로 누른다 |
 | 탭 줄(Split Right · Split Down · New Tab) | 네이티브 `<button>`이라 `Tab`으로 포커스하고 `Enter`/`Space`로 누른다 |
 | 탐색기 뷰 액션(New File · New Folder · Refresh · Collapse All) | 네이티브 `<button>`이라 `Tab`으로 포커스하고 `Enter`/`Space`로 누른다 (v0.2 FR-X2 · FR-X4) |

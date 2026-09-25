@@ -44,6 +44,16 @@ function newestSourceDate(dir: string): string {
 
 export default defineConfig({
   base: './',
+  plugins: [{
+    name: 'bundle-d2coding-license',
+    generateBundle() {
+      this.emitFile({
+        type: 'asset',
+        fileName: 'licenses/LICENSE-D2Coding.txt',
+        source: fs.readFileSync(path.resolve(import.meta.dirname, 'licenses/LICENSE-D2Coding.txt')),
+      });
+    },
+  }],
   define: {
     __WB_VERSION__: JSON.stringify(pkg.version),
     __WB_COMMIT_DATE__: JSON.stringify(lastCommitDate()),

@@ -76,7 +76,9 @@ const textEditorTs = fs.readFileSync(path.join(rootDir, 'src/core/texteditor.ts'
 assert(/quickSuggestions:\s*false/.test(textEditorTs), 'quickSuggestions is disabled (X-12, FR-P5)');
 assert(/minimap:\s*\{\s*enabled:\s*false\s*\}/.test(textEditorTs), 'minimap is disabled (X-12, FR-P5)');
 assert(/hover:\s*\{\s*enabled:\s*'off'\s*\}/.test(textEditorTs), 'hover (language service) is disabled (X-12, FR-P5)');
-assert(/onDidChangeCursorSelection/.test(textEditorTs), 'multi-cursor collapse-back invariant is wired (X-12, FR-P5)');
+// D-13 turned multi-cursor back on: the collapse-back listener is gone and
+// the multicursor contribution is loaded instead.
+assert(!/onDidChangeCursorSelection/.test(textEditorTs) && /contrib\/multicursor\//.test(textEditorTs), 'multi-cursor is on: no collapse-back listener, multicursor contribution loaded (D-13, was X-12)');
 
 // --------------------------------------------------------------------------
 // 4. package.json pins monaco-editor at the SPEC-mandated version (C-4)

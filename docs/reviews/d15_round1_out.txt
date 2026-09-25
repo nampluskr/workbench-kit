@@ -1,0 +1,2321 @@
+Reading additional input from stdin...
+OpenAI Codex v0.156.1
+--------
+workdir: D:\projects\workbench-kit
+model: gpt-6-sol
+provider: openai
+approval: never
+sandbox: read-only
+reasoning effort: medium
+reasoning summaries: none
+session id: 01a0d102-a3c7-77a0-8090-57314cd23845
+--------
+user
+You are an adversarial reviewer for workbench-kit decision D-15 ("open only files whose content reads as text in an editor tab"). Your job is to break this code, not to confirm it works.
+codex
+I’ll trace D-15 from the decision text through the file-opening code and look for concrete bypasses. I’ll report findings with file and line references.
+exec
+"C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\powershell.exe" -Command 'Get-Content AGENTS.md' in D:\projects\workbench-kit
+exec
+"C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\powershell.exe" -Command "Get-Content C:\\Users\\nampl\\.codex\\RTK.md" in D:\projects\workbench-kit
+exec
+"C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\powershell.exe" -Command 'rg -n "D-15|open only files|reads as text|editor tab" .' in D:\projects\workbench-kit
+ succeeded in 0ms:
+# RTK - Rust Token Killer (Codex CLI)
+
+**Usage**: Token-optimized CLI proxy for shell commands.
+
+## Rule
+
+Always prefix shell commands with `rtk`.
+
+Examples:
+
+```bash
+rtk git status
+rtk cargo test
+rtk npm run build
+rtk pytest -q
+```
+
+## Meta Commands
+
+```bash
+rtk gain            # Token savings analytics
+rtk gain --history  # Recent command savings history
+rtk proxy <cmd>     # Run raw command without filtering
+```
+
+## Verification
+
+```bash
+rtk --version
+rtk gain
+which rtk
+```
+
+ exited 1 in 0ms:
+Get-Content : 'D:\projects\workbench-kit\AGENTS.md' 경로는 존재하지 않으므로 찾을 수 없습니다.
+위치 줄:2 문자:1
++ Get-Content AGENTS.md
++ ~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : ObjectNotFound: (D:\projects\workbench-kit\AGENTS.md:String) [Get-Content], ItemNotFound 
+   Exception
+    + FullyQualifiedErrorId : PathNotFound,Microsoft.PowerShell.Commands.GetContentCommand
+ 
+
+ succeeded in 0ms:
+.\docs\vscode-comparison.md:47:| 10 | 편집기 탭 줄에는 새 탭을 만드는 버튼이 없다 — 새 파일은 `Ctrl+N`이나 편집기 툴바에서 연다 | 각 칸의 탭 줄 오른쪽 끝에 `Split Right` · `Split Down` · `+`(New Tab) 세 버튼이 있고, `+`가 그 칸에 빈 탭을 추가한다 (v0.1 FR-C1, D-15) | **의도적 다름 (새 탭 버튼)** — 같은 탭 줄에서 VS Code에는 없는 `+` 버튼이 workbench-kit에는 오른쪽 끝에 있다. 여러 앱이 같은 껍데기를 쓸 때 "빈 자리를 하나 더 연다"를 마우스만으로 할 수단을 탭 줄에 두기로 한 결정(D-15)의 결과다 |
+.\docs\vscode-comparison.md:111:  버튼, D-15 — v0.2 대조에서 명시), §5-4(Zen 모드, D-12), §6-1(공통 30px 치수,
+.\src\main.ts:69: * - `workspace`: each folder tab keeps its own editor tabs/split/active tab.
+.\src\main.ts:123:  /** Latest file-open request; an older one whose text check finishes later is dropped (D-15). */
+.\src\main.ts:700:    // Every file open first checks that the file reads as text (D-15).
+.\src\main.ts:806:      // so switching editor tabs keeps it in sync with whichever surface
+.\src\main.ts:1575:   * Clears root and returns tree to empty state without altering editor tabs
+.\src\main.ts:1633:   * Opens a file only when its content reads as text (D-15): a known binary
+.\src\main.ts:1649:  /** A CP949 file always opens read-only (D-15). */
+.\src\main.ts:1777:      // Saving writes UTF-8, which would re-encode a CP949 file (D-15).
+.\scripts\phase4-suite.js:40:    // text check answers (D-15), so callers await the settle.
+.\scripts\phase4-suite.js:139:    // 2. Tab Header Actions Rendering & Order (FR-C1, FR-D1, FR-D2, D-13, D-15)
+.\scripts\phase4-suite.js:435:    // v0.2 FR-P15/D-15 narrows the FR-B2/D-5 duplicate check to the target
+.\scripts\phase4-suite.js:459:      'openBeside no longer dedups across the workbench: docA.txt fills gTopRight\'s preview spot as a distinct 2nd panel even though it is already open, confirmed, in gMain (FR-P15, D-15 — supersedes v0.1 FR-B2/FR-A14 dup check)'
+.\docs\current\PROGRESS.md:18:- **텍스트로 볼 수 있는 파일만 에디터 탭으로 열기** (2026-09-24, 사용자 요청 · D-15 초안)
+.\docs\current\PROGRESS.md:52:  - **문서**: `docs/current/DECISIONS.md`에 D-15 초안을 추가했다(사용자 확인 대기).
+.\src\style.css:35:   * editor tab strip height are ALL this value. A single token makes FR-D1's
+.\src\style.css:788:  /* Right side narrowed to 2px, matching the editor tab's own right padding
+.\src\style.css:865:   × rendered noticeably larger/heavier here than the editor tab's own close
+.\src\style.css:867:   report, 2026-09-17: this one looked bold, the editor tab's looked thin).
+.\docs\current\DECISIONS.md:526:## D-15. 텍스트로 볼 수 있는 파일만 에디터 탭으로 연다
+.\docs\history\v0.2\SPEC.md:37:| `v0.1 FR-B2`(및 `FR-A14`가 상속하던 같은 중복 검사) | 고른 항목이 **워크벤치 어디에** 열려 있든 그 탭으로 이동하고 새 탭을 만들지 않는다 | `FR-P15` — 중복 검사 범위가 워크벤치 전체에서 **그 열기의 대상 칸 하나**로 좁아진다. 대상 칸 안에서는 그대로 이동하지만, 다른 칸에 확정 상태로 열려 있어도 무시하고 대상 칸에 새로 연다 — 같은 항목이 서로 다른 칸에 동시에 있을 수 있다 | D-15 |
+.\docs\history\v0.2\SPEC.md:101:| FR-P15 | 트리에서 항목을 고르거나(한 번 클릭 · 더블클릭 · `Enter`) 옆 칸으로 연다(`Ctrl+Enter`) | 중복 검사는 **그 열기의 대상 칸 하나**로 좁아진다. 대상 칸에 이미 그 항목이 있으면 그 자리로 이동하고, 없으면 **다른 칸에 확정 상태로 열려 있어도 무시하고** 대상 칸에 새로 연다 — 같은 항목의 탭이 서로 다른 칸에 동시에 있을 수 있다 | (가) 칸 A에 확정된 파일 X가 있는 상태에서 활성 칸을 B로 바꾸고 트리에서 X를 고르면, 칸 B에도 X 탭이 새로 생기고 두 칸에 각각 독립된 X 탭이 존재한다. (나) 대상 칸에 이미 열려 있는 것을 고르면 새로 만들지 않고 그 자리로 이동한다. (다) `Ctrl+Enter`로 옆 칸을 연 경우도 같다 — 옆 칸 안에 없으면 다른 칸의 확정 탭을 무시하고 새로 연다 | D-15 (사용자 결정 2026-09-12) |
+.\src\hosts\pywebview\main.py:234:    # Text-or-binary check before a file opens in an editor tab (D-15): same
+.\scripts\phase6-suite.js:276:    // between a real editor tab and the keyboard left it green.
+.\scripts\phase6-suite.js:292:      'In a real editor tab, Ctrl+Z undoes the replace the widget made and Ctrl+Y redoes it, as seen in the visible text (undo: ' + JSON.stringify(afterUndoText) + ', redo: ' + JSON.stringify(afterRedoText) + ') (FR-P3)'
+.\docs\history\v0.2\PROGRESS.md:171:  - **무엇을 했나**: `docs/vscode-comparison.md` §1-4 · §2-1(미리보기 탭 divergence가 없어짐, D-1) · §2-2(더블클릭 확정) · §2-10(탭 줄 `+` 버튼, D-15)을 v0.2 기준으로 다시 썼다. "이 문서를 어떻게 읽나"의 divergence 목록·요약을 갱신했다. A15 검토 중 §3(분할 영역) 표도 v0.1 이전 경로·존재하지 않는 FR ID를 인용하고 있는 것을 발견해 같이 고쳤다(계획 외, 아래 기록).
+.\docs\history\v0.2\PROGRESS.md:266:  - **조치**: `SPEC.md`에 `FR-P15`를 더하고 §0.1 대체 목록에 `v0.1 FR-B2`(및 그 중복 검사를 상속하던 `FR-A14`) 행을 추가했다. `DECISIONS.md`에 `D-15`(선택 · 근거 · 배제한 대안)를 남겼다. `PLAN.md` Phase 1 요구 ID·건수를 갱신했다. `EditorController.openItem`의 "이미 열려 있으면 이동" 검사(`this.api.panels.find` — 워크벤치 전체)를 대상 칸 하나(`group.panels.find`)로 좁혔다. `openBeside`가 별도로 갖고 있던 워크벤치 전체 사전 검사는 제거했다 — 이제 `openItem`이 최종 대상 칸을 놓고 알아서 판정한다. `main.ts`의 `openFromTree`가 "이미 열려 있어서 dirty 미리보기를 덮어쓰지 않는다"고 판단하던 `alreadyOpen` 검사도 활성 칸 하나로 같이 좁혔다 — 안 그러면 다른 칸에 확정 상태로 있는 파일 때문에 활성 칸의 dirty 미리보기가 확인 없이 조용히 덮어써질 뻔했다.
+.\src\core\editor.ts:241: * Renders in exact required order (D-13, D-15, FR-C1):
+.\src\core\editor.ts:913:    // FR-P15/D-15: duplicate check is scoped to the TARGET GROUP only, not the
+.\src\core\editor.ts:1097:   * The duplicate check (FR-P15/D-15) is left entirely to `openItem`, which
+.\src\hosts\electron\fs-ops.cjs:34:// Text-or-binary check before a file opens in an editor tab (D-15). Reads
+.\src\providers\filesystem.ts:20:/** What a file's head reads as: UTF-8 text, CP949 text, or not text at all (D-15). */
+.\src\providers\filesystem.ts:46:  /** Text-or-binary check of a file's head (D-15). */
+.\src\providers\filesystem.ts:49:  /** The whole file decoded as CP949, for a text file that is not UTF-8 (D-15). */
+.\docs\history\v0.2\DECISIONS.md:552:## D-15. 탭 중복 검사를 워크벤치 전체에서 대상 칸 하나로 좁힌다
+.\docs\refs\scenarios.md:57:## C. 탭 (D-10 · D-13 · D-15 · D-20)
+.\docs\refs\skeleton-proposal.md:382:| 새 탭 — 항상 탭 줄 오른쪽 끝. 탭 줄 오른쪽 끝 `+` 아이콘. 위치는 끌어서 바꾼다 | D-15 |
+.\docs\refs\skeleton-proposal.md:423:우리가 D-8·D-10·D-13·D-15로 정한 것들을 늘어놓으면 이렇다.
+.\docs\refs\skeleton-proposal.md:493:| 탭 줄 | 새 탭 (D-15) | `add` |
+.\docs\history\v0.1\SPEC.md:72:| FR-C1 | 탭 줄 오른쪽 끝의 `+` | 그 칸 탭 줄의 **오른쪽 끝**에 빈 탭이 생기고 활성이 된다 | 탭 n개에서 `+` → 탭 n+1개, 새 탭의 위치가 마지막이고 활성 탭이다 | D-15 · D-20 |
+.\src\presets\file-preset.ts:87: * Editor: saving writes UTF-8, which would silently re-encode it (D-15).
+.\src\presets\file-preset.ts:141:      // stays read-only (D-15).
+.\src\presets\file-types.ts:1:// Which files open in an editor tab (D-15, user request 2026-09-24): only
+.\src\presets\file-types.ts:2:// ones whose content reads as text — text, data (csv) and code. A known
+.\src\presets\file-types.ts:27:/** The text encoding a file opens with; CP949 opens read-only (D-15). */
+.\docs\history\v0.1\DECISIONS.md:464:   그 오른쪽에 새 탭 `+`(D-15).
+.\docs\history\v0.1\DECISIONS.md:476:   +   새 탭 (D-15)
+.\docs\history\v0.1\DECISIONS.md:556:## D-15. 새 탭은 항상 탭 줄 오른쪽 끝에 붙는다 — 위치는 나중에 끌어서 바꾼다
+.\docs\reviews\A4.md:11:  - SPEC 조항: `FR-A6`, `FR-A14`, `FR-B1` ~ `FR-B4`, `FR-C1` ~ `FR-C9`, `FR-D1` ~ `FR-D8`, `FR-E1` ~ `FR-E5`, `FR-J1` ~ `FR-J8`, `FR-N6b`, `D-5`, `D-13`, `D-15`, `D-16`, `D-19`, `D-20`, `D-22`, `D-24`, `D-26`, `D-27`, `D-29`, `NFR-1`
+.\scripts\v06-phase6-suite.js:91:  // 2. Shared Editor: switching folder tabs leaves editor tabs/active/split
+.\scripts\v06-phase6-suite.js:118:    'The SAME editor tab is visible regardless of which folder tab is active in Shared Editor mode'
+.\scripts\v06-phase6-suite.js:147:  // 4. Folder Workspace: switching folder tabs swaps editor tabs/active/
+.\docs\reviews\d15_round1_out.txt:14:You are an adversarial reviewer for workbench-kit decision D-15 ("open only files whose content reads as text in an editor tab"). Your job is to break this code, not to confirm it works.
+.\docs\reviews\d15_round1_out.txt:16:I’ll trace D-15 from the decision text through the file-opening code and look for concrete bypasses. I’ll report findings with file and line references.
+.\docs\reviews\d15_round1_prompt.txt:1:You are an adversarial reviewer for workbench-kit decision D-15 ("open only files whose content reads as text in an editor tab"). Your job is to break this code, not to confirm it works.
+.\docs\reviews\d15_round1_prompt.txt:13:Requirements (D-15, the contract to validate against):
+.\docs\reviews\phase4_round1_out.txt:185:- D-15.
+.\docs\reviews\phase4_round1_prompt.txt:22:- docs/current/DECISIONS.md (D-4, D-5, D-8, D-10, D-13, D-15, D-19, D-20, D-22, D-24, D-26)
+.\scripts\verify-phase7.mjs:235:// D-22 (right-click), D-7 (uniform 30px), D-15 (tab-strip +).
+.\scripts\verify-phase7.mjs:236:for (const decisionId of ['D-13', 'D-20', 'D-22', 'D-7', 'D-15']) {
+.\docs\reviews\phase4_round2_prompt.txt:28:6. Minor (Tab-header action order contradicts the specified layout - FR-C1, D-13, D-15):
+.\docs\reviews\phase4_round2_prompt.txt:51:- docs/current/DECISIONS.md (D-4, D-5, D-8, D-10, D-13, D-15, D-19, D-20, D-22, D-24, D-26)
+.\scripts\verify-rowlist-electron.cjs:82:      // own editor tab, opened the way the rail's "Open File List" does.
+.\docs\reviews\phase4_round3_prompt.txt:81:- docs/current/DECISIONS.md (D-4, D-5, D-8, D-10, D-13, D-15, D-19, D-20, D-22, D-24, D-26)
+.\scripts\verify-text-open-electron.cjs:2:// (D-15, user request 2026-09-24): text, data and code files open, including
+.\docs\reviews\phase5_round1_out.txt:914: * Renders in exact required order (D-13, D-15, FR-C1):
+.\docs\reviews\phase5_round1_out.txt:1813:| FR-C1 | 탭 줄 오른쪽 끝의 `+` | 그 칸 탭 줄의 **오른쪽 끝**에 빈 탭이 생기고 활성이 된다 | 탭 n개에서 `+` → 탭 n+1개, 새 탭의 위치가 마지막이고 활성 탭이다 | D-15 · D-20 |
+.\docs\reviews\phase5_round1_out.txt:2508:   그 오른쪽에 새 탭 `+`(D-15).
+.\docs\reviews\phase5_round1_out.txt:2520:   +   새 탭 (D-15)
+.\docs\reviews\phase5_round1_out.txt:2599:## D-15. 새 탭은 항상 탭 줄 오른쪽 끝에 붙는다 — 위치는 나중에 끌어서 바꾼다
+.\docs\reviews\phase5_round1_out.txt:4726:   * Clears root and returns tree to empty state without altering editor tabs (FR-G1, FR-N6c).
+.\docs\reviews\phase5_round2_out.txt:450: * Renders in exact required order (D-13, D-15, FR-C1):
+.\docs\reviews\phase5_round2_out.txt:1827: * Renders in exact required order (D-13, D-15, FR-C1):
+.\docs\reviews\phase5_round2_out.txt:2864:   * Clears root and returns tree to empty state without altering editor tabs (FR-G1, FR-N6c).
+.\docs\reviews\phase5_round2_out.txt:5782:   그 오른쪽에 새 탭 `+`(D-15).
+.\docs\reviews\phase5_round2_out.txt:5794:   +   새 탭 (D-15)
+.\docs\reviews\phase5_round2_out.txt:5873:## D-15. 새 탭은 항상 탭 줄 오른쪽 끝에 붙는다 — 위치는 나중에 끌어서 바꾼다
+.\docs\reviews\phase5_round2_out.txt:6744:| FR-C1 | 탭 줄 오른쪽 끝의 `+` | 그 칸 탭 줄의 **오른쪽 끝**에 빈 탭이 생기고 활성이 된다 | 탭 n개에서 `+` → 탭 n+1개, 새 탭의 위치가 마지막이고 활성 탭이다 | D-15 · D-20 |
+.\docs\reviews\phase6_round1_out.txt:1289: * Renders in exact required order (D-13, D-15, FR-C1):
+.\docs\reviews\phase6_round1_out.txt:2888:   * Clears root and returns tree to empty state without altering editor tabs (FR-G1, FR-N6c).
+.\docs\reviews\phase6_round2_out.txt:491:| FR-C1 | ??以??ㅻⅨ履??앹쓽 `+` | 洹?移???以꾩쓽 **?ㅻⅨ履???*??鍮???씠 ?앷린怨??쒖꽦???쒕떎 | ??n媛쒖뿉??`+` ????n+1媛? ????쓽 ?꾩튂媛 留덉?留됱씠怨??쒖꽦 ??씠??| D-15 쨌 D-20 |
+.\docs\reviews\phase6_round2_out.txt:1120:   洹??ㅻⅨ履쎌뿉 ????`+`(D-15).
+.\docs\reviews\phase6_round2_out.txt:1126:?뚢???????????????????????????????????????????????? tab   tab   tab                 [|] [-] +  ???붴??????????????????????????????????????????????   [|] 醫뚯슦 ?ㅽ뵆由????ㅻⅨ履쎌뿉 ??移?   [-] ?곹븯 ?ㅽ뵆由????꾨옒履쎌뿉 ??移?   +   ????(D-15)
+.\docs\reviews\phase6_round2_out.txt:1194:## D-15. ????? ??긽 ??以??ㅻⅨ履??앹뿉 遺숇뒗?????꾩튂???섏쨷???뚯뼱??諛붽씔??
+.\docs\reviews\phase6_round2_out.txt:2564:199- * Renders in exact required order (D-13, D-15, FR-C1):
+.\docs\reviews\phase6_round2_out.txt:3581:382-   * Clears root and returns tree to empty state without altering editor tabs
+.\docs\reviews\phase6_round3_out.txt:451:| FR-C1 | ??以??ㅻⅨ履??앹쓽 `+` | 洹?移???以꾩쓽 **?ㅻⅨ履???*??鍮???씠 ?앷린怨??쒖꽦???쒕떎 | ??n媛쒖뿉??`+` ????n+1媛? ????쓽 ?꾩튂媛 留덉?留됱씠怨??쒖꽦 ??씠??| D-15 쨌 D-20 |
+.\docs\reviews\phase6_round3_out.txt:1082:   洹??ㅻⅨ履쎌뿉 ????`+`(D-15).
+.\docs\reviews\phase6_round3_out.txt:1088:?뚢???????????????????????????????????????????????? tab   tab   tab                 [|] [-] +  ???붴??????????????????????????????????????????????   [|] 醫뚯슦 ?ㅽ뵆由????ㅻⅨ履쎌뿉 ??移?   [-] ?곹븯 ?ㅽ뵆由????꾨옒履쎌뿉 ??移?   +   ????(D-15)
+.\docs\reviews\phase6_round3_out.txt:1156:## D-15. ????? ??긽 ??以??ㅻⅨ履??앹뿉 遺숇뒗?????꾩튂???섏쨷???뚯뼱??諛붽씔??
+.\docs\reviews\phase6_round3_out.txt:3679:  199:  * Renders in exact required order (D-13, D-15, FR-C1):
+.\docs\reviews\phase6_round3_out.txt:5595:  382:    * Clears root and returns tree to empty state without altering editor tabs
+.\docs\reviews\phase6_round3_out.txt:7032:  382:    * Clears root and returns tree to empty state without altering editor tabs
+.\docs\reviews\phase7_round1_out.txt:589:72:| FR-C1 | 탭 줄 오른쪽 끝의 `+` | 그 칸 탭 줄의 **오른쪽 끝**에 빈 탭이 생기고 활성이 된다 | 탭 n개에서 `+` → 탭 n+1개, 새 탭의 위치가 마지막이고 활성 탭이다 | D-15 · D-20 |
+.\docs\reviews\phase7_round1_out.txt:2957:396:   * Clears root and returns tree to empty state without altering editor tabs
+.\docs\reviews\phase7_round1_out.txt:8474:72:| FR-C1 | 탭 줄 오른쪽 끝의 `+` | 그 칸 탭 줄의 **오른쪽 끝**에 빈 탭이 생기고 활성이 된다 | 탭 n개에서 `+` → 탭 n+1개, 새 탭의 위치가 마지막이고 활성 탭이다 | D-15 · D-20 |
+.\docs\reviews\phase7_round2_out.txt:3781:473-   +   새 탭 (D-15)
+.\docs\reviews\phase7_round3_out.txt:765:   72: | FR-C1 | 탭 줄 오른쪽 끝의 `+` | 그 칸 탭 줄의 **오른쪽 끝**에 빈 탭이 생기고 활성이 된다 | 탭 n개에서 `+` → 탭 n+1개, 새 탭의 위치가 마지막이고 활성 탭이다 | D-15 · D-20 |
+.\docs\reviews\phase7_round3_out.txt:1461:  461:    그 오른쪽에 새 탭 `+`(D-15).
+.\docs\reviews\phase7_round3_out.txt:1473:  473:    +   새 탭 (D-15)
+.\docs\reviews\phase7_round3_out.txt:1552:  552: ## D-15. 새 탭은 항상 탭 줄 오른쪽 끝에 붙는다 — 위치는 나중에 끌어서 바꾼다
+.\docs\reviews\phase7_round3_out.txt:5703:docs\current\DECISIONS.md-473-   +   새 탭 (D-15)
+
+exec
+"C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\powershell.exe" -Command 'git status --short' in D:\projects\workbench-kit
+ succeeded in 83ms:
+warning: unable to access 'C:\Users\nampl/.config/git/ignore': Permission denied
+warning: unable to access 'C:\Users\nampl/.config/git/ignore': Permission denied
+ M docs/ADVERSARIAL-REVIEW.md
+ M docs/current/DECISIONS.md
+ M docs/current/PROGRESS.md
+ M package.json
+ M scripts/phase4-suite.js
+ M src/hosts/electron/fs-ops.cjs
+ M src/hosts/electron/main.cjs
+ M src/hosts/electron/preload.cjs
+ M src/hosts/pywebview/main.py
+ M src/main.ts
+ M src/presets/file-preset.ts
+ M src/providers/filesystem.ts
+?? docs/reviews/d15_round1_out.txt
+?? docs/reviews/d15_round1_prompt.txt
+?? scripts/verify-text-open-electron.cjs
+?? src/presets/file-types.ts
+
+exec
+"C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\powershell.exe" -Command 'rtk proxy Get-Content docs/reviews/d15_round1_prompt.txt' in D:\projects\workbench-kit
+exec
+"C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\powershell.exe" -Command 'rtk proxy Get-Content docs/current/DECISIONS.md | Select-Object -Skip 525 -First 40' in D:\projects\workbench-kit
+exec
+"C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\powershell.exe" -Command 'rtk proxy Get-Content src/presets/file-types.ts' in D:\projects\workbench-kit
+ exited 1 in 0ms:
+rtk: Failed to resolve 'Get-Content' via PATH, falling back to direct exec: Binary 'Get-Content' not found on PATH
+rtk: Failed to execute command: Get-Content: program not found
+
+ exited 1 in 0ms:
+rtk: Failed to resolve 'Get-Content' via PATH, falling back to direct exec: Binary 'Get-Content' not found on PATH
+rtk: Failed to execute command: Get-Content: program not found
+
+ exited 1 in 0ms:
+rtk: Failed to resolve 'Get-Content' via PATH, falling back to direct exec: Binary 'Get-Content' not found on PATH
+rtk: Failed to execute command: Get-Content: program not found
+
+exec
+"C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\powershell.exe" -Command 'rtk proxy Get-Content src/providers/filesystem.ts' in D:\projects\workbench-kit
+ exited 1 in 186ms:
+rtk: Failed to resolve 'Get-Content' via PATH, falling back to direct exec: Binary 'Get-Content' not found on PATH
+rtk: Failed to execute command: Get-Content: program not found
+
+exec
+"C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\powershell.exe" -Command 'rtk rg -n -A 80 "." docs/reviews/d15_round1_prompt.txt' in D:\projects\workbench-kit
+exec
+"C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\powershell.exe" -Command 'rtk rg -n -A 42 "''^## D-15'"\\. 텍스트\" docs/current/DECISIONS.md" in D:\projects\workbench-kit
+exec
+"C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\powershell.exe" -Command 'rtk rg -n "." src/providers/filesystem.ts' in D:\projects\workbench-kit
+exec
+"C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\powershell.exe" -Command 'rtk rg -n "." src/presets/file-types.ts' in D:\projects\workbench-kit
+ succeeded in 142ms:
+526:## D-15. 텍스트로 볼 수 있는 파일만 에디터 탭으로 연다
+527-
+528-**선택**
+529-
+530-1. **판별 — 확장자와 내용**:
+531-   - 알려진 바이너리 확장자(실행·라이브러리, 압축, 그림, 소리·영상, 오피스 문서,
+532-     데이터베이스·모델, 글꼴)는 내용을 읽지 않고 거부한다.
+533-   - 그 밖의 파일은 호스트가 앞 64KB를 읽어 판단한다.
+534-     - NUL 바이트가 있으면 바이너리다.
+535-     - UTF-8로 읽히면 UTF-8 텍스트다. BOM은 떼고, 64KB 경계에서 잘린 글자는 허용한다.
+536-     - 아니면 CP949로 읽히는지 본다.
+537-     - 둘 다 아니면 바이너리다.
+538-   - 확장자 없는 텍스트(`README`)와 스크립트(`.bat`, `.ps1`, `.sh`)는 열린다.
+539-2. **거부 표시**: 탭을 열지 않고 상태표시줄에 `Cannot open '<name>' — binary file`을
+540-   띄운다. 트리 선택은 그대로다.
+541-3. **모든 열기 경로에 적용**: 트리 클릭·더블클릭·`Enter`·옆 칸 열기, 우클릭
+542-   `Open as Viewer`/`Editor`, `File > Open File...`.
+543-4. **CP949 텍스트**: CP949로 읽어 Viewer(읽기 전용)로만 연다. Editor 전환은 막고
+544-   상태표시줄에 `CP949 file — read-only`를 띄운다. 탭 툴팁은
+545-   `Viewer (read-only, CP949)`다.
+546-5. **최신 요청만 반영**: 판별은 비동기다. 연달아 누르면 마지막 요청만 탭을 연다.
+547-6. **코어 경계**: 판별은 앱 층(`src/presets/file-types.ts`, `main.ts`, 파일 프리셋)과
+548-   호스트(`probeTextFile`, `readLegacyTextFile`)가 맡는다. 공통 코어는 바뀌지 않는다.
+549-
+550-**근거**
+551-
+552-- 바이너리를 열면 탭에 오류 문구만 보여 쓸모가 없고, 미리보기 탭을 밀어낸다.
+553-- 확장자만으로는 확장자 없는 텍스트나 흔치 않은 확장자를 놓치고, 내용만으로는 텍스트
+554-  모양의 바이너리 형식(예: 이름만 바꾼 이미지)을 가리지 못한다. 둘을 함께 쓴다.
+555-- 한국어 윈도우의 엑셀 csv는 CP949라 내용을 볼 수 있어야 한다. 저장하면 UTF-8로 바뀌어
+556-  다른 프로그램에서 깨질 수 있으므로 편집은 막는다.
+557-
+558-**배제한 대안**
+559-
+560-- 확장자 허용 목록만 쓰기: 목록에 없는 텍스트 파일을 열 수 없다.
+561-- CP949 편집 허용(UTF-8로 저장): 원본 인코딩이 조용히 바뀐다.
+562-- 거부 시 알림 없음: 왜 안 열리는지 알 수 없다.
+563-
+564----
+
+ succeeded in 136ms:
+329 matches in 1 files:
+
+1:import { ITreeDataProvider, TreeNode } from '../core/tree';
+2:import { matchesFile, reportSeenExtensions } from './extension-filter';
+4:export interface HostDirectoryEntry {
+5:name: string;
+6:path: string;
+7:isContainer: boolean;
+8:...`null` for a container (v0.3 WK-118) — folder size is not computed recursively, ...
+9:size: number | null;
+10:...d time, epoch milliseconds (v0.3 WK-118) — both a file and a folder have one. */
+11:mtimeMs: number;
+12:}
+14:export interface HostDriveEntry {
+15:path: string;
+16:/** Volume label, or `''` when the drive has none (v0.3 WK-111 follow-up). */
+17:label: string;
+18:}
+20:...at a file's head reads as: UTF-8 text, CP949 text, or not text at all (D-15). */
+21:export type TextProbe = 'utf-8' | 'cp949' | 'binary';
+23:export interface HostFileSystemBridge {
+24:openFolderDialog?: () => Promise<string | null>;
+25:openFileDialog?: () => Promise<string | null>;
+26:readDir?: (dirPath: string) => Promise<HostDirectoryEntry[]>;
+27:open_folder_dialog?: () => Promise<string | null>;
+28:open_file_dialog?: () => Promise<string | null>;
+29:read_dir?: (dirPath: string) => Promise<HostDirectoryEntry[]>;
+  +304 more in src/providers/filesystem.ts [see remaining: tail -n +26 ~/AppData\Local\rtk\tee\1790213045_grep_0_src_providers_filesystem_ts.log]
+
+ succeeded in 160ms:
+1:You are an adversarial reviewer for workbench-kit decision D-15 ("open only files whose content reads as text in an editor tab"). Your job is to break this code, not to confirm it works.
+2-
+3:Review only these product source files:
+4:- src/presets/file-types.ts
+5:- src/presets/file-preset.ts
+6:- src/main.ts (openIfText, fileModeFor, openFileToSide, openFromEntry, openEntryOnEnter, openResource, handleOpenFileDialog, buildResourceContextMenuItems, setActivePanelMode, and the tree onOpen/onConfirm/onEnterOpen/onOpenToSide wiring)
+7:- src/providers/filesystem.ts (probeTextFile, readLegacyTextFile, readTextFile)
+8:- src/hosts/electron/fs-ops.cjs (probeTextFile, readLegacyTextFile)
+9:- src/hosts/electron/main.cjs (fs:read-text-file, fs:probe-text-file, fs:read-legacy-text-file handlers)
+10:- src/hosts/electron/preload.cjs
+11:- src/hosts/pywebview/main.py (WindowApi.read_text_file, probe_text_file, read_legacy_text_file)
+12-
+13:Requirements (D-15, the contract to validate against):
+14:R1. A known binary extension (executables/libraries, archives, images, audio/video, office documents, databases/models, fonts) is refused without reading the file, case-insensitively.
+15:R2. Any other file is judged by its first 64KB: a NUL byte means binary; otherwise UTF-8 (a UTF-8 BOM is ignored, a multi-byte character cut at the 64KB boundary is allowed) means text; otherwise CP949 means text; otherwise binary. A file without an extension (README) and scripts (.bat, .ps1, .sh) open.
+16:R3. A refused file opens no tab, shows the status-bar message "Cannot open '<name>' — binary file", and keeps the tree selection.
+17:R4. The check applies to every open path: tree click, double click, Enter, Ctrl+Enter (open to side), right-click "Open as Viewer" / "Open as Editor", and File > Open File.
+18:R5. A CP949 text file opens read-only in Viewer mode with correctly decoded text and can never switch to Editor or be saved (saving would re-encode it as UTF-8). The status-bar mode toggle refuses with "CP949 file — read-only".
+19:R6. The check is asynchronous; when requests overlap, only the latest request opens a tab.
+20:R7. Both hosts (Electron fs-ops.cjs and pywebview main.py) must give the same verdict for the same bytes.
+21-
+22:Attack these specific points:
+23:1. Any way a binary file still ends up in a tab (including preview-spot replacement, dirty-preview confirmation, restored tabs, a rename/retarget of an open tab, or a probe that throws), or a text file that is wrongly refused (BOM, boundary cut, empty file, uppercase or double extension, CRLF, very small files, UTF-8 that is also valid CP949).
+24:2. Any way a CP949 file becomes editable or savable: mode toggle, context menu "Open as Editor", Edit menu rows, Ctrl+S, a tab restored from its serialized params, a view rebuilt after a params identity change, or the UTF-8 read succeeding on some bytes.
+25:3. Divergence between the Electron and pywebview probes or readers for the same bytes (BOM handling, truncated tails, cp949 vs euc-kr decoder coverage, error types).
+26:4. Races in the latest-request-wins sequencing: a legitimate open that is silently dropped, or a stale open that lands; interaction with the dirty-preview confirmation and with double click (click then confirm).
+27:5. Error paths: missing, locked or unreadable files; hosts without the probe; what the user sees in each case.
+28-
+29:Do not inspect Git status, branches, remotes, or commit history, and do not use shell tools. For each finding, report severity (Critical/Major/Minor), exact reproduction conditions, and the violated requirement (R1-R7). Order findings by severity. Do not modify any file.
+
+ succeeded in 163ms:
+43 matches in 1 files:
+
+1:// Which files open in an editor tab (D-15, user request 2026-09-24): only
+2:// ones whose content reads as text — text, data (csv) and code. A known
+3:// binary extension is refused without reading anything; any other file is
+4:// judged by its head (the host's probeTextFile). App layer, not core: this
+5:// is exactly the file knowledge the shell must not carry (D-4).
+6:import { extractExt } from '../providers/extension-filter';
+7:import { probeTextFile } from '../providers/filesystem';
+9:export const BINARY_EXTENSIONS: ReadonlySet<string> = new Set([
+10:// Executables and libraries
+11:'exe', 'dll', 'msi', 'sys', 'com', 'scr', 'bin', 'obj', 'o', 'a', 'lib', 'so'...
+12:'class', 'jar', 'pyc', 'pyd', 'whl',
+13:// Archives and disk images
+14:'zip', '7z', 'rar', 'gz', 'tgz', 'bz2', 'xz', 'tar', 'iso', 'img', 'cab',
+15:// Images
+16:'png', 'jpg', 'jpeg', 'gif', 'bmp', 'ico', 'webp', 'tif', 'tiff', 'psd',
+17:// Audio and video
+18:'mp3', 'wav', 'flac', 'ogg', 'm4a', 'mp4', 'mkv', 'avi', 'mov', 'wmv', 'webm',
+19:// Office documents
+20:'pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'hwp', 'hwpx', 'odt', 'ods',
+21:// Databases, arrays and models
+22:'db', 'sqlite', 'mdb', 'npy', 'npz', 'pt', 'pth', 'onnx', 'h5', 'pkl', 'parqu...
+23:// Fonts
+24:'ttf', 'otf', 'woff', 'woff2', 'eot',
+25:]);
+27:/** The text encoding a file opens with; CP949 opens read-only (D-15). */
+  +18 more in src/presets/file-types.ts [see remaining: tail -n +26 ~/AppData\Local\rtk\tee\1790213045_grep_0_src_presets_file_types_ts.log]
+
+codex
+The D-15 contract is specific about 64 KB decoding, CP949 read-only behavior, and which open request wins when requests overlap. I’m checking those paths in both hosts and the app layer, including what happens when a probe fails.
+exec
+"C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\powershell.exe" -Command "rtk proxy python -c \"import sys;print(open(sys.argv[1],encoding='utf-8').read())\" src/presets/file-types.ts" in D:\projects\workbench-kit
+exec
+"C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\powershell.exe" -Command "rtk proxy python -c \"import sys;print(open(sys.argv[1],encoding='utf-8').read())\" src/hosts/electron/fs-ops.cjs" in D:\projects\workbench-kit
+exec
+"C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\powershell.exe" -Command "rtk proxy python -c \"import sys;print(open(sys.argv[1],encoding='utf-8').read())\" src/presets/file-preset.ts" in D:\projects\workbench-kit
+ exited 1 in 0ms:
+rtk: Failed to execute command: python: 시스템에서 파일에 액세스할 수 없습니다. (os error 1920)
+
+ exited 1 in 0ms:
+rtk: Failed to execute command: python: 시스템에서 파일에 액세스할 수 없습니다. (os error 1920)
+
+ exited 1 in 0ms:
+rtk: Failed to execute command: python: 시스템에서 파일에 액세스할 수 없습니다. (os error 1920)
+
+exec
+"C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\powershell.exe" -Command 'rtk proxy rg -n "probeTextFile|readLegacyTextFile|readTextFile|openIfText|fileModeFor|openFileToSide|openFromEntry|openEntryOnEnter|openResource|handleOpenFileDialog|buildResourceContextMenuItems|setActivePanelMode|onConfirm|onEnterOpen|onOpenToSide" src/main.ts src/providers/filesystem.ts src/hosts/electron/main.cjs src/hosts/electron/preload.cjs src/hosts/pywebview/main.py' in D:\projects\workbench-kit
+ succeeded in 100ms:
+src/hosts/electron/preload.cjs:12:  readTextFile: (filePath) => ipcRenderer.invoke('fs:read-text-file', filePath),
+src/hosts/electron/preload.cjs:17:  probeTextFile: (filePath) => ipcRenderer.invoke('fs:probe-text-file', filePath),
+src/hosts/electron/preload.cjs:18:  readLegacyTextFile: (filePath) => ipcRenderer.invoke('fs:read-legacy-text-file', filePath),
+src/hosts/electron/main.cjs:79:ipcMain.handle('fs:probe-text-file', (_e, filePath) => fsOps.probeTextFile(filePath));
+src/hosts/electron/main.cjs:80:ipcMain.handle('fs:read-legacy-text-file', (_e, filePath) => fsOps.readLegacyTextFile(filePath));
+src/hosts/pywebview/main.py:235:    # rule as the Electron host's fs-ops.cjs probeTextFile.
+src/providers/filesystem.ts:35:  readTextFile?: (path: string) => Promise<string>;
+src/providers/filesystem.ts:47:  probeTextFile?: (path: string) => Promise<TextProbe>;
+src/providers/filesystem.ts:50:  readLegacyTextFile?: (path: string) => Promise<string>;
+src/providers/filesystem.ts:103:export async function readTextFile(path: string): Promise<string> {
+src/providers/filesystem.ts:105:  if (host?.readTextFile) return host.readTextFile(path);
+src/providers/filesystem.ts:139:export async function probeTextFile(path: string): Promise<TextProbe | null> {
+src/providers/filesystem.ts:141:  if (host?.probeTextFile) return host.probeTextFile(path);
+src/providers/filesystem.ts:146:export async function readLegacyTextFile(path: string): Promise<string> {
+src/providers/filesystem.ts:148:  if (host?.readLegacyTextFile) return host.readLegacyTextFile(path);
+src/main.ts:74: * The minimal shape `openFromEntry`/`buildResourceContextMenuItems` need to
+src/main.ts:140:  /** See `openFromEntry` — coalesces requests while a dirty-preview confirm is on screen. */
+src/main.ts:225:        this.setActivePanelMode(nextMode);
+src/main.ts:304:    // `buildResourceContextMenuItems` already offers for a container, now
+src/main.ts:318:      items.push(...this.buildResourceContextMenuItems(tab.path, this.folderTabs.displayName(tab), true));
+src/main.ts:397:    this.menu.setAction('file:open-file', () => void this.handleOpenFileDialog());
+src/main.ts:546:    // (`this.defaultFileMode`, read by `openFromEntry`/`handleOpenFileDialog`
+src/main.ts:551:    // affair (`buildResourceContextMenuItems`'s Open as Viewer/Editor,
+src/main.ts:552:    // `setActivePanelMode`) — a deliberate split between "default" and
+src/main.ts:688:    // The actual preview/pinned/dirty-confirm rules live in `openFromEntry`
+src/main.ts:699:    // onOpen/onConfirm/onEnterOpen.
+src/main.ts:702:      if (!node.isContainer) void this.openIfText(node.id, node.label, (enc) => this.openFromEntry(node, 'preview', enc));
+src/main.ts:706:    this.tree.onConfirm((node) => {
+src/main.ts:707:      if (!node.isContainer) void this.openIfText(node.id, node.label, (enc) => this.openFromEntry(node, 'pinned', enc));
+src/main.ts:709:    this.tree.onEnterOpen((node) => {
+src/main.ts:710:      if (!node.isContainer) void this.openIfText(node.id, node.label, (enc) => this.openEntryOnEnter(node, enc));
+src/main.ts:713:    // family as onOpen/onConfirm/onEnterOpen above — a folder no longer
+src/main.ts:716:    this.tree.onOpenToSide((node) => {
+src/main.ts:718:      void this.openIfText(node.id, node.label, (enc) => this.openFileToSide(node, enc));
+src/main.ts:731:      return this.buildResourceContextMenuItems(node.id, node.label, node.isContainer);
+src/main.ts:897:          run(() => void this.handleOpenFileDialog());
+src/main.ts:1623:  public async handleOpenFileDialog(filePath?: string): Promise<void> {
+src/main.ts:1627:      await this.openIfText(selected, fileName, (enc) =>
+src/main.ts:1628:        this.openResource(selected, fileName, FILE_KIND, this.fileModeFor(enc), 'pinned', false, enc));
+src/main.ts:1638:  private async openIfText(path: string, label: string, open: (encoding: TextEncodingId) => void): Promise<void> {
+src/main.ts:1650:  private fileModeFor(encoding: TextEncodingId | undefined, requested = this.defaultFileMode): string {
+src/main.ts:1655:  private openFileToSide(node: OpenableEntry, encoding: TextEncodingId): void {
+src/main.ts:1656:    const meta = { kind: FILE_KIND, mode: this.fileModeFor(encoding), ...(encoding === 'cp949' ? { encoding } : {}) };
+src/main.ts:1671:  private openResource(
+src/main.ts:1698:   * FR-A6, FR-A14, D-5 — see the `this.tree.onOpen`/`onConfirm`/`onEnterOpen`
+src/main.ts:1707:  private openFromEntry(entry: OpenableEntry, mode: EditorOpenMode, encoding?: TextEncodingId): void {
+src/main.ts:1709:      this.openResource(target.id, target.label, target.isContainer ? FOLDER_KIND : FILE_KIND,
+src/main.ts:1710:        target.isContainer ? 'file-list' : this.fileModeFor(encoding), how, false, encoding);
+src/main.ts:1719:    const requestedMode = entry.isContainer ? 'file-list' : this.fileModeFor(encoding);
+src/main.ts:1744:  private openEntryOnEnter(entry: OpenableEntry, encoding?: TextEncodingId): void {
+src/main.ts:1748:    this.openFromEntry(entry, alreadyPreviewing ? 'pinned' : 'preview', encoding);
+src/main.ts:1756:  private buildResourceContextMenuItems(id: string, label: string, isContainer: boolean | undefined): ContextMenuItem[] {
+src/main.ts:1759:        { id: 'open:file-list', label: 'Open File List', action: () => this.openResource(id, label, FOLDER_KIND, 'file-list', 'pinned') },
+src/main.ts:1760:        { id: 'open:cmd', label: 'Open Command Prompt', action: () => this.openResource(id, label, TERMINAL_KIND, 'cmd', 'pinned') },
+src/main.ts:1761:        { id: 'open:powershell', label: 'Open PowerShell', action: () => this.openResource(id, label, TERMINAL_KIND, 'powershell', 'pinned') },
+src/main.ts:1765:      { id: 'open:viewer', label: 'Open as Viewer', action: () => void this.openIfText(id, label, (enc) =>
+src/main.ts:1766:        this.openResource(id, label, FILE_KIND, 'viewer', 'pinned', false, enc)) },
+src/main.ts:1767:      { id: 'open:editor', label: 'Open as Editor', action: () => void this.openIfText(id, label, (enc) =>
+src/main.ts:1768:        this.openResource(id, label, FILE_KIND, this.fileModeFor(enc, 'editor'), 'pinned', false, enc)) },
+src/main.ts:1772:  public setActivePanelMode(mode: string): void {
+
+exec
+"C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\powershell.exe" -Command "rtk proxy node -e \"console.log(require('fs').readFileSync(process.argv[1],'utf8'))\" src/presets/file-types.ts" in D:\projects\workbench-kit
+exec
+"C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\powershell.exe" -Command "rtk proxy node -e \"console.log(require('fs').readFileSync(process.argv[1],'utf8'))\" src/hosts/electron/fs-ops.cjs" in D:\projects\workbench-kit
+ succeeded in 0ms:
+// Which files open in an editor tab (D-15, user request 2026-09-24): only
+// ones whose content reads as text — text, data (csv) and code. A known
+// binary extension is refused without reading anything; any other file is
+// judged by its head (the host's probeTextFile). App layer, not core: this
+// is exactly the file knowledge the shell must not carry (D-4).
+import { extractExt } from '../providers/extension-filter';
+import { probeTextFile } from '../providers/filesystem';
+
+export const BINARY_EXTENSIONS: ReadonlySet<string> = new Set([
+  // Executables and libraries
+  'exe', 'dll', 'msi', 'sys', 'com', 'scr', 'bin', 'obj', 'o', 'a', 'lib', 'so', 'dylib', 'pdb',
+  'class', 'jar', 'pyc', 'pyd', 'whl',
+  // Archives and disk images
+  'zip', '7z', 'rar', 'gz', 'tgz', 'bz2', 'xz', 'tar', 'iso', 'img', 'cab',
+  // Images
+  'png', 'jpg', 'jpeg', 'gif', 'bmp', 'ico', 'webp', 'tif', 'tiff', 'psd',
+  // Audio and video
+  'mp3', 'wav', 'flac', 'ogg', 'm4a', 'mp4', 'mkv', 'avi', 'mov', 'wmv', 'webm',
+  // Office documents
+  'pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'hwp', 'hwpx', 'odt', 'ods',
+  // Databases, arrays and models
+  'db', 'sqlite', 'mdb', 'npy', 'npz', 'pt', 'pth', 'onnx', 'h5', 'pkl', 'parquet',
+  // Fonts
+  'ttf', 'otf', 'woff', 'woff2', 'eot',
+]);
+
+/** The text encoding a file opens with; CP949 opens read-only (D-15). */
+export type TextEncodingId = 'utf-8' | 'cp949';
+
+export type TextFileCheck = { ok: true; encoding: TextEncodingId } | { ok: false };
+
+function baseName(path: string): string {
+  return path.slice(Math.max(path.lastIndexOf('\\'), path.lastIndexOf('/')) + 1);
+}
+
+export async function checkTextFile(path: string): Promise<TextFileCheck> {
+  if (BINARY_EXTENSIONS.has(extractExt(baseName(path)).toLowerCase())) return { ok: false };
+  let probe: Awaited<ReturnType<typeof probeTextFile>>;
+  try {
+    probe = await probeTextFile(path);
+  } catch {
+    // The host could not read the head (gone, locked, or no probe wired):
+    // open as before and let the tab report what went wrong.
+    return { ok: true, encoding: 'utf-8' };
+  }
+  if (probe === 'binary') return { ok: false };
+  return { ok: true, encoding: probe === 'cp949' ? 'cp949' : 'utf-8' };
+}
+
+
+ succeeded in 0ms:
+// Explorer create / rename on disk (D-14, user request 2026-09-24). Kept out
+// of main.cjs so the regression script runs this exact code rather than a
+// copy. None of these overwrite: an existing target is an error the renderer
+// shows, never a silent replace.
+const fs = require('fs');
+const path = require('path');
+
+async function createFile(filePath) {
+  // 'wx' fails with EEXIST instead of truncating an existing file.
+  const handle = await fs.promises.open(filePath, 'wx');
+  await handle.close();
+  return true;
+}
+
+async function createFolder(dirPath) {
+  // Not recursive: the parent must already exist, as in the tree.
+  await fs.promises.mkdir(dirPath);
+  return true;
+}
+
+async function renamePath(oldPath, newPath) {
+  // fs.rename replaces an existing file on Windows, so check first — except
+  // for a case-only rename (a.txt -> A.txt), where the "existing" target is
+  // the same entry on a case-insensitive disk.
+  const caseOnly = path.resolve(oldPath).toLowerCase() === path.resolve(newPath).toLowerCase();
+  if (!caseOnly) {
+    const exists = await fs.promises.access(newPath).then(() => true, () => false);
+    if (exists) throw new Error(`'${path.basename(newPath)}' already exists`);
+  }
+  await fs.promises.rename(oldPath, newPath);
+  return true;
+}
+
+// Text-or-binary check before a file opens in an editor tab (D-15). Reads
+// only the head of the file: NUL bytes mean binary (UTF-16 too, the same
+// rule the text reader applies); otherwise the head must decode as UTF-8 or,
+// failing that, as CP949 (a Korean Excel CSV, say). `stream: true` lets a
+// multi-byte character cut at the 64KB boundary through.
+const PROBE_BYTES = 64 * 1024;
+
+function decodes(bytes, encoding) {
+  try {
+    new TextDecoder(encoding, { fatal: true }).decode(bytes, { stream: true });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function probeTextFile(filePath) {
+  const handle = await fs.promises.open(filePath, 'r');
+  let head;
+  try {
+    const buffer = Buffer.alloc(PROBE_BYTES);
+    const { bytesRead } = await handle.read(buffer, 0, PROBE_BYTES, 0);
+    head = buffer.subarray(0, bytesRead);
+  } finally {
+    await handle.close();
+  }
+  if (head.includes(0)) return 'binary';
+  const body = head[0] === 0xef && head[1] === 0xbb && head[2] === 0xbf ? head.subarray(3) : head;
+  if (decodes(body, 'utf-8')) return 'utf-8';
+  if (decodes(body, 'euc-kr')) return 'cp949';
+  return 'binary';
+}
+
+/** The whole file decoded as CP949 — the fallback for a file that is not UTF-8. */
+async function readLegacyTextFile(filePath) {
+  const bytes = await fs.promises.readFile(filePath);
+  if (bytes.includes(0)) throw new Error('Binary files cannot be opened as text');
+  return new TextDecoder('euc-kr', { fatal: true }).decode(bytes);
+}
+
+module.exports = { createFile, createFolder, renamePath, probeTextFile, readLegacyTextFile };
+
+
+exec
+"C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\powershell.exe" -Command "rtk proxy node -e \"console.log(require('fs').readFileSync(process.argv[1],'utf8'))\" src/presets/file-preset.ts" in D:\projects\workbench-kit
+ succeeded in 168ms:
+import type { ResourceKindRegistry } from '../registry/kind-registry';
+import type { AppEditorSurface, EditorOpenOptions } from '../core/editor';
+import { TextEditorView } from '../core/texteditor';
+import { readLegacyTextFile, readTextFile, writeTextFile } from '../providers/filesystem';
+import type { IconThemeManager } from '../core/icontheme';
+
+// The file preset owns disk I/O and mode behavior; the editor shell remains
+// independent of resource kinds and filesystem paths.
+export const FILE_KIND = 'file';
+
+export function getFileModeLabel(mode?: string): string {
+  return mode === 'viewer' ? 'Viewer' : 'Editor';
+}
+
+export function detectLanguage(filePath: string): string {
+  const ext = filePath.split(/[/\\]/).pop()?.split('.').pop()?.toLowerCase() || '';
+  switch (ext) {
+    case 'ts':
+    case 'cts':
+    case 'mts':
+      return 'typescript';
+    case 'js':
+    case 'cjs':
+    case 'mjs':
+      return 'javascript';
+    case 'jsx':
+      return 'javascript';
+    case 'tsx':
+      return 'typescript';
+    case 'json':
+      return 'json';
+    case 'html':
+    case 'htm':
+      return 'html';
+    case 'css':
+      return 'css';
+    case 'scss':
+    case 'less':
+      return 'css';
+    case 'md':
+    case 'markdown':
+      return 'markdown';
+    case 'py':
+      return 'python';
+    case 'sh':
+    case 'bash':
+      return 'shell';
+    case 'bat':
+    case 'cmd':
+      return 'bat';
+    case 'ps1':
+      return 'powershell';
+    case 'xml':
+    case 'svg':
+      return 'xml';
+    case 'yaml':
+    case 'yml':
+      return 'yaml';
+    case 'sql':
+      return 'sql';
+    case 'c':
+    case 'h':
+      return 'c';
+    case 'cpp':
+    case 'hpp':
+    case 'cc':
+      return 'cpp';
+    case 'rs':
+      return 'rust';
+    case 'go':
+      return 'go';
+    case 'java':
+      return 'java';
+    case 'cs':
+      return 'csharp';
+    default:
+      return 'plaintext';
+  }
+}
+
+export interface FilePresetDeps {
+  iconTheme: IconThemeManager;
+}
+
+/**
+ * A CP949 (not UTF-8) text file is shown read-only and never switches to
+ * Editor: saving writes UTF-8, which would silently re-encode it (D-15).
+ */
+export function isLegacyEncoded(params: Record<string, unknown>): boolean {
+  return params.encoding === 'cp949';
+}
+
+/** Same default the view itself applies below: a file tab without a mode opens read-only. */
+function resolveFileMode(params: Record<string, unknown>): string {
+  if (isLegacyEncoded(params)) return 'viewer';
+  return typeof params.mode === 'string' ? params.mode : 'viewer';
+}
+
+/**
+ * `deps` is optional so a caller registering the preset the old way, with
+ * the registry alone, keeps working — its tabs just go undecorated.
+ */
+export function registerFilePreset(registry: ResourceKindRegistry, deps?: FilePresetDeps): void {
+  // Tab look (user request, 2026-09-23): the file-type icon from the current
+  // icon theme, as in the Explorer tree; a Viewer tab also shows a lock in
+  // its close button's place until hovered.
+  if (deps) {
+    registry.registerTabDecorator(FILE_KIND, (params, title) => {
+      const targetId = typeof params.targetId === 'string' ? params.targetId : title;
+      const viewer = resolveFileMode(params) === 'viewer';
+      return {
+        icon: deps.iconTheme.resolveIcon(title || targetId, false),
+        restIcon: viewer ? 'lock' : null,
+        tooltip: `${targetId} — ${isLegacyEncoded(params) ? 'Viewer (read-only, CP949)' : viewer ? 'Viewer (read-only)' : 'Editor'}`,
+      };
+    });
+  }
+  registry.register(FILE_KIND, (targetId, { params, updateParams }) => {
+    // Dockview serializes params, so both the live buffer and saved baseline
+    // must be carried through a Folder Workspace layout switch.
+    const initialMode = resolveFileMode(params);
+    const hasSnapshot = typeof params.value === 'string';
+    const initialValue = hasSnapshot ? params.value as string : '';
+    const initialSavedValue = typeof params.savedValue === 'string' ? params.savedValue : initialValue;
+    const view = new TextEditorView({
+      value: initialValue,
+      savedValue: initialSavedValue,
+      language: detectLanguage(targetId),
+      readOnly: initialMode === 'viewer' || params.loadError === true,
+    });
+    const pushContentParams = () => updateParams({ value: view.getValue(), savedValue: view.getSavedValue() });
+    const unsubscribeContent = view.onDidChangeContent(pushContentParams);
+    let disposed = false;
+    let loading = !hasSnapshot;
+    let loadFailed = params.loadError === true;
+    let currentMode = initialMode;
+    let legacy = isLegacyEncoded(params);
+    if (!hasSnapshot) {
+      view.setReadOnly(true);
+      // UTF-8 first; a file that is not UTF-8 is read again as CP949 and
+      // stays read-only (D-15).
+      const read = async (): Promise<string> => {
+        if (legacy) return readLegacyTextFile(targetId);
+        try {
+          return await readTextFile(targetId);
+        } catch (utf8Error) {
+          let text: string;
+          try {
+            text = await readLegacyTextFile(targetId);
+          } catch {
+            throw utf8Error;
+          }
+          legacy = true;
+          return text;
+        }
+      };
+      void read().then((contents) => {
+        if (disposed) return;
+        if (legacy) {
+          currentMode = 'viewer';
+          updateParams({ encoding: 'cp949', mode: 'viewer' });
+        }
+        view.setValue(contents, true);
+        view.markSaved();
+        loading = false;
+        view.setReadOnly(currentMode === 'viewer');
+        updateParams({ loadError: false });
+        pushContentParams();
+      }).catch((error) => {
+        if (disposed) return;
+        view.setValue(`Unable to open ${targetId}: ${String(error)}`, true);
+        loading = false;
+        loadFailed = true;
+        view.setReadOnly(true);
+        updateParams({ loadError: true });
+      });
+    }
+    const save = async () => {
+      if (loading || loadFailed) return false;
+      const contents = view.getValue();
+      try {
+        if (!(await writeTextFile(targetId, contents))) return false;
+      } catch {
+        return false;
+      }
+      view.markSaved(contents);
+      pushContentParams();
+      // An edit made while the write was in progress is still unsaved.
+      return !view.isDirty();
+    };
+    // Ctrl+S is the app's key, not the shell's (reserved-keys.md §4, D-13).
+    view.onSaveKey(() => {
+      if (view.isDirty()) void save();
+    });
+    return {
+      element: view.element,
+      dispose: () => {
+        disposed = true;
+        unsubscribeContent();
+        view.dispose();
+      },
+      onDirtyChange: (cb: (dirty: boolean) => void) => view.onDidChangeDirty(cb),
+      save,
+      setMode: (newMode: string) => {
+        if (legacy && newMode !== 'viewer') return;
+        currentMode = newMode;
+        view.setReadOnly(loading || loadFailed || newMode === 'viewer');
+        updateParams({ mode: newMode });
+      },
+      getContentForTest: () => view.getValue(),
+      getLanguageForTest: () => view.getLanguageForTest(),
+      appendContentForTest: (text: string) => view.appendTextForTest(text),
+      undoForTest: () => view.triggerCommand('undo'),
+      isDirtyForTest: () => view.isDirty(),
+    };
+  });
+}
+
+export async function openFile(
+  editor: AppEditorSurface,
+  path: string,
+  title?: string,
+  options?: EditorOpenOptions
+): Promise<void> {
+  await editor.openItem(path, title, { ...options, meta: { ...(options?.meta || {}), kind: FILE_KIND } });
+}
+
+
+exec
+"C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\powershell.exe" -Command "rtk proxy node -e \"const s=require('fs').readFileSync(process.argv[1],'utf8').split(/\\r?\\n/);let a=process.argv[2]-1,b=process.argv[3];for(let i=a;i<b;i++)console.log((i+1)+':'+s[i])\" src/main.ts 1610 1805" in D:\projects\workbench-kit
+exec
+"C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\powershell.exe" -Command "rtk proxy node -e \"const s=require('fs').readFileSync(process.argv[1],'utf8').split(/\\r?\\n/);let a=process.argv[2]-1,b=process.argv[3];for(let i=a;i<b;i++)console.log((i+1)+':'+s[i])\" src/providers/filesystem.ts 90 165" in D:\projects\workbench-kit
+exec
+"C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\powershell.exe" -Command "rtk proxy node -e \"const s=require('fs').readFileSync(process.argv[1],'utf8').split(/\\r?\\n/);let a=process.argv[2]-1,b=process.argv[3];for(let i=a;i<b;i++)console.log((i+1)+':'+s[i])\" src/hosts/pywebview/main.py 180 275" in D:\projects\workbench-kit
+ succeeded in 0ms:
+90: * Invokes host file selection dialog or fallback prompt.
+91: */
+92:export async function promptOpenFileDialog(): Promise<string | null> {
+93:  const host = getHostFsBridge();
+94:  if (host?.openFileDialog) {
+95:    return await host.openFileDialog();
+96:  }
+97:  if (host?.open_file_dialog) {
+98:    return await host.open_file_dialog();
+99:  }
+100:  return null;
+101:}
+102:
+103:export async function readTextFile(path: string): Promise<string> {
+104:  const host = getHostFsBridge();
+105:  if (host?.readTextFile) return host.readTextFile(path);
+106:  if (host?.read_text_file) return host.read_text_file(path);
+107:  throw new Error('File reading is unavailable in this host');
+108:}
+109:
+110:export async function writeTextFile(path: string, contents: string): Promise<boolean> {
+111:  const host = getHostFsBridge();
+112:  if (host?.writeTextFile) return host.writeTextFile(path, contents);
+113:  if (host?.write_text_file) return host.write_text_file(path, contents);
+114:  throw new Error('File saving is unavailable in this host');
+115:}
+116:
+117:export async function createFile(path: string): Promise<boolean> {
+118:  const host = getHostFsBridge();
+119:  if (host?.createFile) return host.createFile(path);
+120:  if (host?.create_file) return host.create_file(path);
+121:  throw new Error('Creating files is unavailable in this host');
+122:}
+123:
+124:export async function createFolder(path: string): Promise<boolean> {
+125:  const host = getHostFsBridge();
+126:  if (host?.createFolder) return host.createFolder(path);
+127:  if (host?.create_folder) return host.create_folder(path);
+128:  throw new Error('Creating folders is unavailable in this host');
+129:}
+130:
+131:export async function renamePath(oldPath: string, newPath: string): Promise<boolean> {
+132:  const host = getHostFsBridge();
+133:  if (host?.renamePath) return host.renamePath(oldPath, newPath);
+134:  if (host?.rename_path) return host.rename_path(oldPath, newPath);
+135:  throw new Error('Renaming is unavailable in this host');
+136:}
+137:
+138:/** Null when the host has no probe — the caller then opens as before. */
+139:export async function probeTextFile(path: string): Promise<TextProbe | null> {
+140:  const host = getHostFsBridge();
+141:  if (host?.probeTextFile) return host.probeTextFile(path);
+142:  if (host?.probe_text_file) return host.probe_text_file(path);
+143:  return null;
+144:}
+145:
+146:export async function readLegacyTextFile(path: string): Promise<string> {
+147:  const host = getHostFsBridge();
+148:  if (host?.readLegacyTextFile) return host.readLegacyTextFile(path);
+149:  if (host?.read_legacy_text_file) return host.read_legacy_text_file(path);
+150:  throw new Error('Reading CP949 text is unavailable in this host');
+151:}
+152:
+153:export async function readDirectory(path: string): Promise<HostDirectoryEntry[]> {
+154:  const host = getHostFsBridge();
+155:  if (host?.readDir) return host.readDir(path);
+156:  if (host?.read_dir) return host.read_dir(path);
+157:  throw new Error('Directory reading is unavailable in this host');
+158:}
+159:
+160:type TerminalDataCallback = (id: string, data: string) => void;
+161:type TerminalExitCallback = (id: string) => void;
+162:
+163:const terminalDataListeners = new Set<TerminalDataCallback>();
+164:const terminalExitListeners = new Set<TerminalExitCallback>();
+165:
+
+ succeeded in 0ms:
+1610:   * for it (WK-114, out-of-plan addition, 2026-09-23 — user request) — the
+1611:   * folder tab rail's own "Open File List" context-menu action is now the
+1612:   * only path that opens one.
+1613:   */
+1614:  public async handleOpenFolderDialog(folderPath?: string): Promise<void> {
+1615:    const selected = folderPath ?? (await promptOpenFolderDialog());
+1616:    if (selected) {
+1617:      this.folderTabs.addTab(selected);
+1618:      await this.lastActivationPromise;
+1619:    }
+1620:  }
+1621:
+1622:  /** `Open File...` opens a file preset in the editor, taking over any clean empty tab. */
+1623:  public async handleOpenFileDialog(filePath?: string): Promise<void> {
+1624:    const selected = filePath ?? (await promptOpenFileDialog());
+1625:    if (selected) {
+1626:      const fileName = selected.split(/[/\\]/).pop() || selected;
+1627:      await this.openIfText(selected, fileName, (enc) =>
+1628:        this.openResource(selected, fileName, FILE_KIND, this.fileModeFor(enc), 'pinned', false, enc));
+1629:    }
+1630:  }
+1631:
+1632:  /**
+1633:   * Opens a file only when its content reads as text (D-15): a known binary
+1634:   * extension, or a head with NUL bytes or undecodable bytes, is refused
+1635:   * with a status-bar message and no tab. Only the latest request lands, so
+1636:   * a slow check on an earlier click cannot replace a later one.
+1637:   */
+1638:  private async openIfText(path: string, label: string, open: (encoding: TextEncodingId) => void): Promise<void> {
+1639:    const seq = ++this.textOpenSeq;
+1640:    const check = await checkTextFile(path);
+1641:    if (seq !== this.textOpenSeq) return;
+1642:    if (!check.ok) {
+1643:      this.statusMessages.showError(`Cannot open '${label}' — binary file`);
+1644:      return;
+1645:    }
+1646:    open(check.encoding);
+1647:  }
+1648:
+1649:  /** A CP949 file always opens read-only (D-15). */
+1650:  private fileModeFor(encoding: TextEncodingId | undefined, requested = this.defaultFileMode): string {
+1651:    return encoding === 'cp949' ? 'viewer' : requested;
+1652:  }
+1653:
+1654:  /** Ctrl+Enter from the tree (FR-A14), after the text check. */
+1655:  private openFileToSide(node: OpenableEntry, encoding: TextEncodingId): void {
+1656:    const meta = { kind: FILE_KIND, mode: this.fileModeFor(encoding), ...(encoding === 'cp949' ? { encoding } : {}) };
+1657:    const activeGroup = this.editor.getActiveGroup();
+1658:    const besideGroup = activeGroup ? this.editor.findBesideGroup(activeGroup) : undefined;
+1659:    // No existing beside group means openBeside() will split a fresh
+1660:    // empty one — nothing to silently replace, so no confirmation needed.
+1661:    if (besideGroup && this.editor.isActivePanelDirty(besideGroup)) {
+1662:      void (async () => {
+1663:        if (!(await this.editor.confirmReplaceIfDirty(besideGroup))) return;
+1664:        this.editor.openBeside(node.id, node.label, { meta });
+1665:      })();
+1666:      return;
+1667:    }
+1668:    this.editor.openBeside(node.id, node.label, { meta });
+1669:  }
+1670:
+1671:  private openResource(
+1672:    targetId: string,
+1673:    title: string,
+1674:    kind: string,
+1675:    resourceMode: string,
+1676:    tabMode: EditorOpenMode,
+1677:    forceNew = false,
+1678:    encoding?: TextEncodingId
+1679:  ): IDockviewPanel {
+1680:    const panel = this.editor.openItem(targetId, title, {
+1681:      mode: tabMode,
+1682:      forceNew,
+1683:      meta: {
+1684:        kind,
+1685:        mode: resourceMode,
+1686:        ...(encoding === 'cp949' ? { encoding } : {}),
+1687:        ...(kind === TERMINAL_KIND ? { terminalSessionKey: crypto.randomUUID() } : {}),
+1688:      },
+1689:    });
+1690:    if (panel?.id) {
+1691:      this.kindRegistry.focusPanel(panel.id);
+1692:    }
+1693:    return panel;
+1694:  }
+1695:
+1696:  /**
+1697:   * The Explorer tree's click/dblclick/Enter opening rules (FR-B1 ~ FR-B4,
+1698:   * FR-A6, FR-A14, D-5 — see the `this.tree.onOpen`/`onConfirm`/`onEnterOpen`
+1699:   * wiring below), with the dirty-preview confirmation gate the Explorer
+1700:   * tree earned across three rounds of adversarial review (A9 R1/R3). Every
+1701:   * current caller filters to `!node.isContainer` first (WK-114, out-of-plan
+1702:   * addition, 2026-09-23 — user request: the Explorer no longer opens
+1703:   * folders at all, only files) — `OpenableEntry`/`isContainer` stay generic
+1704:   * here rather than narrowing the type to file-only, since the shell layer
+1705:   * itself still must not branch on file/folder by name (INTENT 3, D-4).
+1706:   */
+1707:  private openFromEntry(entry: OpenableEntry, mode: EditorOpenMode, encoding?: TextEncodingId): void {
+1708:    const openNow = (target: OpenableEntry, how: EditorOpenMode) =>
+1709:      this.openResource(target.id, target.label, target.isContainer ? FOLDER_KIND : FILE_KIND,
+1710:        target.isContainer ? 'file-list' : this.fileModeFor(encoding), how, false, encoding);
+1711:
+1712:    if (this.pendingOpenEntry) {
+1713:      const keepPinned = this.pendingOpenEntry.entry.id === entry.id && this.pendingOpenEntry.mode === 'pinned';
+1714:      this.pendingOpenEntry = { entry, mode: keepPinned ? 'pinned' : mode };
+1715:      return;
+1716:    }
+1717:
+1718:    const activeGroupForCheck = this.editor.getActiveGroup();
+1719:    const requestedMode = entry.isContainer ? 'file-list' : this.fileModeFor(encoding);
+1720:    const alreadyOpen = Boolean(activeGroupForCheck?.panels.some((p) =>
+1721:      p.params?.targetId === entry.id && p.params?.mode === requestedMode));
+1722:    const doomed = mode === 'preview' && !alreadyOpen ? this.editor.getPreviewPanel() : undefined;
+1723:    if (doomed?.params?.isDirty) {
+1724:      this.pendingOpenEntry = { entry, mode };
+1725:      void (async () => {
+1726:        const proceed = await this.editor.confirmReplaceIfDirty(doomed);
+1727:        const request = this.pendingOpenEntry;
+1728:        this.pendingOpenEntry = null;
+1729:        if (!proceed || !request) return;
+1730:        const landed = openNow(request.entry, 'preview');
+1731:        if (request.mode === 'pinned') this.editor.pinPanel(landed);
+1732:      })();
+1733:      return;
+1734:    }
+1735:    openNow(entry, mode);
+1736:  }
+1737:
+1738:  /**
+1739:   * Plain `Enter` on a focused row: preview-first like a click, unless the
+1740:   * row is already sitting in the active group's preview spot, in which
+1741:   * case this second `Enter` is what confirms/pins it (v0.2 FR-P7, FR-T3,
+1742:   * D-16). Shared by the Explorer tree and folder-list rows (WK-113).
+1743:   */
+1744:  private openEntryOnEnter(entry: OpenableEntry, encoding?: TextEncodingId): void {
+1745:    const activeGroup = this.editor.getActiveGroup();
+1746:    const currentPreview = activeGroup ? this.editor.getPreviewPanel(activeGroup) : undefined;
+1747:    const alreadyPreviewing = currentPreview?.params?.targetId === entry.id;
+1748:    this.openFromEntry(entry, alreadyPreviewing ? 'pinned' : 'preview', encoding);
+1749:  }
+1750:
+1751:  /**
+1752:   * The right-click choices for a file/folder resource (v0.2 D-22, FR-G6):
+1753:   * shared by the Explorer tree's context menu and a folder tab's flat
+1754:   * file-list rows (WK-113) so both surfaces offer identical actions.
+1755:   */
+1756:  private buildResourceContextMenuItems(id: string, label: string, isContainer: boolean | undefined): ContextMenuItem[] {
+1757:    if (isContainer) {
+1758:      return [
+1759:        { id: 'open:file-list', label: 'Open File List', action: () => this.openResource(id, label, FOLDER_KIND, 'file-list', 'pinned') },
+1760:        { id: 'open:cmd', label: 'Open Command Prompt', action: () => this.openResource(id, label, TERMINAL_KIND, 'cmd', 'pinned') },
+1761:        { id: 'open:powershell', label: 'Open PowerShell', action: () => this.openResource(id, label, TERMINAL_KIND, 'powershell', 'pinned') },
+1762:      ];
+1763:    }
+1764:    return [
+1765:      { id: 'open:viewer', label: 'Open as Viewer', action: () => void this.openIfText(id, label, (enc) =>
+1766:        this.openResource(id, label, FILE_KIND, 'viewer', 'pinned', false, enc)) },
+1767:      { id: 'open:editor', label: 'Open as Editor', action: () => void this.openIfText(id, label, (enc) =>
+1768:        this.openResource(id, label, FILE_KIND, this.fileModeFor(enc, 'editor'), 'pinned', false, enc)) },
+1769:    ];
+1770:  }
+1771:
+1772:  public setActivePanelMode(mode: string): void {
+1773:    const panel = this.editor.getActivePanel();
+1774:    if (!panel) return;
+1775:    const kind = panel.params?.kind;
+1776:    if (kind === FILE_KIND && mode === 'editor' && isLegacyEncoded(panel.params ?? {})) {
+1777:      // Saving writes UTF-8, which would re-encode a CP949 file (D-15).
+1778:      this.statusMessages.showError('CP949 file — read-only');
+1779:      return;
+1780:    }
+1781:    if (kind === FILE_KIND && (mode === 'editor' || mode === 'viewer')) {
+1782:      this.kindRegistry.setPanelMode(panel.id, mode);
+1783:      panel.update({ params: { mode } });
+1784:      this.updateStatusbarMode();
+1785:    }
+1786:  }
+1787:
+1788:  public updateStatusbarMode(): void {
+1789:    const btn = this.layout.statusbarModeBtn;
+1790:    if (!btn) return;
+1791:    const panel = this.editor.getActivePanel();
+1792:    if (!panel) {
+1793:      btn.style.display = 'none';
+1794:      btn.textContent = '';
+1795:      return;
+1796:    }
+1797:    const kind = panel.params?.kind;
+1798:    if (kind === FILE_KIND) {
+1799:      const mode = panel.params?.mode || this.defaultFileMode;
+1800:      const label = getFileModeLabel(mode);
+1801:      btn.style.display = 'inline-flex';
+1802:      btn.disabled = false;
+1803:      btn.textContent = `File: ${label}`;
+1804:      btn.title = `File Mode: ${label} (click to toggle)`;
+1805:    } else {
+
+ succeeded in 0ms:
+180:            return
+181:        width = max(200, int(width))
+182:        height = max(150, int(height))
+183:        self._window.resize(width, height)
+184:        self._window.move(int(x), int(y))
+185:
+186:    def open_folder_dialog(self):
+187:        if self._window:
+188:            result = self._window.create_file_dialog(webview.FOLDER_DIALOG)
+189:            if result and len(result) > 0:
+190:                return result[0]
+191:        return None
+192:
+193:    def open_file_dialog(self):
+194:        if self._window:
+195:            result = self._window.create_file_dialog(webview.OPEN_DIALOG)
+196:            if result and len(result) > 0:
+197:                return result[0]
+198:        return None
+199:
+200:    def read_text_file(self, file_path):
+201:        with open(file_path, 'rb') as stream:
+202:            data = stream.read()
+203:        if b'\0' in data:
+204:            raise RuntimeError('Binary files cannot be opened as text')
+205:        return data.decode('utf-8-sig')
+206:
+207:    def write_text_file(self, file_path, contents):
+208:        with open(file_path, 'w', encoding='utf-8') as stream:
+209:            stream.write(contents)
+210:        return True
+211:
+212:    # Explorer create / rename (D-14): same meaning as the Electron host's
+213:    # fs-ops.cjs — never overwrite, an existing target is an error.
+214:    def create_file(self, file_path):
+215:        # 'x' fails with FileExistsError instead of truncating.
+216:        with open(file_path, 'x', encoding='utf-8'):
+217:            pass
+218:        return True
+219:
+220:    def create_folder(self, dir_path):
+221:        os.mkdir(dir_path)
+222:        return True
+223:
+224:    def rename_path(self, old_path, new_path):
+225:        # os.rename already refuses an existing target on Windows; the check
+226:        # keeps the message the same as Electron's and lets a case-only
+227:        # rename (a.txt -> A.txt) through.
+228:        case_only = os.path.normcase(os.path.abspath(old_path)) == os.path.normcase(os.path.abspath(new_path))
+229:        if not case_only and os.path.exists(new_path):
+230:            raise FileExistsError(f"'{os.path.basename(new_path)}' already exists")
+231:        os.rename(old_path, new_path)
+232:        return True
+233:
+234:    # Text-or-binary check before a file opens in an editor tab (D-15): same
+235:    # rule as the Electron host's fs-ops.cjs probeTextFile.
+236:    def probe_text_file(self, file_path):
+237:        with open(file_path, 'rb') as stream:
+238:            head = stream.read(64 * 1024)
+239:        if b'\0' in head:
+240:            return 'binary'
+241:        body = head[3:] if head.startswith(b'\xef\xbb\xbf') else head
+242:        for encoding, label in (('utf-8', 'utf-8'), ('cp949', 'cp949')):
+243:            try:
+244:                # final=False lets a character cut at the 64KB boundary through.
+245:                codecs.getincrementaldecoder(encoding)('strict').decode(body, final=False)
+246:                return label
+247:            except UnicodeDecodeError:
+248:                continue
+249:        return 'binary'
+250:
+251:    def read_legacy_text_file(self, file_path):
+252:        with open(file_path, 'rb') as stream:
+253:            data = stream.read()
+254:        if b'\0' in data:
+255:            raise RuntimeError('Binary files cannot be opened as text')
+256:        return data.decode('cp949')
+257:
+258:    def terminal_start(self, kind, cwd):
+259:        if kind not in ('cmd', 'powershell'):
+260:            raise RuntimeError('Unsupported shell')
+261:        if not os.path.isdir(cwd):
+262:            raise RuntimeError('Terminal working directory is not a folder')
+263:        executable = 'cmd.exe' if kind == 'cmd' else 'powershell.exe'
+264:        proc = PtyProcess.spawn(executable, cwd=cwd, dimensions=(24, 80))
+265:        with self._terminal_lock:
+266:            self._terminal_counter += 1
+267:            terminal_id = 'terminal-' + str(self._terminal_counter)
+268:            state = {
+269:                'process': proc, 'output': '', 'pending_push': '',
+270:                'streaming': False, 'exited': False, 'closed': False,
+271:                'push_event': threading.Event(),
+272:            }
+273:            self._terminals[terminal_id] = state
+274:
+275:        def push_pending():
+
+exec
+"C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\powershell.exe" -Command "rtk proxy node -e \"const s=require('fs').readFileSync(process.argv[1],'utf8').split(/\\r?\\n/);let a=process.argv[2]-1,b=process.argv[3];for(let i=a;i<b;i++)console.log((i+1)+':'+s[i])\" src/main.ts 675 740" in D:\projects\workbench-kit
+ succeeded in 173ms:
+675:        label: t.label,
+676:        checked: this.iconTheme.getTheme() === t.id,
+677:        action: () => {
+678:          this.iconTheme.setTheme(t.id);
+679:          this.tree.render();
+680:          this.folderTabs.refresh();
+681:        },
+682:      }))
+683:    );
+684:
+685:    // Bind Tree item opening rules (FR-B1 ~ FR-B4, FR-A6, FR-A14, D-5).
+686:    // Which kind a node opens as is an app-layer decision (isContainer is a
+687:    // generic core field); the shell itself never branches on file/folder.
+688:    // The actual preview/pinned/dirty-confirm rules live in `openFromEntry`
+689:    // (a class method, not a local closure here) so folder-list rows
+690:    // (WK-113) can share them byte-for-byte instead of re-deriving the same
+691:    // three rounds of adversarial findings (A9 R1/R3) independently.
+692:
+693:    // A folder row no longer opens anything of its own on click/dblclick/
+694:    // Enter (v0.3 WK-114, out-of-plan addition, 2026-09-23 — user request):
+695:    // the Explorer is now pure navigation (arrow keys, expand/collapse) +
+696:    // file selection. Opening a folder (file list/CMD/PowerShell) moved to
+697:    // the folder tab rail's own right-click menu. Arrow-key navigation and
+698:    // Space/dblclick expand-collapse are untouched — neither goes through
+699:    // onOpen/onConfirm/onEnterOpen.
+700:    // Every file open first checks that the file reads as text (D-15).
+701:    this.tree.onOpen((node) => {
+702:      if (!node.isContainer) void this.openIfText(node.id, node.label, (enc) => this.openFromEntry(node, 'preview', enc));
+703:    });
+704:    // A double click on a file row: the user is keeping this one
+705:    // (v0.2 FR-P4).
+706:    this.tree.onConfirm((node) => {
+707:      if (!node.isContainer) void this.openIfText(node.id, node.label, (enc) => this.openFromEntry(node, 'pinned', enc));
+708:    });
+709:    this.tree.onEnterOpen((node) => {
+710:      if (!node.isContainer) void this.openIfText(node.id, node.label, (enc) => this.openEntryOnEnter(node, enc));
+711:    });
+712:    // Ctrl+Enter "open to side" (FR-A14) is another opening trigger, same
+713:    // family as onOpen/onConfirm/onEnterOpen above — a folder no longer
+714:    // opens through the Explorer by any of them (WK-114, out-of-plan
+715:    // addition, 2026-09-23 — user request).
+716:    this.tree.onOpenToSide((node) => {
+717:      if (node.isContainer) return;
+718:      void this.openIfText(node.id, node.label, (enc) => this.openFileToSide(node, enc));
+719:    });
+720:
+721:    // The resource opener owns the tree's right-click choices.
+722:    this.contextMenu.setEnabled(true);
+723:    this.contextMenuItemsForTreeNode = (nodeId) => {
+724:      const node = this.tree.getNodeById(nodeId);
+725:      if (!node) return [];
+726:      // A folder row's own "open a folder" choices moved to the folder tab
+727:      // rail's right-click menu (v0.3 WK-114, out-of-plan addition,
+728:      // 2026-09-23 — user request). A file row is unaffected — ContextMenu
+729:      // Controller.show() already no-ops on zero items (FR-G5).
+730:      if (node.isContainer) return [];
+731:      return this.buildResourceContextMenuItems(node.id, node.label, node.isContainer);
+732:    };
+733:    this.layout.sidebarContent.addEventListener('contextmenu', (e) => {
+734:      const row = (e.target as HTMLElement).closest('.tree-row') as HTMLElement | null;
+735:      if (!row) return;
+736:      e.preventDefault();
+737:      const nodeId = row.getAttribute('data-id');
+738:      // Right-click changes the selection to this row (a no-op if it was
+739:      // already the selected one) and nothing else beyond that — no file
+740:      // preview-open — before the menu appears (v0.3 WK-120, corrected
+
+exec
+"C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\powershell.exe" -Command "rtk proxy node -e \"const s=require('fs').readFileSync(process.argv[1],'utf8').split(/\\r?\\n/);let a=process.argv[2]-1,b=process.argv[3];for(let i=a;i<b;i++)console.log((i+1)+':'+s[i])\" src/hosts/electron/main.cjs 60 88" in D:\projects\workbench-kit
+exec
+"C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\powershell.exe" -Command "rtk proxy node -e \"const s=require('fs').readFileSync(process.argv[1],'utf8').split(/\\r?\\n/);let a=process.argv[2]-1,b=process.argv[3];for(let i=a;i<b;i++)console.log((i+1)+':'+s[i])\" src/hosts/electron/preload.cjs 1 30" in D:\projects\workbench-kit
+exec
+"C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\powershell.exe" -Command "rtk proxy rg -n \"read-text-file|readTextFile|TextDecoder|readFile\\(\" src/hosts/electron/main.cjs src/hosts/electron/fs-ops.cjs src/hosts/pywebview/main.py" in D:\projects\workbench-kit
+ succeeded in 0ms:
+1:const { contextBridge, ipcRenderer } = require('electron');
+2:
+3:contextBridge.exposeInMainWorld('workbenchHost', {
+4:  minimize: () => ipcRenderer.send('window:minimize'),
+5:  maximize: () => ipcRenderer.send('window:maximize'),
+6:  close: () => ipcRenderer.send('window:close'),
+7:  getWindowBounds: () => ipcRenderer.invoke('window:get-bounds'),
+8:  setWindowBounds: (x, y, width, height) => ipcRenderer.send('window:set-bounds', x, y, width, height),
+9:  openFolderDialog: () => ipcRenderer.invoke('dialog:open-folder'),
+10:  openFileDialog: () => ipcRenderer.invoke('dialog:open-file'),
+11:  readDir: (dirPath) => ipcRenderer.invoke('fs:read-dir', dirPath),
+12:  readTextFile: (filePath) => ipcRenderer.invoke('fs:read-text-file', filePath),
+13:  writeTextFile: (filePath, contents) => ipcRenderer.invoke('fs:write-text-file', filePath, contents),
+14:  createFile: (filePath) => ipcRenderer.invoke('fs:create-file', filePath),
+15:  createFolder: (dirPath) => ipcRenderer.invoke('fs:create-folder', dirPath),
+16:  renamePath: (oldPath, newPath) => ipcRenderer.invoke('fs:rename-path', oldPath, newPath),
+17:  probeTextFile: (filePath) => ipcRenderer.invoke('fs:probe-text-file', filePath),
+18:  readLegacyTextFile: (filePath) => ipcRenderer.invoke('fs:read-legacy-text-file', filePath),
+19:  terminalStart: (kind, cwd) => ipcRenderer.invoke('terminal:start', kind, cwd),
+20:  terminalRead: (id) => ipcRenderer.invoke('terminal:read', id),
+21:  terminalWrite: (id, data) => ipcRenderer.invoke('terminal:write', id, data),
+22:  terminalResize: (id, cols, rows) => ipcRenderer.invoke('terminal:resize', id, cols, rows),
+23:  terminalClose: (id) => ipcRenderer.invoke('terminal:close', id),
+24:  onTerminalData: (callback) => {
+25:    const listener = (_e, id, data) => callback(id, data);
+26:    ipcRenderer.on('terminal:data', listener);
+27:    return () => ipcRenderer.removeListener('terminal:data', listener);
+28:  },
+29:  onTerminalExit: (callback) => {
+30:    const listener = (_e, id) => callback(id);
+
+ succeeded in 0ms:
+60:  const win = BrowserWindow.fromWebContents(e.sender);
+61:  const result = await dialog.showOpenDialog(win, { properties: ['openFile'] });
+62:  return result.canceled ? null : result.filePaths[0] || null;
+63:});
+64:
+65:ipcMain.handle('fs:read-text-file', async (_e, filePath) => {
+66:  const bytes = await fs.promises.readFile(filePath);
+67:  if (bytes.includes(0)) throw new Error('Binary files cannot be opened as text');
+68:  return new TextDecoder('utf-8', { fatal: true }).decode(bytes);
+69:});
+70:
+71:ipcMain.handle('fs:write-text-file', async (_e, filePath, contents) => {
+72:  await fs.promises.writeFile(filePath, contents, 'utf8');
+73:  return true;
+74:});
+75:
+76:ipcMain.handle('fs:create-file', (_e, filePath) => fsOps.createFile(filePath));
+77:ipcMain.handle('fs:create-folder', (_e, dirPath) => fsOps.createFolder(dirPath));
+78:ipcMain.handle('fs:rename-path', (_e, oldPath, newPath) => fsOps.renamePath(oldPath, newPath));
+79:ipcMain.handle('fs:probe-text-file', (_e, filePath) => fsOps.probeTextFile(filePath));
+80:ipcMain.handle('fs:read-legacy-text-file', (_e, filePath) => fsOps.readLegacyTextFile(filePath));
+81:
+82:const terminals = new Map();
+83:let terminalCounter = 0;
+84:ipcMain.handle('terminal:start', async (e, kind, cwd) => {
+85:  if (kind !== 'cmd' && kind !== 'powershell') throw new Error('Unsupported shell');
+86:  if (!(await fs.promises.stat(cwd)).isDirectory()) throw new Error('Terminal working directory is not a folder');
+87:  const win = BrowserWindow.fromWebContents(e.sender);
+88:  const id = `terminal-${++terminalCounter}`;
+
+ succeeded in 0ms:
+src/hosts/electron/fs-ops.cjs:43:    new TextDecoder(encoding, { fatal: true }).decode(bytes, { stream: true });
+src/hosts/electron/fs-ops.cjs:69:  const bytes = await fs.promises.readFile(filePath);
+src/hosts/electron/fs-ops.cjs:71:  return new TextDecoder('euc-kr', { fatal: true }).decode(bytes);
+src/hosts/electron/main.cjs:65:ipcMain.handle('fs:read-text-file', async (_e, filePath) => {
+src/hosts/electron/main.cjs:66:  const bytes = await fs.promises.readFile(filePath);
+src/hosts/electron/main.cjs:68:  return new TextDecoder('utf-8', { fatal: true }).decode(bytes);
+
+exec
+"C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\powershell.exe" -Command "rtk proxy rg -n \"pendingOpenEntry|textOpenSeq|renamePath|retarget|targetId|save\\(\" src/main.ts" in D:\projects\workbench-kit
+ succeeded in 92ms:
+124:  private textOpenSeq = 0;
+141:  private pendingOpenEntry: { entry: OpenableEntry; mode: EditorOpenMode } | null = null;
+195:    this.editor.setSaveHandler((panelId) => this.kindRegistry.save(panelId));
+766:      if (panel) void this.kindRegistry.save(panel.id);
+797:      const targetId = panel?.params?.targetId as string | undefined;
+802:      if (!targetId || (kind !== FILE_KIND && kind !== FOLDER_KIND)) return;
+809:        this.layout.statusbarPath.textContent = targetId;
+812:      void this.fsProvider.pathExists(targetId).then((exists) => {
+814:          this.statusMessages.showError(`Error: target no longer exists: ${targetId}`);
+1298:   * exact same `kindRegistry.save()` path a live save already uses (dockview
+1319:          const ok = await this.kindRegistry.save(panel.id);
+1639:    const seq = ++this.textOpenSeq;
+1641:    if (seq !== this.textOpenSeq) return;
+1672:    targetId: string,
+1680:    const panel = this.editor.openItem(targetId, title, {
+1712:    if (this.pendingOpenEntry) {
+1713:      const keepPinned = this.pendingOpenEntry.entry.id === entry.id && this.pendingOpenEntry.mode === 'pinned';
+1714:      this.pendingOpenEntry = { entry, mode: keepPinned ? 'pinned' : mode };
+1721:      p.params?.targetId === entry.id && p.params?.mode === requestedMode));
+1724:      this.pendingOpenEntry = { entry, mode };
+1727:        const request = this.pendingOpenEntry;
+1728:        this.pendingOpenEntry = null;
+1747:    const alreadyPreviewing = currentPreview?.params?.targetId === entry.id;
+
+exec
+"C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\powershell.exe" -Command 'rtk proxy rg -n "rename|retarget|setPanelMode|updateParams|openItem" src/presets/file-preset.ts src/main.ts src/core/editor.ts src/registry/kind-registry.ts' in D:\projects\workbench-kit
+exec
+"C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\powershell.exe" -Command "rtk proxy node -e \"const s=require('fs').readFileSync(process.argv[1],'utf8').split(/\\r?\\n/);for(let i=0;i<s.length;i++)console.log((i+1)+':'+s[i])\" src/providers/extension-filter.ts" in D:\projects\workbench-kit
+exec
+"C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\powershell.exe" -Command "rtk proxy node -e \"const s=require('fs').readFileSync(process.argv[1],'utf8').split(/\\r?\\n/);let a=process.argv[2]-1,b=process.argv[3];for(let i=a;i<b;i++)console.log((i+1)+':'+s[i])\" src/main.ts 110 150" in D:\projects\workbench-kit
+ succeeded in 0ms:
+src/registry/kind-registry.ts:15:   * survive that round-trip has to live here, written via `updateParams`.
+src/registry/kind-registry.ts:24:  updateParams: (patch: Record<string, unknown>) => void;
+src/registry/kind-registry.ts:141:  public setPanelMode(panelId: string, mode: string): void {
+src/registry/kind-registry.ts:223:    // PREVIOUS resource wrote back through `updateParams` (a file's `value`/
+src/registry/kind-registry.ts:226:    // target. `openItem` does try to clear those keys by sending them as
+src/registry/kind-registry.ts:262:      updateParams: (patch) => {
+src/core/editor.ts:103:  openItem(targetId: string, title?: string, options?: EditorOpenOptions): Promise<OpenedPanelHandle | null>;
+src/core/editor.ts:120:    async openItem(targetId, title, options) {
+src/core/editor.ts:122:      const panel = controller.openItem(targetId, title, options);
+src/core/editor.ts:472:    // through dockview's own internal pipeline — bypassing `openItem()`/
+src/core/editor.ts:475:    // openItem/addNewTab already wired is harmless — it just reassigns the
+src/core/editor.ts:607:   * synchronous and unconditional, mirroring `openItem`.
+src/core/editor.ts:758:   * Round-1 adversarial finding (Critical): `openItem`'s in-place replacement
+src/core/editor.ts:899:  public openItem(
+src/core/editor.ts:1097:   * The duplicate check (FR-P15/D-15) is left entirely to `openItem`, which
+src/core/editor.ts:1116:      return this.openItem(targetId, title, options, beside);
+src/core/editor.ts:1121:    return this.openItem(targetId, title, options, besideGroup);
+src/main.ts:121:  /** Explorer create / rename on disk (D-14). */
+src/main.ts:176:      // rename DOES have an inline-input row now — refresh() preserves a
+src/main.ts:308:    // Rename is omitted for a 'drive-scan' tab (no individual rename of its
+src/main.ts:314:        items.push({ id: 'foldertab:rename', label: 'Rename', action: () => this.folderTabs.beginRename(tab.id) });
+src/main.ts:442:    // View titlebar's New File / New Folder and F2 rename: the shell opens the
+src/main.ts:443:    // inline inputs; the app does the actual create / rename on disk (v0.2
+src/main.ts:1680:    const panel = this.editor.openItem(targetId, title, {
+src/main.ts:1782:      this.kindRegistry.setPanelMode(panel.id, mode);
+src/presets/file-preset.ts:118:  registry.register(FILE_KIND, (targetId, { params, updateParams }) => {
+src/presets/file-preset.ts:131:    const pushContentParams = () => updateParams({ value: view.getValue(), savedValue: view.getSavedValue() });
+src/presets/file-preset.ts:161:          updateParams({ encoding: 'cp949', mode: 'viewer' });
+src/presets/file-preset.ts:167:        updateParams({ loadError: false });
+src/presets/file-preset.ts:175:        updateParams({ loadError: true });
+src/presets/file-preset.ts:208:        updateParams({ mode: newMode });
+src/presets/file-preset.ts:225:  await editor.openItem(path, title, { ...options, meta: { ...(options?.meta || {}), kind: FILE_KIND } });
+
+ succeeded in 0ms:
+1:/**
+2: * The app-wide file-extension filter (user request, 2026-09-23 — D-12):
+3: * one global setting, like the colour/icon theme, that both the Explorer
+4: * tree and every folder file-list tab read. Lives outside src/core/ because
+5: * it knows what a file extension is — the shell must not (D-4, NFR-1).
+6: *
+7: * - `include`: `null` means every extension (`*.*`); otherwise only files
+8: *   whose extension is listed are shown.
+9: * - `exclude`: extensions to hide; wins over `include`.
+10: * - Extensions are stored lower-case without a dot. `''` stands for "no
+11: *   extension" (`README`, `.env`).
+12: * - Folders are never filtered — callers only ask about files.
+13: */
+14:
+15:export interface ExtensionFilter {
+16:  include: string[] | null;
+17:  exclude: string[];
+18:}
+19:
+20:const STORAGE_KEY = 'workbench:file-filter';
+21:
+22:/** No extension for a dotfile like ".env" (the leading dot is not a separator) or a name with no dot at all. */
+23:export function extractExt(name: string): string {
+24:  const idx = name.lastIndexOf('.');
+25:  if (idx <= 0) return '';
+26:  return name.slice(idx + 1);
+27:}
+28:
+29:/** `md, *.ts; .py  json` -> `['md', 'ts', 'py', 'json']` — any separator, optional `*.` / `.` prefix, lower-cased, de-duplicated. */
+30:export function parseExtensionList(text: string): string[] {
+31:  const out: string[] = [];
+32:  for (const raw of text.split(/[\s,;]+/)) {
+33:    const ext = raw.trim().replace(/^\*?\./, '').replace(/^\*$/, '').toLowerCase();
+34:    if (ext && !out.includes(ext)) out.push(ext);
+35:  }
+36:  return out;
+37:}
+38:
+39:function normalizeList(list: readonly string[]): string[] {
+40:  const out: string[] = [];
+41:  for (const raw of list) {
+42:    const ext = raw.trim().replace(/^\*?\./, '').toLowerCase();
+43:    if (!out.includes(ext)) out.push(ext);
+44:  }
+45:  return out;
+46:}
+47:
+48:let state: ExtensionFilter = { include: null, exclude: [] };
+49:const listeners = new Set<(filter: ExtensionFilter) => void>();
+50:/** Extensions seen while listing folders this session — the filter panel's checklist candidates. */
+51:const seen = new Set<string>();
+52:
+53:function load(): void {
+54:  try {
+55:    const raw = typeof localStorage !== 'undefined' ? localStorage.getItem(STORAGE_KEY) : null;
+56:    if (!raw) return;
+57:    const parsed = JSON.parse(raw) as Partial<ExtensionFilter>;
+58:    state = {
+59:      include: Array.isArray(parsed.include) ? normalizeList(parsed.include.map(String)) : null,
+60:      exclude: Array.isArray(parsed.exclude) ? normalizeList(parsed.exclude.map(String)) : [],
+61:    };
+62:  } catch {
+63:    // Ignore unreadable storage — fall back to "no filter".
+64:  }
+65:}
+66:
+67:function save(): void {
+68:  try {
+69:    if (typeof localStorage !== 'undefined') localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+70:  } catch {
+71:    // Ignore localStorage errors (quota, disabled storage, ...).
+72:  }
+73:}
+74:
+75:function commit(next: ExtensionFilter): void {
+76:  state = next;
+77:  save();
+78:  const snapshot = getFilter();
+79:  listeners.forEach((cb) => cb(snapshot));
+80:}
+81:
+82:load();
+83:
+84:export function getFilter(): ExtensionFilter {
+85:  return { include: state.include ? [...state.include] : null, exclude: [...state.exclude] };
+86:}
+87:
+88:/** `null` shows every extension again. */
+89:export function setInclude(list: readonly string[] | null): void {
+90:  commit({ include: list === null ? null : normalizeList(list), exclude: state.exclude });
+91:}
+92:
+93:export function setExclude(list: readonly string[]): void {
+94:  commit({ include: state.include, exclude: normalizeList(list) });
+95:}
+96:
+97:export function clearFilter(): void {
+98:  commit({ include: null, exclude: [] });
+99:}
+100:
+101:export function isFilterActive(): boolean {
+102:  return state.include !== null || state.exclude.length > 0;
+103:}
+104:
+105:/** Whether a FILE with this name is shown. Folders never go through this. */
+106:export function matchesFile(name: string): boolean {
+107:  const ext = extractExt(name).toLowerCase();
+108:  if (state.exclude.includes(ext)) return false;
+109:  return state.include === null || state.include.includes(ext);
+110:}
+111:
+112:export function onFilterChange(cb: (filter: ExtensionFilter) => void): () => void {
+113:  listeners.add(cb);
+114:  return () => { listeners.delete(cb); };
+115:}
+116:
+117:/** Called with every FILE name a listing read, before filtering. */
+118:export function reportSeenExtensions(fileNames: Iterable<string>): void {
+119:  for (const name of fileNames) seen.add(extractExt(name).toLowerCase());
+120:}
+121:
+122:/** Seen extensions plus whatever the filter currently names, sorted with "no extension" last. */
+123:export function getKnownExtensions(): string[] {
+124:  const all = new Set<string>([...seen, ...(state.include ?? []), ...state.exclude]);
+125:  return [...all].sort((a, b) => (a === '' ? 1 : b === '' ? -1 : a.localeCompare(b)));
+126:}
+127:
+128:/** `*.*` / `md, ts` / `none` — for menu rows and the Activity Bar tooltip. */
+129:export function describeExtensions(list: readonly string[] | null, emptyText: string): string {
+130:  if (list === null) return '*.*';
+131:  if (list.length === 0) return emptyText;
+132:  return list.map((ext) => (ext === '' ? '(no extension)' : ext)).join(', ');
+133:}
+134:
+135:/** Test-support only: forget extensions seen so far. */
+136:export function resetSeenExtensionsForTest(): void {
+137:  seen.clear();
+138:}
+139:
+
+ succeeded in 0ms:
+110:}
+111:
+112:export class WorkbenchApp {
+113:  public layout: WorkbenchLayoutElements;
+114:  public menu: MenuController;
+115:  public activityBar: ActivityBarController;
+116:  public viewState: ViewStateManager;
+117:  public theme: ThemeManager;
+118:  public iconTheme: IconThemeManager;
+119:  public tree: TreeController;
+120:  public folderTabs: FolderTabsController;
+121:  /** Explorer create / rename on disk (D-14). */
+122:  public explorerFileOps!: ExplorerFileOps;
+123:  /** Latest file-open request; an older one whose text check finishes later is dropped (D-15). */
+124:  private textOpenSeq = 0;
+125:  public explorerTitlebar: ExplorerTitlebarController;
+126:  public fsProvider: FileSystemTreeProvider;
+127:  public editor: EditorController;
+128:  public tooltip: TooltipController;
+129:  public kindRegistry: ResourceKindRegistry;
+130:  public contextMenu: ContextMenuController;
+131:  public confirmDialog: ConfirmDialogController;
+132:  public aboutDialog: AboutDialogController;
+133:  public statusMessages: StatusMessageController;
+134:  /** App-supplied item providers for the right-click device (FR-G6). Empty by default (D-22). */
+135:  public contextMenuItemsForTreeNode: (nodeId: string) => ContextMenuItem[] = () => [];
+136:  public contextMenuItemsForPanel: (panelId: string) => ContextMenuItem[] = () => [];
+137:  private recentFolders: string[] = [];
+138:  private defaultFileMode: 'editor' | 'viewer' = 'viewer';
+139:  private defaultFolderMode: 'file-list' | 'cmd' | 'terminal' = 'file-list';
+140:  /** See `openFromEntry` — coalesces requests while a dirty-preview confirm is on screen. */
+141:  private pendingOpenEntry: { entry: OpenableEntry; mode: EditorOpenMode } | null = null;
+142:
+143:  constructor(container: HTMLElement) {
+144:    this.layout = createWorkbenchLayout(container);
+145:    setupWindowControls(
+146:      this.layout.windowMinBtn,
+147:      this.layout.windowMaxBtn,
+148:      this.layout.windowCloseBtn
+149:    );
+150:    setupResizeGrips(this.layout.root);
+
+exec
+"C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\powershell.exe" -Command "rtk proxy node -e \"const s=require('fs').readFileSync(process.argv[1],'utf8').split(/\\r?\\n/);let a=process.argv[2]-1,b=process.argv[3];for(let i=a;i<b;i++)console.log((i+1)+':'+s[i])\" src/main.ts 750 775" in D:\projects\workbench-kit
+ succeeded in 183ms:
+750:    // the active tab, the active tab's whole group, every open tab.
+751:    this.menu.setAction('file:new-tab', () => this.handleNewTab());
+752:    this.menu.setAction('file:close-tab', () => this.editor.closeActiveTab());
+753:    this.menu.setAction('file:close-editor-group', () => void this.editor.closeAllTabsInGroup());
+754:    this.menu.setAction('file:close-all-tabs', () => void this.editor.closeAllTabs());
+755:
+756:    // File > Save and the Edit menu (D-13) act on the active tab. Save goes
+757:    // through the same app save handler as the close dialog; the Edit rows
+758:    // drive the text view in that tab and are greyed out when there is none
+759:    // (file list, terminal, empty tab) or the view refuses the command.
+760:    const activeDirtyPanel = () => {
+761:      const panel = this.editor.getActivePanel();
+762:      return panel?.params?.isDirty ? panel : null;
+763:    };
+764:    this.menu.setAction('file:save', () => {
+765:      const panel = activeDirtyPanel();
+766:      if (panel) void this.kindRegistry.save(panel.id);
+767:    });
+768:    this.menu.setDisabledProvider('file:save', () => !activeDirtyPanel());
+769:    const activeTextView = () => {
+770:      const panel = this.editor.getActivePanel();
+771:      const root = panel ? this.editor.getContentRenderer(panel.id)?.element : undefined;
+772:      return root ? findTextViewWithin(root) : null;
+773:    };
+774:    const editRows: [string, EditCommandId][] = [
+775:      ['edit:undo', 'undo'], ['edit:redo', 'redo'],
+
+exec
+"C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\powershell.exe" -Command "rtk proxy node -e \"const s=require('fs').readFileSync(process.argv[1],'utf8').split(/\\r?\\n/);let a=process.argv[2]-1,b=process.argv[3];for(let i=a;i<b;i++)console.log((i+1)+':'+s[i])\" src/core/editor.ts 890 975" in D:\projects\workbench-kit
+exec
+"C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\powershell.exe" -Command "rtk proxy node -e \"const s=require('fs').readFileSync(process.argv[1],'utf8').split(/\\r?\\n/);let a=process.argv[2]-1,b=process.argv[3];for(let i=a;i<b;i++)console.log((i+1)+':'+s[i])\" src/registry/kind-registry.ts 125 165" in D:\projects\workbench-kit
+exec
+"C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\powershell.exe" -Command "rtk proxy node -e \"const s=require('fs').readFileSync(process.argv[1],'utf8').split(/\\r?\\n/);let a=process.argv[2]-1,b=process.argv[3];for(let i=a;i<b;i++)console.log((i+1)+':'+s[i])\" src/registry/kind-registry.ts 225 280" in D:\projects\workbench-kit
+ succeeded in 0ms:
+890:   * tab happens to be active. It goes to the group's single preview spot,
+891:   * creating that spot if there is none, so browsing never destroys something
+892:   * the user chose to keep (v0.1 FR-B1/FR-B3 are superseded — SPEC 0.1).
+893:   *
+894:   * - Already open anywhere → jump to it (FR-B2). A confirming open also
+895:   *   confirms the tab it landed on (FR-P7).
+896:   * - `preview` and the group has a preview spot → replace it in place (FR-P2).
+897:   * - Otherwise → add a tab, marked preview or not per `mode` (FR-P8).
+898:   */
+899:  public openItem(
+900:    targetId: string,
+901:    title?: string,
+902:    options?: EditorOpenOptions,
+903:    targetGroup?: DockviewGroupPanel
+904:  ): IDockviewPanel {
+905:    // No path-shape assumption: a targetId is an opaque resource identifier,
+906:    // not necessarily a filesystem path (round 2 Minor finding, INTENT 3).
+907:    const displayTitle = title || targetId;
+908:    const requestedRenderer = options?.renderer || 'onlyWhenVisible';
+909:    const meta = options?.meta || {};
+910:    const mode: EditorOpenMode = options?.mode || 'preview';
+911:    const group = targetGroup || this.getActiveGroup() || this.api.groups[0];
+912:
+913:    // FR-P15/D-15: duplicate check is scoped to the TARGET GROUP only, not the
+914:    // whole workbench (narrows v0.1 FR-B2/D-5). The same target may sit open,
+915:    // confirmed, in another group at the same time — this deliberately does
+916:    // not find it there.
+917:    const activePanel = group.activePanel;
+918:    const isActiveBlank = Boolean(activePanel && activePanel.params?.targetId == null && !activePanel.params?.isDirty);
+919:    const existingPanel = isActiveBlank || options?.forceNew ? undefined : group.panels.find((p) =>
+920:      p.params?.targetId === targetId &&
+921:      (meta.kind === undefined || p.params?.kind === meta.kind) &&
+922:      (meta.mode === undefined || p.params?.mode === meta.mode)
+923:    );
+924:    if (existingPanel) {
+925:      if (mode === 'pinned') this.pinPanel(existingPanel);
+926:      existingPanel.api.setActive();
+927:      return existingPanel;
+928:    }
+929:
+930:    // FR-P2: a preview open reuses the group's preview spot, replacing what is
+931:    // shown there. A tab the user made with [+] is confirmed, so it is not a
+932:    // candidate — browsing never overwrites it.
+933:    // A preview spot that has never shown anything — the `Untitled` tab a
+934:    // split starts with (FR-P11) — is taken by a confirming open too, so
+935:    // pressing Enter there does not leave an empty tab behind beside it.
+936:    const previewSpot = this.getPreviewPanel(group);
+937:    const isBlankSpot = Boolean(
+938:      previewSpot && previewSpot.params?.targetId == null && !previewSpot.params?.isDirty
+939:    );
+940:    const compatiblePreview = previewSpot &&
+941:      (meta.mode === undefined || previewSpot.params?.mode === undefined || previewSpot.params?.mode === meta.mode);
+942:    const reusable = options?.forceNew ? undefined : isActiveBlank ? activePanel : (mode === 'preview' && compatiblePreview) || isBlankSpot ? previewSpot : undefined;
+943:    if (reusable) {
+944:      reusable.setTitle(displayTitle);
+945:      reusable.api.setRenderer(requestedRenderer);
+946:      // A9 Round-3 (Major): dockview merges params, so metadata the previous
+947:      // target carried survived into the replacement whenever the new caller
+948:      // did not happen to supply the same key. The metadata bag is opaque to
+949:      // the shell, so rather than know its keys, clear every key the new bag
+950:      // does not set.
+951:      const staleMeta: Record<string, undefined> = {};
+952:      for (const key of Object.keys(reusable.params || {})) {
+953:        if (!(key in meta)) staleMeta[key] = undefined;
+954:      }
+955:      reusable.update({
+956:        params: {
+957:          ...staleMeta,
+958:          ...meta,
+959:          targetId,
+960:          isUserCreatedEmptyTab: false,
+961:          isPreview: mode === 'preview',
+962:          // Round-2 adversarial finding (Major): dockview merges partial
+963:          // params rather than replacing them, so a stale isDirty: true from
+964:          // whatever this panel held before would otherwise survive into the
+965:          // freshly (re)loaded content it no longer describes.
+966:          isDirty: false,
+967:        },
+968:      });
+969:      reusable.api.setActive();
+970:      this.applyPreviewClass(reusable);
+971:      return reusable;
+972:    }
+973:
+974:    // FR-P8 / FR-J8: nothing to reuse — add a tab beside whatever is kept.
+975:    const id = `tab-${++this.panelCounter}`;
+
+ succeeded in 0ms:
+125:  public registerSaveable(panelId: string, fn: () => Promise<boolean> | boolean): void {
+126:    this.saveables.set(panelId, fn);
+127:  }
+128:
+129:  public unregisterSaveable(panelId: string): void {
+130:    this.saveables.delete(panelId);
+131:  }
+132:
+133:  public registerModeHandler(panelId: string, fn: (mode: string) => void): void {
+134:    this.modeHandlers.set(panelId, fn);
+135:  }
+136:
+137:  public unregisterModeHandler(panelId: string): void {
+138:    this.modeHandlers.delete(panelId);
+139:  }
+140:
+141:  public setPanelMode(panelId: string, mode: string): void {
+142:    this.modeHandlers.get(panelId)?.(mode);
+143:  }
+144:
+145:  public registerFocusHandler(panelId: string, fn: () => void): void {
+146:    this.focusHandlers.set(panelId, fn);
+147:  }
+148:
+149:  public unregisterFocusHandler(panelId: string): void {
+150:    this.focusHandlers.delete(panelId);
+151:  }
+152:
+153:  public focusPanel(panelId: string): void {
+154:    this.focusHandlers.get(panelId)?.();
+155:  }
+156:
+157:  public registerRefreshHandler(panelId: string, fn: () => void): void {
+158:    this.refreshHandlers.set(panelId, fn);
+159:  }
+160:
+161:  public unregisterRefreshHandler(panelId: string): void {
+162:    this.refreshHandlers.delete(panelId);
+163:  }
+164:
+165:  public refreshPanel(panelId: string): void {
+
+ succeeded in 0ms:
+225:    // handed to the new resource's renderer as if it described the new
+226:    // target. `openItem` does try to clear those keys by sending them as
+227:    // `undefined`, but dockview drops undefined-valued keys when it merges,
+228:    // so they never reach us — a preview tab browsing A then B rendered B's
+229:    // title and language over A's content, never reading B from disk
+230:    // (reported 2026-09-20). Identity changes therefore take the incoming
+231:    // params alone; only same-identity updates merge.
+232:    this.params = identityChanged ? ({ ...event.params } as { kind?: string; targetId?: string }) : merged;
+233:    if (identityChanged) {
+234:      this.renderForCurrentParams();
+235:    }
+236:  }
+237:
+238:  private renderForCurrentParams(): void {
+239:    this.unsubscribeDirty?.();
+240:    this.unsubscribeDirty = null;
+241:    if (this.panelId) {
+242:      this.registry.unregisterSaveable(this.panelId);
+243:      this.registry.deleteInnerForTest(this.panelId);
+244:    }
+245:    this.inner?.dispose?.();
+246:    this.inner = null;
+247:    this.element.innerHTML = '';
+248:
+249:    const { kind, targetId } = this.params;
+250:    if (!kind || !targetId) {
+251:      return;
+252:    }
+253:
+254:    const factory = this.registry.getFactory(kind);
+255:    if (!factory) {
+256:      return;
+257:    }
+258:
+259:    const panelId = this.panelId;
+260:    this.inner = factory(targetId, {
+261:      params: this.params,
+262:      updateParams: (patch) => {
+263:        if (!panelId) return;
+264:        this.controller.getApi().getPanel(panelId)?.update({ params: patch });
+265:      },
+266:    });
+267:    this.element.appendChild(this.inner.element);
+268:    if (panelId) {
+269:      this.registry.setInnerForTest(panelId, this.inner);
+270:    }
+271:
+272:    if (this.inner.onDirtyChange && this.panelId) {
+273:      const panelId = this.panelId;
+274:      this.unsubscribeDirty = this.inner.onDirtyChange((dirty) => {
+275:        this.controller.setTabDirty(panelId, dirty);
+276:      });
+277:    }
+278:    if (this.inner.save && this.panelId) {
+279:      this.registry.registerSaveable(this.panelId, this.inner.save);
+280:    }
+
+exec
+"C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\powershell.exe" -Command "rtk proxy node -e \"const s=require('fs').readFileSync(process.argv[1],'utf8').split(/\\r?\\n/);let a=process.argv[2]-1,b=process.argv[3];for(let i=a;i<b;i++)console.log((i+1)+':'+s[i])\" src/main.ts 435 470" in D:\projects\workbench-kit
+ succeeded in 171ms:
+435:    }
+436:    this.tree.onRootChange((root) => {
+437:      if (!root && this.layout.statusbarPath) {
+438:        this.layout.statusbarPath.textContent = '';
+439:      }
+440:    });
+441:
+442:    // View titlebar's New File / New Folder and F2 rename: the shell opens the
+443:    // inline inputs; the app does the actual create / rename on disk (v0.2
+444:    // FR-X4, D-6, D-14). Renamed paths carry their open tabs along.
+445:    this.explorerFileOps = new ExplorerFileOps({
+446:      tree: this.tree,
+447:      editor: this.editor,
+448:      showMessage: (text) => this.statusMessages.showMessage(text),
+449:      showError: (text) => this.statusMessages.showError(text),
+450:      refreshViews: async () => {
+451:        // Refresh button path: the tree plus every file-list tab (WK-117).
+452:        this.explorerTitlebar.refresh();
+453:        await this.tree.refresh();
+454:      },
+455:    });
+456:    this.explorerTitlebar.setNewItemHandler((req) => void this.explorerFileOps.create(req));
+457:    // F2 is not a shell key (reserved-keys.md §4) — the app binds it on the
+458:    // Explorer, for the focused tree row only.
+459:    this.layout.sidebarContent.addEventListener('keydown', (e) => {
+460:      if (e.key !== 'F2' || e.ctrlKey || e.altKey || e.shiftKey || e.metaKey) return;
+461:      if (!(e.target as HTMLElement | null)?.closest?.('.tree-list')) return;
+462:      const nodeId = this.tree.getFocusedId();
+463:      if (!nodeId) return;
+464:      e.preventDefault();
+465:      this.explorerFileOps.beginRename(nodeId);
+466:    });
+467:
+468:    // Explorer width: a drag handle between the tree and the editor area
+469:    // (v0.2 FR-X5 ~ FR-X7). The width is not persisted (D-8) — a restart
+470:    // starts at the initial value baked into --sidebar-width.
+
+codex
+I found two likely failures in the open path: a failed probe can still create a tab, and a dirty preview’s confirmation can complete after a newer request. I’m checking whether restored CP949 tabs have a separate route into the save handler.
+exec
+"C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\powershell.exe" -Command "rtk proxy rg -n \"constructor\\(|savedValue|isDirty\\(|markSaved\\(\" src/core/texteditor.ts" in D:\projects\workbench-kit
+exec
+"C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\powershell.exe" -Command "rtk proxy node -e \"const s=require('fs').readFileSync(process.argv[1],'utf8').split(/\\r?\\n/);let a=process.argv[2]-1,b=process.argv[3];for(let i=a;i<b;i++)console.log((i+1)+':'+s[i])\" src/core/texteditor.ts 25 125" in D:\projects\workbench-kit
+exec
+"C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\powershell.exe" -Command "rtk proxy node -e \"const s=require('fs').readFileSync(process.argv[1],'utf8').split(/\\r?\\n/);let a=process.argv[2]-1,b=process.argv[3];for(let i=a;i<b;i++)console.log((i+1)+':'+s[i])\" src/registry/kind-registry.ts 205 235" in D:\projects\workbench-kit
+ succeeded in 0ms:
+25:monaco.languages.register({ id: 'json', extensions: ['.json'] });
+26:monaco.languages.setMonarchTokensProvider('json', {
+27:  tokenizer: {
+28:    root: [
+29:      [/".*?"(?=\s*:)/, 'type.identifier'],
+30:      [/"(\\.|[^"\\])*"/, 'string'],
+31:      [/\b(true|false|null)\b/, 'keyword'],
+32:      [/-?\d+(\.\d+)?([eE][+-]?\d+)?/, 'number'],
+33:      [/[{}[\],:]/, 'delimiter'],
+34:    ],
+35:  },
+36:});
+37:// Editor contributions are opt-in when importing the bare API instead of
+38:// editor.main.js (which would also re-import all ~80 languages). Only the
+39:// ones D-18 turns on are pulled in individually. Comment, clipboard and
+40:// multi-cursor back the Edit menu (D-13, user request 2026-09-24): the
+41:// clipboard contribution is what lets a menu row cut/copy/paste once the
+42:// click has taken focus away from the editor.
+43:import 'monaco-editor/editor/contrib/find/browser/findController';
+44:import 'monaco-editor/editor/contrib/comment/browser/comment';
+45:import 'monaco-editor/editor/contrib/clipboard/browser/clipboard';
+46:import 'monaco-editor/editor/contrib/multicursor/browser/multicursor';
+47:
+48:import type { ColorThemeId } from './icontheme';
+49:
+50:export interface TextViewOptions {
+51:  value: string;
+52:  language?: string;
+53:  readOnly?: boolean;
+54:  /**
+55:   * The baseline `isDirty()` compares against — defaults to `value` (a
+56:   * freshly opened view starts clean). A caller reconstructing a view whose
+57:   * content was already dirty (e.g. a preset restoring `value` from a saved
+58:   * snapshot, v0.3 D-7/D-8) passes the ORIGINAL last-saved text here, not
+59:   * `value` itself — otherwise the new view treats its own restored (still
+60:   * unsaved) content as the saved baseline, which silently clears dirty the
+61:   * next time an edit happens to land back on that same text (round-2
+62:   * adversarial review, Critical #2: undo-to-the-restored-text incorrectly
+63:   * read as "back to saved").
+64:   */
+65:  savedValue?: string;
+66:}
+67:
+68:/**
+69: * Points monaco's own theme at the app's colour theme (D-19). The COLOURS do
+70: * not travel this way: monaco publishes a theme's colours through a
+71: * <style class="monaco-colors"> element it injects at runtime, which this
+72: * app's CSP blocks — the --vscode-* block in style.css carries them instead.
+73: * What this call still decides is the editor root's theme class, which
+74: * monaco's bundled stylesheet scopes a handful of rules by (the find
+75: * widget's dark variants). Gray takes the light base: its editor background
+76: * is the light end of this app's palette.
+77: *
+78: * The shell owns this so an app gets a themed editor without wiring monaco
+79: * itself (FR-P6).
+80: */
+81:export function setEditorColorTheme(theme: ColorThemeId): void {
+82:  monaco.editor.setTheme(theme === 'dark' ? 'vs-dark' : 'vs');
+83:}
+84:
+85:/**
+86: * Line numbers, as a single shell-wide setting (View > Show Line Numbers,
+87: * user request, 2026-09-17) — off by default. Unlike the colour theme
+88: * above, monaco has no global switch for this; it is a per-editor
+89: * construction option. `liveTextViews` is this module's own registry of
+90: * every currently open `TextEditorView` (kind-agnostic — just "every text
+91: * view on screen", no resource-kind knowledge, so this stays in `src/core/`
+92: * per D-4) so `setLineNumbersVisible()` can apply the new value to all of
+93: * them at once, the same instant a NEW view picks it up as its own initial
+94: * option.
+95: */
+96:let lineNumbersVisible = false;
+97:const liveTextViews = new Set<TextEditorView>();
+98:/**
+99: * The live text view inside `root` — how the Edit menu finds its target in
+100: * the active tab's content without knowing what kind of tab it is (D-4).
+101: */
+102:export function findTextViewWithin(root: Element): TextEditorView | null {
+103:  for (const view of liveTextViews) {
+104:    if (root.contains(view.element)) return view;
+105:  }
+106:  return null;
+107:}
+108:
+109:/**
+110: * Edit menu commands (D-13). `write` ones change the text, so a read-only
+111: * view refuses them; the rest only move the cursor or selection, or open
+112: * the find widget.
+113: */
+114:export type EditCommandId =
+115:  | 'undo' | 'redo' | 'cut' | 'copy' | 'paste' | 'find' | 'replace'
+116:  | 'commentLine' | 'blockComment' | 'selectAll'
+117:  | 'addNextOccurrence' | 'cursorAbove' | 'cursorBelow';
+118:
+119:const EDIT_COMMANDS: Record<EditCommandId, { action: string; write: boolean }> = {
+120:  undo: { action: 'undo', write: true },
+121:  redo: { action: 'redo', write: true },
+122:  cut: { action: 'editor.action.clipboardCutAction', write: true },
+123:  copy: { action: 'editor.action.clipboardCopyAction', write: false },
+124:  paste: { action: 'editor.action.clipboardPasteAction', write: true },
+125:  find: { action: 'actions.find', write: false },
+
+ succeeded in 0ms:
+55:   * The baseline `isDirty()` compares against — defaults to `value` (a
+65:  savedValue?: string;
+161:  private savedValue: string;
+165:  constructor(options: TextViewOptions) {
+168:    this.savedValue = options.savedValue ?? options.value;
+206:      const isDirty = this.model.getValue() !== this.savedValue;
+261:  public isDirty(): boolean {
+262:    return this.model.getValue() !== this.savedValue;
+265:  /** The current saved-baseline text `isDirty()`/edits compare against — see `TextViewOptions.savedValue`. */
+267:    return this.savedValue;
+272:      this.savedValue = value;
+290:  public markSaved(value = this.model.getValue()): void {
+291:    this.savedValue = value;
+292:    this.dirtyChangeCallbacks.forEach((cb) => cb(this.isDirty()));
+
+ succeeded in 0ms:
+205:    // any kind was registered.
+206:    this.element.className = 'editor-panel-content';
+207:  }
+208:
+209:  public init(parameters: GroupPanelPartInitParameters): void {
+210:    this.panelId = parameters.api.id;
+211:    this.params = (parameters.params || {}) as { kind?: string; targetId?: string };
+212:    this.renderForCurrentParams();
+213:  }
+214:
+215:  public update(event: { params?: Record<string, unknown> }): void {
+216:    if (!event.params) return;
+217:    const merged = { ...this.params, ...event.params } as { kind?: string; targetId?: string };
+218:    // Only re-dispatch when kind or targetId actually change. Unrelated
+219:    // metadata (e.g. isDirty from setTabDirty) must not tear down a live
+220:    // view for the tab's lifetime (D-4, D-24).
+221:    const identityChanged = merged.kind !== this.params.kind || merged.targetId !== this.params.targetId;
+222:    // On an identity change the merge above is the wrong shape: whatever the
+223:    // PREVIOUS resource wrote back through `updateParams` (a file's `value`/
+224:    // `savedValue` snapshot, say) is still in `this.params` and would be
+225:    // handed to the new resource's renderer as if it described the new
+226:    // target. `openItem` does try to clear those keys by sending them as
+227:    // `undefined`, but dockview drops undefined-valued keys when it merges,
+228:    // so they never reach us — a preview tab browsing A then B rendered B's
+229:    // title and language over A's content, never reading B from disk
+230:    // (reported 2026-09-20). Identity changes therefore take the incoming
+231:    // params alone; only same-identity updates merge.
+232:    this.params = identityChanged ? ({ ...event.params } as { kind?: string; targetId?: string }) : merged;
+233:    if (identityChanged) {
+234:      this.renderForCurrentParams();
+235:    }
+
+exec
+"C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\powershell.exe" -Command 'rtk proxy rg -n "retarget|rename" src/explorer/file-ops.ts src/core/editor.ts' in D:\projects\workbench-kit
+ exited 1 in 81ms:
+rg: src/explorer/file-ops.ts: 지정된 경로를 찾을 수 없습니다. (os error 3)
+
+exec
+"C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\powershell.exe" -Command 'rtk rg --files src | rtk rg "file.*ops|explorer"' in D:\projects\workbench-kit
+exec
+"C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\powershell.exe" -Command "rtk proxy node -e \"const s=require('fs').readFileSync(process.argv[1],'utf8').split(/\\r?\\n/);let a=process.argv[2]-1,b=process.argv[3];for(let i=a;i<b;i++)console.log((i+1)+':'+s[i])\" src/presets/file-preset.ts 120 213" in D:\projects\workbench-kit
+ succeeded in 0ms:
+41:src\presets\explorer-file-ops.ts
+
+ succeeded in 0ms:
+120:    // must be carried through a Folder Workspace layout switch.
+121:    const initialMode = resolveFileMode(params);
+122:    const hasSnapshot = typeof params.value === 'string';
+123:    const initialValue = hasSnapshot ? params.value as string : '';
+124:    const initialSavedValue = typeof params.savedValue === 'string' ? params.savedValue : initialValue;
+125:    const view = new TextEditorView({
+126:      value: initialValue,
+127:      savedValue: initialSavedValue,
+128:      language: detectLanguage(targetId),
+129:      readOnly: initialMode === 'viewer' || params.loadError === true,
+130:    });
+131:    const pushContentParams = () => updateParams({ value: view.getValue(), savedValue: view.getSavedValue() });
+132:    const unsubscribeContent = view.onDidChangeContent(pushContentParams);
+133:    let disposed = false;
+134:    let loading = !hasSnapshot;
+135:    let loadFailed = params.loadError === true;
+136:    let currentMode = initialMode;
+137:    let legacy = isLegacyEncoded(params);
+138:    if (!hasSnapshot) {
+139:      view.setReadOnly(true);
+140:      // UTF-8 first; a file that is not UTF-8 is read again as CP949 and
+141:      // stays read-only (D-15).
+142:      const read = async (): Promise<string> => {
+143:        if (legacy) return readLegacyTextFile(targetId);
+144:        try {
+145:          return await readTextFile(targetId);
+146:        } catch (utf8Error) {
+147:          let text: string;
+148:          try {
+149:            text = await readLegacyTextFile(targetId);
+150:          } catch {
+151:            throw utf8Error;
+152:          }
+153:          legacy = true;
+154:          return text;
+155:        }
+156:      };
+157:      void read().then((contents) => {
+158:        if (disposed) return;
+159:        if (legacy) {
+160:          currentMode = 'viewer';
+161:          updateParams({ encoding: 'cp949', mode: 'viewer' });
+162:        }
+163:        view.setValue(contents, true);
+164:        view.markSaved();
+165:        loading = false;
+166:        view.setReadOnly(currentMode === 'viewer');
+167:        updateParams({ loadError: false });
+168:        pushContentParams();
+169:      }).catch((error) => {
+170:        if (disposed) return;
+171:        view.setValue(`Unable to open ${targetId}: ${String(error)}`, true);
+172:        loading = false;
+173:        loadFailed = true;
+174:        view.setReadOnly(true);
+175:        updateParams({ loadError: true });
+176:      });
+177:    }
+178:    const save = async () => {
+179:      if (loading || loadFailed) return false;
+180:      const contents = view.getValue();
+181:      try {
+182:        if (!(await writeTextFile(targetId, contents))) return false;
+183:      } catch {
+184:        return false;
+185:      }
+186:      view.markSaved(contents);
+187:      pushContentParams();
+188:      // An edit made while the write was in progress is still unsaved.
+189:      return !view.isDirty();
+190:    };
+191:    // Ctrl+S is the app's key, not the shell's (reserved-keys.md §4, D-13).
+192:    view.onSaveKey(() => {
+193:      if (view.isDirty()) void save();
+194:    });
+195:    return {
+196:      element: view.element,
+197:      dispose: () => {
+198:        disposed = true;
+199:        unsubscribeContent();
+200:        view.dispose();
+201:      },
+202:      onDirtyChange: (cb: (dirty: boolean) => void) => view.onDidChangeDirty(cb),
+203:      save,
+204:      setMode: (newMode: string) => {
+205:        if (legacy && newMode !== 'viewer') return;
+206:        currentMode = newMode;
+207:        view.setReadOnly(loading || loadFailed || newMode === 'viewer');
+208:        updateParams({ mode: newMode });
+209:      },
+210:      getContentForTest: () => view.getValue(),
+211:      getLanguageForTest: () => view.getLanguageForTest(),
+212:      appendContentForTest: (text: string) => view.appendTextForTest(text),
+213:      undoForTest: () => view.triggerCommand('undo'),
+
+exec
+"C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\powershell.exe" -Command "rtk proxy node -e \"const s=require('fs').readFileSync(process.argv[1],'utf8').split(/\\r?\\n/);let a=process.argv[2]-1,b=process.argv[3];for(let i=a;i<b;i++)console.log((i+1)+':'+s[i])\" src/core/texteditor.ts 160 215" in D:\projects\workbench-kit
+ succeeded in 159ms:
+160:  private model: monaco.editor.ITextModel;
+161:  private savedValue: string;
+162:  private dirtyChangeCallbacks: ((dirty: boolean) => void)[] = [];
+163:  private contentChangeCallbacks: (() => void)[] = [];
+164:
+165:  constructor(options: TextViewOptions) {
+166:    this.element = document.createElement('div');
+167:    this.element.className = 'text-editor-view';
+168:    this.savedValue = options.savedValue ?? options.value;
+169:
+170:    this.model = monaco.editor.createModel(options.value, options.language || 'plaintext');
+171:
+172:    this.editor = monaco.editor.create(this.element, {
+173:      model: this.model,
+174:      readOnly: Boolean(options.readOnly),
+175:      automaticLayout: true,
+176:      // Not monaco's Windows default of `Consolas, 'Courier New', monospace`:
+177:      // Consolas advances its ASCII 7.7px at 14px while a Hangul glyph takes
+178:      // the full 14px cell, so a Hangul character is not exactly two ASCII
+179:      // columns and mixed Korean/ASCII lines fall off the grid (user report,
+180:      // 2026-09-20). D2Coding sizes both from one design, holding the 2:1
+181:      // cell. The bare `monospace` keyword also holds 2:1 but resolves to
+182:      // GulimChe here — a bitmap face with poor ASCII legibility — so it is
+183:      // only the fallback for machines without D2Coding.
+184:      fontFamily: "'D2Coding', monospace",
+185:      lineNumbers: lineNumbersVisible ? 'on' : 'off',
+186:      // Reserves width for 3 digits by default (monaco's own default is 5)
+187:      // instead of growing/shrinking the gutter as the line count crosses
+188:      // each power of ten (user request, 2026-09-17). Monaco still widens
+189:      // it automatically past 999 lines — this only sets the floor.
+190:      lineNumbersMinChars: 3,
+191:      // Autocomplete / language service off (X-12, FR-P5)
+192:      quickSuggestions: false,
+193:      suggestOnTriggerCharacters: false,
+194:      wordBasedSuggestions: 'off' as const,
+195:      parameterHints: { enabled: false },
+196:      hover: { enabled: 'off' },
+197:      // Minimap off (X-12, FR-P5)
+198:      minimap: { enabled: false },
+199:      contextmenu: false,
+200:      // Matches the 5px tab-row / explorer scrollbars in style.css.
+201:      scrollbar: { verticalScrollbarSize: 5, horizontalScrollbarSize: 5 },
+202:    });
+203:
+204:
+205:    this.model.onDidChangeContent(() => {
+206:      const isDirty = this.model.getValue() !== this.savedValue;
+207:      this.dirtyChangeCallbacks.forEach((cb) => cb(isDirty));
+208:      this.contentChangeCallbacks.forEach((cb) => cb());
+209:    });
+210:
+211:    liveTextViews.add(this);
+212:  }
+213:
+214:  /** Module-internal: applies a new global line-numbers setting to this one live view. */
+215:  public applyLineNumbersOption(visible: boolean): void {
+
+exec
+"C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\powershell.exe" -Command "rtk proxy rg -n \"retarget|rename|update\\(|targetId\" src/presets/explorer-file-ops.ts" in D:\projects\workbench-kit
+ succeeded in 0ms:
+1:// Explorer create / rename on disk (D-14, user request 2026-09-24). The
+7:import { createFile, createFolder, renamePath } from '../providers/filesystem';
+18:/** Kinds whose tab follows a renamed path. A terminal is left alone: rebuilding it would restart its shell. */
+125:  /** F2 on a tree row: opens the rename input. Returns whether it opened. */
+132:      onCommit: (newName) => void this.rename(node, newName),
+136:  private async rename(node: TreeNode, newName: string): Promise<boolean> {
+148:      await renamePath(oldPath, newPath);
+150:      this.deps.showError(`Cannot rename '${node.label}': ${errorText(error)}`);
+153:    this.retargetOpenTabs(oldPath, newPath);
+167:  public retargetOpenTabs(oldPath: string, newPath: string): number {
+171:      const params = (panel.params ?? {}) as { kind?: string; targetId?: string };
+172:      if (!params.kind || !RETARGET_KINDS.has(params.kind) || typeof params.targetId !== 'string') continue;
+173:      const moved = remapPath(params.targetId, oldPath, newPath);
+175:      panel.update({ params: { ...panel.params, targetId: moved } });
+
+exec
+"C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\powershell.exe" -Command "rtk proxy node -e \"const s=require('fs').readFileSync(process.argv[1],'utf8').split(/\\r?\\n/);let a=process.argv[2]-1,b=process.argv[3];for(let i=a;i<b;i++)console.log((i+1)+':'+s[i])\" src/presets/explorer-file-ops.ts 140 240" in D:\projects\workbench-kit
+ succeeded in 200ms:
+140:    const invalid = validateEntryName(newName);
+141:    if (invalid) {
+142:      this.deps.showError(invalid);
+143:      return false;
+144:    }
+145:    const newPath = joinPath(dirnameOf(oldPath), newName);
+146:    const wasExpanded = Boolean(node.isContainer) && tree.isExpanded(node.id);
+147:    try {
+148:      await renamePath(oldPath, newPath);
+149:    } catch (error) {
+150:      this.deps.showError(`Cannot rename '${node.label}': ${errorText(error)}`);
+151:      return false;
+152:    }
+153:    this.retargetOpenTabs(oldPath, newPath);
+154:    await this.deps.refreshViews();
+155:    if (wasExpanded) await tree.setExpanded(newPath, true);
+156:    tree.focusItemById(newPath);
+157:    this.deps.showMessage(`Renamed '${node.label}' to '${newName}'`);
+158:    return true;
+159:  }
+160:
+161:  /**
+162:   * Points every open file / file-list tab on `oldPath` (or inside it) at
+163:   * the new path. The file view is rebuilt from the tab's own value /
+164:   * savedValue snapshot, so unsaved edits, the ● mark and the mode carry
+165:   * over and a later save writes to the new path. Undo history starts over.
+166:   */
+167:  public retargetOpenTabs(oldPath: string, newPath: string): number {
+168:    const { editor } = this.deps;
+169:    let count = 0;
+170:    for (const panel of editor.getPanels()) {
+171:      const params = (panel.params ?? {}) as { kind?: string; targetId?: string };
+172:      if (!params.kind || !RETARGET_KINDS.has(params.kind) || typeof params.targetId !== 'string') continue;
+173:      const moved = remapPath(params.targetId, oldPath, newPath);
+174:      if (!moved) continue;
+175:      panel.update({ params: { ...panel.params, targetId: moved } });
+176:      panel.api.setTitle(basenameOf(moved));
+177:      count++;
+178:    }
+179:    if (count > 0) editor.refreshTabDecorations();
+180:    return count;
+181:  }
+182:}
+183:
+184:undefined
+185:undefined
+186:undefined
+187:undefined
+188:undefined
+189:undefined
+190:undefined
+191:undefined
+192:undefined
+193:undefined
+194:undefined
+195:undefined
+196:undefined
+197:undefined
+198:undefined
+199:undefined
+200:undefined
+201:undefined
+202:undefined
+203:undefined
+204:undefined
+205:undefined
+206:undefined
+207:undefined
+208:undefined
+209:undefined
+210:undefined
+211:undefined
+212:undefined
+213:undefined
+214:undefined
+215:undefined
+216:undefined
+217:undefined
+218:undefined
+219:undefined
+220:undefined
+221:undefined
+222:undefined
+223:undefined
+224:undefined
+225:undefined
+226:undefined
+227:undefined
+228:undefined
+229:undefined
+230:undefined
+231:undefined
+232:undefined
+233:undefined
+234:undefined
+235:undefined
+236:undefined
+237:undefined
+238:undefined
+239:undefined
+240:undefined
+
+codex
+## D-15 adversarial findings
+
+1. **Major — a failed probe still opens a tab (R2, R3).** If a file disappears, is unreadable, or the host has no probe, `checkTextFile` treats the failed or missing verdict as UTF-8 text. A tab opens and later shows a read error instead of refusing the file. The fallback is in [file-types.ts](/D:/projects/workbench-kit/src/presets/file-types.ts:34), with the missing-probe result supplied by [filesystem.ts](/D:/projects/workbench-kit/src/providers/filesystem.ts:138).
+
+2. **Major — a restored dirty CP949 tab can be saved as UTF-8 (R5).** Restore a file tab with `encoding: 'cp949'`, differing `value` and `savedValue`, and `isDirty: true`; then use File > Save or Ctrl+S. The view is read-only, but its save handler does not check `legacy` or mode before calling `writeTextFile`. The restore and save paths are in [file-preset.ts](/D:/projects/workbench-kit/src/presets/file-preset.ts:121) and [file-preset.ts](/D:/projects/workbench-kit/src/presets/file-preset.ts:178).
+
+3. **Major — an older open can land after a newer request (R6).** Start opening text file A while a dirty-preview replacement confirmation is pending. Then request B, or request a binary file that is refused, before accepting the confirmation. `textOpenSeq` guards only the probe callback; the pending A confirmation opens without checking it again. The same gap exists after the open-to-side confirmation. See [main.ts](/D:/projects/workbench-kit/src/main.ts:1638), [main.ts](/D:/projects/workbench-kit/src/main.ts:1661), and [main.ts](/D:/projects/workbench-kit/src/main.ts:1723).
+
+4. **Major — rename can carry an open tab onto a forbidden extension (R1).** Open a text file, then rename it in Explorer from `notes.txt` to `notes.pdf`. The rename path retargets the existing tab without running the extension check, leaving the `.pdf` open in an editor tab. See [explorer-file-ops.ts](/D:/projects/workbench-kit/src/presets/explorer-file-ops.ts:153) and [explorer-file-ops.ts](/D:/projects/workbench-kit/src/presets/explorer-file-ops.ts:167).
+
+These are source-traced reproductions; I did not run an interactive host test or modify files.
+tokens used
+57,357
+## D-15 adversarial findings
+
+1. **Major — a failed probe still opens a tab (R2, R3).** If a file disappears, is unreadable, or the host has no probe, `checkTextFile` treats the failed or missing verdict as UTF-8 text. A tab opens and later shows a read error instead of refusing the file. The fallback is in [file-types.ts](/D:/projects/workbench-kit/src/presets/file-types.ts:34), with the missing-probe result supplied by [filesystem.ts](/D:/projects/workbench-kit/src/providers/filesystem.ts:138).
+
+2. **Major — a restored dirty CP949 tab can be saved as UTF-8 (R5).** Restore a file tab with `encoding: 'cp949'`, differing `value` and `savedValue`, and `isDirty: true`; then use File > Save or Ctrl+S. The view is read-only, but its save handler does not check `legacy` or mode before calling `writeTextFile`. The restore and save paths are in [file-preset.ts](/D:/projects/workbench-kit/src/presets/file-preset.ts:121) and [file-preset.ts](/D:/projects/workbench-kit/src/presets/file-preset.ts:178).
+
+3. **Major — an older open can land after a newer request (R6).** Start opening text file A while a dirty-preview replacement confirmation is pending. Then request B, or request a binary file that is refused, before accepting the confirmation. `textOpenSeq` guards only the probe callback; the pending A confirmation opens without checking it again. The same gap exists after the open-to-side confirmation. See [main.ts](/D:/projects/workbench-kit/src/main.ts:1638), [main.ts](/D:/projects/workbench-kit/src/main.ts:1661), and [main.ts](/D:/projects/workbench-kit/src/main.ts:1723).
+
+4. **Major — rename can carry an open tab onto a forbidden extension (R1).** Open a text file, then rename it in Explorer from `notes.txt` to `notes.pdf`. The rename path retargets the existing tab without running the extension check, leaving the `.pdf` open in an editor tab. See [explorer-file-ops.ts](/D:/projects/workbench-kit/src/presets/explorer-file-ops.ts:153) and [explorer-file-ops.ts](/D:/projects/workbench-kit/src/presets/explorer-file-ops.ts:167).
+
+These are source-traced reproductions; I did not run an interactive host test or modify files.
+exit=0 elapsed=256s

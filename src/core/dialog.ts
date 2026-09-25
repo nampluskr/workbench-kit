@@ -100,3 +100,106 @@ export class ConfirmDialogController {
     this.overlayEl = null;
   }
 }
+
+export type DeleteConfirmDialogChoice = 'delete' | 'cancel';
+
+/**
+ * Generic two-button confirm dialog device for Explorer delete (v0.3, user
+ * request 2026-09-25). `ConfirmDialogController` above is hardcoded to the
+ * dirty-tab-close flow's 3-button Save/Don't Save/Cancel contract (D-28) —
+ * every existing caller depends on that exact shape, so this is a separate
+ * small class with the same structure (overlay/dialog/message/buttons,
+ * superseded-promise handling, Escape = cancel) rather than a config option
+ * bolted onto ConfirmDialogController for its one new caller.
+ */
+export class DeleteConfirmDialogController {
+  private overlayEl: HTMLElement | null = null;
+  private pendingCleanup: (() => void) | null = null;
+  /** Settles the dialog currently on screen, if any (see show()). */
+  private pendingResolve: ((choice: DeleteConfirmDialogChoice) => void) | null = null;
+
+  constructor(private rootContainer: HTMLElement) {}
+
+  public isOpen(): boolean {
+    return this.overlayEl !== null;
+  }
+
+  public show(message: string): Promise<DeleteConfirmDialogChoice> {
+    return new Promise((resolve) => {
+      // A second show() while one is pending settles the first as 'cancel'
+      // rather than leaving its caller suspended forever (same fix as
+      // ConfirmDialogController's A9 Round-3 note above).
+      if (this.pendingResolve) {
+        const superseded = this.pendingResolve;
+        this.pendingResolve = null;
+        superseded('cancel');
+      }
+      this.hide();
+
+      const overlay = document.createElement('div');
+      overlay.className = 'workbench-confirm-overlay';
+
+      const dialogEl = document.createElement('div');
+      dialogEl.className = 'workbench-confirm-dialog';
+      dialogEl.setAttribute('role', 'alertdialog');
+
+      const messageEl = document.createElement('div');
+      messageEl.className = 'confirm-dialog-message';
+      messageEl.textContent = message;
+      dialogEl.appendChild(messageEl);
+
+      const buttonsEl = document.createElement('div');
+      buttonsEl.className = 'confirm-dialog-buttons';
+
+      const finish = (choice: DeleteConfirmDialogChoice) => {
+        this.pendingResolve = null;
+        this.hide();
+        resolve(choice);
+      };
+      this.pendingResolve = resolve;
+
+      const buttons: { id: DeleteConfirmDialogChoice; label: string }[] = [
+        { id: 'delete', label: 'Delete' },
+        { id: 'cancel', label: 'Cancel' },
+      ];
+
+      for (const btn of buttons) {
+        const el = document.createElement('button');
+        el.className = 'confirm-dialog-btn';
+        el.dataset.choice = btn.id;
+        el.textContent = btn.label;
+        el.addEventListener('click', () => finish(btn.id));
+        buttonsEl.appendChild(el);
+      }
+      dialogEl.appendChild(buttonsEl);
+
+      const keydownHandler = (e: KeyboardEvent) => {
+        if (e.key === 'Escape') {
+          e.preventDefault();
+          finish('cancel');
+        }
+      };
+      document.addEventListener('keydown', keydownHandler);
+      const cleanupKeydown = () => document.removeEventListener('keydown', keydownHandler);
+      this.pendingCleanup = cleanupKeydown;
+
+      overlay.appendChild(dialogEl);
+      this.rootContainer.appendChild(overlay);
+      this.overlayEl = overlay;
+
+      const firstBtn = buttonsEl.querySelector('.confirm-dialog-btn') as HTMLButtonElement | null;
+      firstBtn?.focus();
+    });
+  }
+
+  public hide(): void {
+    if (this.pendingCleanup) {
+      this.pendingCleanup();
+      this.pendingCleanup = null;
+    }
+    if (this.overlayEl && this.overlayEl.parentNode) {
+      this.overlayEl.parentNode.removeChild(this.overlayEl);
+    }
+    this.overlayEl = null;
+  }
+}

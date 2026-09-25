@@ -374,7 +374,9 @@ window.__runPhase6TestSuite = async function runPhase6TestSuite() {
     mcView.triggerCommand('createCursor', { position: { lineNumber: 1, column: 1 } });
     mcView.triggerCommand('createCursor', { position: { lineNumber: 2, column: 1 } });
     await wait(20);
-    record('P6-FR-P5-MULTICURSOR', mcView.getSelectionCount() === 1, 'A second cursor created via the core createCursor command is collapsed back to 1 (X-12, FR-P5)');
+    // D-13 (user request, 2026-09-24) turned multi-cursor back on, so the
+    // second cursor now stays.
+    record('P6-FR-P5-MULTICURSOR', mcView.getSelectionCount() === 2, 'A second cursor created via the core createCursor command stays (multi-cursor on since D-13; was collapsed under X-12)');
     mcView.dispose();
     scratch.removeChild(scratch.firstChild);
 

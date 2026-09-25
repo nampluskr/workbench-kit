@@ -139,48 +139,47 @@ window.__runPhase7TestSuite = async function runPhase7TestSuite() {
     const categoryLabels = Array.from(document.querySelectorAll('.menu-category-row .menu-category-label')).map((el) => el.textContent.trim());
     record(
       'P7-FR-N5-GROUPS',
-      JSON.stringify(categoryLabels) === JSON.stringify(['File', 'View', 'Help']),
+      JSON.stringify(categoryLabels) === JSON.stringify(['File', 'Edit', 'View', 'Help']),
       // Round-2 finding: a raw element count doesn't prove WHICH 3 groups
       // they are — check the actual visible labels.
-      `Opening the hamburger reveals exactly the 3 top-level groups with correct labels, in order: ${JSON.stringify(categoryLabels)} (FR-N5)`
+      `Opening the hamburger reveals exactly the 4 top-level groups (Edit added by D-13) with correct labels, in order: ${JSON.stringify(categoryLabels)} (FR-N5)`
     );
-    // v0.1 FR-N6 is replaced by v0.2 FR-M1 (SPEC 0.1): the shell's File list
-    // is now eight items. The ID is kept so the v0.1 matrix still resolves.
+    // v0.1 FR-N6 is replaced by the current File contract. The ID is kept so
+    // the historical matrix still resolves.
     // App items below a separator are v0.1 FR-I9's, proven in the Phase 5
     // suite through the app surface; this build adds none, so the rendered
-    // list must be exactly the eight, with their visible labels.
+    // list must match the current shell actions and visible labels.
     const shellFileExpected = [
+      { id: 'file:new-tab', label: 'New Tab' },
+      { id: 'file:open-file', label: 'Open File...' },
       { id: 'file:open-folder', label: 'Open Folder...' },
       { id: 'file:open-recent', label: 'Recent Folders' },
-      { id: 'file:split-right', label: 'Split Right' },
-      { id: 'file:split-down', label: 'Split Down' },
+      { id: 'file:save', label: 'Save' },
       { id: 'file:close-tab', label: 'Close Active Tab' },
-      { id: 'file:close-editor-group', label: 'Close Editor Group' },
+      { id: 'file:close-editor-group', label: 'Close All Tabs in Group' },
       { id: 'file:close-all-tabs', label: 'Close All Tabs' },
       { id: 'file:exit', label: 'Exit' },
     ];
     record(
       'P7-FR-N6',
       JSON.stringify(fileRows) === JSON.stringify(shellFileExpected),
-      `File menu renders exactly the 8 shell items with their visible labels, in order (v0.1 FR-N6 → v0.2 FR-M1): ${JSON.stringify(fileRows.map((r) => r.label))}`
+      `File menu matches the current shell actions and visible labels, in order: ${JSON.stringify(fileRows.map((r) => r.label))}`
     );
     closeMenuIfOpen();
 
     const viewRows = openMenuCategory('view');
-    // v0.1 FR-N7 is replaced by v0.2 FR-M2 (SPEC 0.1).
+    // View exposes two stable groups; their children are checked separately
+    // by the focused menu suites.
     const viewExpected = [
-      { id: 'view:color-theme', label: 'Color Theme' },
-      { id: 'view:icon-theme', label: 'Icon Theme' },
-      { id: 'view:zen-mode', label: 'Zen Mode' },
-      { id: 'view:toggle-sidebar', label: 'Show Sidebar' },
-      { id: 'view:toggle-titlebar', label: 'Show Title Bar' },
-      { id: 'view:toggle-statusbar', label: 'Show Status Bar' },
-      { id: 'view:preset-info', label: 'Preset Info' },
+      { id: 'view:layout', label: 'Layout' },
+      { id: 'view:appearance', label: 'Appearance' },
+      { id: 'view:tab-mode', label: 'Tab Mode' },
+      { id: 'view:file-filter', label: 'File Filter' },
     ];
     record(
       'P7-FR-N7',
       JSON.stringify(viewRows) === JSON.stringify(viewExpected),
-      `View menu has exactly the 7 shell items with their visible labels, in order (v0.1 FR-N7 → v0.2 FR-M2): ${JSON.stringify(viewRows.map((r) => r.label))}`
+      `View menu has exactly the Layout, Appearance, Tab Mode, and File Filter groups, in order: ${JSON.stringify(viewRows.map((r) => r.label))}`
     );
     // v0.1's "우클릭 메뉴 사용" switch is gone from View (SPEC 0.1, v0.1 FR-G6 → v0.2
     // FR-M2). What stays is the right-click device being off by default (D-22).
@@ -630,9 +629,9 @@ window.__runPhase7TestSuite = async function runPhase7TestSuite() {
         'Real Ctrl+ArrowLeft keydown on the tree collapses every expanded node (FR-A7) — previously only the View-titlebar Collapse All button (FR-A21) exercised this result'
       );
 
-      dispatchTreeKey('F3');
+      dispatchTreeKey('f', { ctrlKey: true });
       await wait(20);
-      record('P7-FR-A13', tree.getIsFindOpen(), 'Real F3 keydown on the tree opens the inline find widget (FR-A13) — previously only tree.openFindWidget() was called directly');
+      record('P7-FR-A13', tree.getIsFindOpen(), 'Real Ctrl+F keydown on the tree opens the inline find widget (FR-A13) — previously only tree.openFindWidget() was called directly');
       tree.closeFindWidget();
 
       const visible = tree.getVisibleItems();
@@ -845,10 +844,10 @@ window.__runPhase7TestSuite = async function runPhase7TestSuite() {
       await wait(15);
       record('P7-FR-A12', tree.getSelectedIds().length === 0, 'Real Escape keydown clears a multi-item selection (FR-A12)');
 
-      // FR-A19: Ctrl+Alt+F opens the find widget (same result as FR-A13's F3)
+      // FR-A19: Ctrl+Alt+F opens the find widget (same result as Ctrl+F).
       dispatchTreeKey('f', { ctrlKey: true, altKey: true });
       await wait(20);
-      record('P7-FR-A19', tree.getIsFindOpen(), 'Real Ctrl+Alt+F keydown on the tree opens the inline find widget, same as F3 (FR-A19)');
+      record('P7-FR-A19', tree.getIsFindOpen(), 'Real Ctrl+Alt+F keydown on the tree opens the inline find widget, same as Ctrl+F (FR-A19)');
       tree.closeFindWidget();
 
       // FR-A15: no means exists to change the tree root from inside the
@@ -878,19 +877,21 @@ window.__runPhase7TestSuite = async function runPhase7TestSuite() {
       tree.setExpanded(betaFolder.node.id, true);
       tree.setExpanded(echoFolder.node.id, true);
       await wait(20);
+      const searchShellBtn = document.getElementById('sidebar-action-search');
       const newFileShellBtn = document.getElementById('sidebar-action-new-file');
       const newFolderShellBtn = document.getElementById('sidebar-action-new-folder');
       const collapseAllBtn = document.getElementById('sidebar-action-collapse-all');
       const refreshBtn = document.getElementById('sidebar-action-refresh');
       const shellActionEls = Array.from(document.querySelectorAll('#sidebar-actions .sidebar-action-btn:not(.app-action-btn)'));
       const shellOrderOK =
-        shellActionEls.length === 4 &&
-        shellActionEls[0] === newFileShellBtn && shellActionEls[1] === newFolderShellBtn &&
-        shellActionEls[2] === refreshBtn && shellActionEls[3] === collapseAllBtn;
+        shellActionEls.length === 5 &&
+        shellActionEls[0] === searchShellBtn && shellActionEls[1] === newFileShellBtn &&
+        shellActionEls[2] === newFolderShellBtn && shellActionEls[3] === refreshBtn &&
+        shellActionEls[4] === collapseAllBtn;
       record(
         'P7-FR-A20',
         shellOrderOK && document.querySelectorAll('#sidebar-actions [data-id*="preset"], #sidebar-actions [title*="Preset" i]').length === 0,
-        'The Explorer view titlebar renders exactly the shell\'s own 4 actions — New File, New Folder, Refresh, Collapse All in order — distinguishable from any app-added ones, and 0 Preset Info (v0.1 FR-A20/A24 -> v0.2 FR-X2/FR-X3)'
+        'The Explorer view titlebar renders exactly the shell\'s own 5 actions — Find, New File, New Folder, Refresh, Collapse All in order — distinguishable from any app-added ones, and 0 Preset Info (v0.1 FR-A20/A24 -> v0.2 FR-X2/FR-X3 -> v0.3 Find)'
       );
       clickEl(collapseAllBtn);
       await wait(30);

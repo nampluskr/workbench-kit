@@ -4,6 +4,8 @@ export interface ViewState {
   sidebarVisible: boolean;
   titlebarVisible: boolean;
   statusbarVisible: boolean;
+  /** Folder Tabs rail (v0.3 D-2). Independent of `sidebarVisible` — each area hides on its own. */
+  folderTabsVisible: boolean;
   isZenMode: boolean;
 }
 
@@ -11,6 +13,17 @@ export class ViewStateManager {
   private sidebarVisible = true;
   private titlebarVisible = true;
   private statusbarVisible = true;
+  /**
+   * Starts visible every run and is never persisted (v0.3 D-2 — visibility
+   * state alone is not persisted, same lifetime as the other Activity Bar area toggles).
+   */
+  private folderTabsVisible = true;
+  /**
+   * The exact pair that Ctrl+B last hid. The Activity Bar controls remain
+   * independent; a direct change there clears this so Ctrl+B never restores a
+   * stale, unrelated layout.
+   */
+  private navigationRestoreState: Pick<ViewState, 'sidebarVisible' | 'folderTabsVisible'> | null = null;
   private _isZenMode = false;
 
   constructor(private layout: WorkbenchLayoutElements) {
@@ -45,6 +58,7 @@ export class ViewStateManager {
       sidebarVisible: this.sidebarVisible,
       titlebarVisible: this.titlebarVisible,
       statusbarVisible: this.statusbarVisible,
+      folderTabsVisible: this.folderTabsVisible,
       isZenMode: this._isZenMode,
     };
   }
@@ -55,15 +69,72 @@ export class ViewStateManager {
 
   public toggleSidebar(): boolean {
     if (this._isZenMode) return this.sidebarVisible;
-    this.sidebarVisible = !this.sidebarVisible;
-    this.layout.sidebar.classList.toggle('hidden', !this.sidebarVisible);
+    this.navigationRestoreState = null;
+    this.applySidebarVisible(!this.sidebarVisible);
     return this.sidebarVisible;
   }
 
   public setSidebarVisible(visible: boolean): void {
+    this.navigationRestoreState = null;
+    this.applySidebarVisible(visible);
+  }
+
+  /**
+   * Independent of `toggleSidebar()` (v0.3 D-2) — hiding one leaves the
+   * other exactly as it was.
+   */
+  public toggleFolderTabs(): boolean {
+    if (this._isZenMode) return this.folderTabsVisible;
+    this.navigationRestoreState = null;
+    this.applyFolderTabsVisible(!this.folderTabsVisible);
+    return this.folderTabsVisible;
+  }
+
+  public setFolderTabsVisible(visible: boolean): void {
+    this.navigationRestoreState = null;
+    this.applyFolderTabsVisible(visible);
+  }
+
+  /**
+   * Ctrl+B treats the Folder Tabs rail and Explorer as one navigation region:
+   * hide whichever of the two areas are currently visible, then restore that
+   * exact combination on the next press. If both were independently hidden,
+   * there is no previous shortcut snapshot, so restore the complete
+   * navigation region.
+   */
+  public toggleNavigationAreas(): ViewState {
+    if (this._isZenMode) return this.getState();
+
+    if (this.sidebarVisible || this.folderTabsVisible) {
+      this.navigationRestoreState = {
+        sidebarVisible: this.sidebarVisible,
+        folderTabsVisible: this.folderTabsVisible,
+      };
+      this.applySidebarVisible(false);
+      this.applyFolderTabsVisible(false);
+    } else {
+      const restore = this.navigationRestoreState ?? {
+        sidebarVisible: true,
+        folderTabsVisible: true,
+      };
+      this.applySidebarVisible(restore.sidebarVisible);
+      this.applyFolderTabsVisible(restore.folderTabsVisible);
+      this.navigationRestoreState = null;
+    }
+    return this.getState();
+  }
+
+  private applySidebarVisible(visible: boolean): void {
     this.sidebarVisible = visible;
     if (!this._isZenMode) {
       this.layout.sidebar.classList.toggle('hidden', !visible);
+    }
+  }
+
+  private applyFolderTabsVisible(visible: boolean): void {
+    this.folderTabsVisible = visible;
+    if (!this._isZenMode) {
+      this.layout.folderTabsRail.classList.toggle('hidden', !visible);
     }
   }
 

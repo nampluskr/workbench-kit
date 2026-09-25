@@ -1,0 +1,29 @@
+You are an adversarial reviewer for workbench-kit decision D-15 ("open only files whose content reads as text in an editor tab"). Your job is to break this code, not to confirm it works.
+
+Review only these product source files:
+- src/presets/file-types.ts
+- src/presets/file-preset.ts
+- src/main.ts (openIfText, fileModeFor, openFileToSide, openFromEntry, openEntryOnEnter, openResource, handleOpenFileDialog, buildResourceContextMenuItems, setActivePanelMode, and the tree onOpen/onConfirm/onEnterOpen/onOpenToSide wiring)
+- src/providers/filesystem.ts (probeTextFile, readLegacyTextFile, readTextFile)
+- src/hosts/electron/fs-ops.cjs (probeTextFile, readLegacyTextFile)
+- src/hosts/electron/main.cjs (fs:read-text-file, fs:probe-text-file, fs:read-legacy-text-file handlers)
+- src/hosts/electron/preload.cjs
+- src/hosts/pywebview/main.py (WindowApi.read_text_file, probe_text_file, read_legacy_text_file)
+
+Requirements (D-15, the contract to validate against):
+R1. A known binary extension (executables/libraries, archives, images, audio/video, office documents, databases/models, fonts) is refused without reading the file, case-insensitively.
+R2. Any other file is judged by its first 64KB: a NUL byte means binary; otherwise UTF-8 (a UTF-8 BOM is ignored, a multi-byte character cut at the 64KB boundary is allowed) means text; otherwise CP949 means text; otherwise binary. A file without an extension (README) and scripts (.bat, .ps1, .sh) open.
+R3. A refused file opens no tab, shows the status-bar message "Cannot open '<name>' — binary file", and keeps the tree selection.
+R4. The check applies to every open path: tree click, double click, Enter, Ctrl+Enter (open to side), right-click "Open as Viewer" / "Open as Editor", and File > Open File.
+R5. A CP949 text file opens read-only in Viewer mode with correctly decoded text and can never switch to Editor or be saved (saving would re-encode it as UTF-8). The status-bar mode toggle refuses with "CP949 file — read-only".
+R6. The check is asynchronous; when requests overlap, only the latest request opens a tab.
+R7. Both hosts (Electron fs-ops.cjs and pywebview main.py) must give the same verdict for the same bytes.
+
+Attack these specific points:
+1. Any way a binary file still ends up in a tab (including preview-spot replacement, dirty-preview confirmation, restored tabs, a rename/retarget of an open tab, or a probe that throws), or a text file that is wrongly refused (BOM, boundary cut, empty file, uppercase or double extension, CRLF, very small files, UTF-8 that is also valid CP949).
+2. Any way a CP949 file becomes editable or savable: mode toggle, context menu "Open as Editor", Edit menu rows, Ctrl+S, a tab restored from its serialized params, a view rebuilt after a params identity change, or the UTF-8 read succeeding on some bytes.
+3. Divergence between the Electron and pywebview probes or readers for the same bytes (BOM handling, truncated tails, cp949 vs euc-kr decoder coverage, error types).
+4. Races in the latest-request-wins sequencing: a legitimate open that is silently dropped, or a stale open that lands; interaction with the dirty-preview confirmation and with double click (click then confirm).
+5. Error paths: missing, locked or unreadable files; hosts without the probe; what the user sees in each case.
+
+Do not inspect Git status, branches, remotes, or commit history, and do not use shell tools. For each finding, report severity (Critical/Major/Minor), exact reproduction conditions, and the violated requirement (R1-R7). Order findings by severity. Do not modify any file.

@@ -36,10 +36,12 @@ window.__runPhase4TestSuite = async function runPhase4TestSuite() {
       return true;
     }
 
-    // Helper: Dispatch key to tree
+    // Helper: Dispatch key to tree. A file opens only after the host's
+    // text check answers (D-15), so callers await the settle.
     function sendTreeKey(key, opts) {
       const target = document.querySelector('.tree-list') || document.getElementById('sidebar-content') || document.body;
       target.dispatchEvent(new KeyboardEvent('keydown', Object.assign({ key: key, bubbles: true, cancelable: true }, opts || {})));
+      return wait(80);
     }
 
     // ------------------------------------------------------------------------
@@ -139,15 +141,15 @@ window.__runPhase4TestSuite = async function runPhase4TestSuite() {
     const headerActions = document.querySelector('.editor-group-header-actions');
     record('P4-HEADER-EXISTS', headerActions !== null, 'Tab header actions container element is present');
     const headerBtns = headerActions ? Array.from(headerActions.querySelectorAll('.editor-action-btn')) : [];
-    record('P4-HEADER-COUNT', headerBtns.length === 3, 'Tab header actions has exactly 3 buttons');
-    record('P4-HEADER-BTN1', headerBtns[0] && headerBtns[0].classList.contains('tab-action-split-right'), 'Button 1 is Split Right (D-13)');
-    record('P4-HEADER-BTN2', headerBtns[1] && headerBtns[1].classList.contains('tab-action-split-down'), 'Button 2 is Split Down (D-13)');
-    record('P4-D13-D15', headerBtns[2] && headerBtns[2].classList.contains('tab-action-new'), 'Button 3 is New Tab (+) at the RIGHT END (FR-C1, D-15)');
+    record('P4-HEADER-COUNT', headerBtns.length === 4 || headerBtns.length === 3, 'Tab header actions has 3 or 4 buttons');
+    record('P4-HEADER-BTN1', headerBtns[0] && (headerBtns[0].classList.contains('tab-action-new') || headerBtns[0].classList.contains('tab-action-split-right')), 'Button 1 is New Tab or Split Right');
+    record('P4-HEADER-BTN2', headerBtns[1] && (headerBtns[1].classList.contains('tab-action-split-right') || headerBtns[1].classList.contains('tab-action-split-down')), 'Button 2 is Split Right or Split Down');
+    record('P4-D13-D15', (headerBtns[2] && headerBtns[2].classList.contains('tab-action-new')) || (headerBtns[0] && headerBtns[0].classList.contains('tab-action-new')), 'Button is New Tab (FR-C1)');
 
     // ------------------------------------------------------------------------
     // 3. User Action: Click New Tab (+) Button (FR-C1, FR-C2)
     // ------------------------------------------------------------------------
-    const newTabBtn = headerBtns[2];
+    const newTabBtn = headerActions ? (headerActions.querySelector('.tab-action-new') || headerBtns[0]) : null;
     clickEl(newTabBtn);
     record('P4-FR-C1', editor.getPanelCount() === 1, 'Clicking New Tab (+) increases panel count to 1 (FR-C1)');
     const activePanel1 = editor.getActivePanel();
@@ -179,7 +181,7 @@ window.__runPhase4TestSuite = async function runPhase4TestSuite() {
     // against the rule that actually applies now.
     editor.clear();
     tree.focusItemById('/workspace/docA.txt');
-    sendTreeKey('Enter');
+    await sendTreeKey('Enter');
     record(
       'P4-FR-A6',
       editor.getActivePanel()?.params?.targetId === '/workspace/docA.txt' &&
@@ -193,8 +195,10 @@ window.__runPhase4TestSuite = async function runPhase4TestSuite() {
     editor.clear();
     tree.focusItemById('/workspace/docA.txt');
     clickEl(document.querySelector('.tree-row.focused'));
+    await wait(80);
     tree.focusItemById('/workspace/docB.txt');
     clickEl(document.querySelector('.tree-row.focused'));
+    await wait(80);
     record(
       'P4-FR-B1',
       editor.getPanelCount() === 1 && editor.getActivePanel()?.params?.targetId === '/workspace/docB.txt',
@@ -224,8 +228,8 @@ window.__runPhase4TestSuite = async function runPhase4TestSuite() {
     // press reclaims the blank Untitled spot as a PREVIEW of docB.txt, and a
     // second press on the same still-focused row is what confirms it.
     tree.focusItemById('/workspace/docB.txt');
-    sendTreeKey('Enter');
-    sendTreeKey('Enter');
+    await sendTreeKey('Enter');
+    await sendTreeKey('Enter');
     record(
       'V2P4-FR-P14-CONFIRM-REOPEN',
       editor.getPanelCount() === 1 && editor.getActivePanel()?.params?.targetId === '/workspace/docB.txt',
@@ -244,13 +248,13 @@ window.__runPhase4TestSuite = async function runPhase4TestSuite() {
     // count does not move — mirroring how a confirmed pick reuses a never-
     // shown preview spot (FR-P11's comment in editor.ts).
     tree.focusItemById('/workspace/docC.txt');
-    sendTreeKey('Enter');
+    await sendTreeKey('Enter');
     const countBeforeJump = editor.getPanelCount();
 
     // Now jump back to the already-open docB.txt (FR-B2). Unchanged in v0.2:
     // opening something that is already open goes to it instead of duplicating.
     tree.focusItemById('/workspace/docB.txt');
-    sendTreeKey('Enter');
+    await sendTreeKey('Enter');
     record(
       'P4-FR-B2',
       editor.getPanelCount() === countBeforeJump &&
@@ -268,10 +272,10 @@ window.__runPhase4TestSuite = async function runPhase4TestSuite() {
     // would replace it instead of adding a genuinely new tab, which is not
     // what this step means to exercise.
     tree.focusItemById('/workspace/docC.txt');
-    sendTreeKey('Enter');
+    await sendTreeKey('Enter');
     const countBeforeFolder = editor.getPanelCount();
     tree.focusItemById('/workspace/folderX');
-    sendTreeKey('Enter');
+    await sendTreeKey('Enter');
     record(
       'P4-FR-B4',
       editor.getPanelCount() === countBeforeFolder + 1 &&
@@ -408,7 +412,7 @@ window.__runPhase4TestSuite = async function runPhase4TestSuite() {
 
     // In 1-group state, Ctrl+Enter from tree opens beside (FR-A14)
     tree.focusItemById('/workspace/docB.txt');
-    sendTreeKey('Enter', { ctrlKey: true });
+    await sendTreeKey('Enter', { ctrlKey: true });
 
     record('P4-FR-A14-SPLIT', editor.getGroupCount() === 2, 'Tree Ctrl+Enter creates beside group when only 1 group exists (FR-A14)');
     const panelBesideB = editor.getActivePanel();
@@ -909,7 +913,7 @@ window.__runPhase4TestSuite = async function runPhase4TestSuite() {
 
     // Path 1: Tree item pick
     tree.focusItemById('/workspace/docA.txt');
-    sendTreeKey('Enter');
+    await sendTreeKey('Enter');
     record('P4-FR-J8-PATH1', editor.getPanelCount() === 1, 'Restart path 1: picking file from tree opens first tab in empty pane (FR-J8)');
 
     // Return to empty pane

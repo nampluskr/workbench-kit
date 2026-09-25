@@ -75,8 +75,8 @@
 
 | 구현 | 검토 |
 | --- | --- |
-| Claude Code | Codex `gpt-5.6-sol` |
-| Codex | Claude `opus-5` |
+| Claude Code | Codex `gpt-6-sol` |
+| Codex | Claude `opus-5.5` |
 
 토큰 한도로 구현자가 Phase 중간에 바뀌면 **마지막 실질 구현자**를 기준으로 다시 정한다.
 
@@ -101,6 +101,8 @@
 
 하나의 검증 대상(Phase 1개 또는 문서 1개)에 대한 검토 CLI 실행은 **실패·오류·프롬프트
 재작성·보완 후 재검증을 모두 포함해 최대 3회**다. 보완 사이클을 따로 세지 않는다.
+각 실행은 **최대 30분, 최대 3턴**으로 제한한다. 시간 초과·턴 초과로 중단된 실행도
+3회 한도에 포함한다. 실행별 소요 시간과 턴 수를 검토 기록에 남긴다.
 
 3회를 소진하면 추가 실행 대신 **마지막 유효 검토 결과, 반영한 보완, 미해결 지적과 남은
 위험**을 기록하고 사용자에게 보고한다. 그 시점에 미해결 Critical이 남아 있으면 **다음
@@ -125,16 +127,19 @@ Phase로 진행하지 않고 사용자 판단을 요청한다.**
 ### Codex 검토 (Claude Code 구현 대상)
 
 ```
-codex.cmd exec --model gpt-5.6-sol --sandbox read-only --cd "<REPO>" "<PROMPT>"
+codex.cmd exec --model gpt-6-sol --sandbox read-only --cd "<REPO>" "<PROMPT>"
 ```
 
 ### Claude 검토 (Codex 구현 대상)
 
 ```
-claude -p "<PROMPT>" --model opus --safe-mode --allowedTools "Read,Glob,Grep" --disallowedTools "Edit,Write,Bash" --permission-mode dontAsk --max-turns 5 --output-format json --no-session-persistence
+claude -p "<PROMPT>" --model claude-opus-5-5 --safe-mode --allowedTools "Read,Glob,Grep" --disallowedTools "Edit,Write,Bash" --permission-mode dontAsk --max-turns 3 --output-format json --no-session-persistence
 ```
 
-- 검토 CLI 실행 시간 제한은 기본 10분. 필요하면 `--max-budget-usd`로 호출별 비용 상한.
+- 호출자가 각 CLI 실행에 30분 시간 제한을 적용하고, 초과하면 프로세스를 종료한다.
+  Claude는 `--max-turns 3`을 사용한다. Codex `exec`에는 턴 수 제한 옵션이 없으므로
+  단일 프롬프트 실행(1턴)만 사용하고 `resume` 등 후속 턴을 이어가지 않는다.
+  필요하면 `--max-budget-usd`로 Claude 호출별 비용 상한을 둔다.
 - 문서 검증일 때만 검토자가 상위 문서·`AGENTS.md`를 읽도록 읽기 전용 셸(`cat`,
   `sed -n`)을 허용한다. 코드 검증에서는 셸을 주지 않는다.
 - **모델 이름은 이 문서 작성 시점의 것이다.** 벤더의 최상위 모델이 바뀌면 여기를
@@ -170,10 +175,10 @@ state that survives across calls. Assume the refactoring claims no behavior chan
 # A{n} — <프로젝트> Phase <n> 적대적 검증
 
 - 구현자: Claude Code | Codex
-- 검토 모델: gpt-5.6-sol | opus-5
+- 검토 모델: gpt-6-sol | opus-5.5
 - 대상 파일: ...
 - 관련 PLAN 조항: ...
-- 실행 회차: 1/3, 2/3, ... (각 회차: 일시, 유효 여부, 사유)
+- 실행 회차: 1/3, 2/3, ... (각 회차: 일시, 소요 시간, 턴 수, 유효 여부, 사유)
 
 ## 지적
 
@@ -212,3 +217,6 @@ state that survives across calls. Assume the refactoring claims no behavior chan
 | 버전 | 변경 |
 | --- | --- |
 | 1.0 | 최초 작성. `backlog`·`speech_transcriber`의 `docs/ADVERSARIAL-REVIEW.md`(2026-08-28)를 방법론 층으로 일반화. 세션 내 리뷰어와의 층 구분(2절), 적용 대상과 리팩토링 규정(3절), 흔한 실패(7절)를 추가 |
+| 1.1 | Codex 검토 모델을 `gpt-5.6-sol`에서 `gpt-6-sol`로 변경. 검토자 표, CLI 명령, 기록 양식을 갱신 |
+| 1.2 | 검토 대상별 실행 3회 한도를 유지하고 실행별 시간 30분·턴 3회 제한과 기록 항목을 추가 |
+| 1.3 | Claude 검토 모델을 `opus-5`에서 `opus-5.5`로 변경. 검토자 표, CLI 명령(`--model claude-opus-5-5`로 고정), 기록 양식을 갱신 |

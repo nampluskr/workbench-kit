@@ -1,9 +1,17 @@
 const { app, BrowserWindow, ipcMain, dialog } = require('electron');
 const path = require('path');
 const fs = require('fs');
+const os = require('os');
 const crypto = require('crypto');
+const { execFile } = require('child_process');
+const pty = require('node-pty');
+const fsOps = require('./fs-ops.cjs');
 
 const isSmokeTest = process.argv.includes('--smoke-test');
+if (isSmokeTest) {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'wb-smoke-el-'));
+  app.setPath('userData', tempDir);
+}
 
 ipcMain.on('window:minimize', (e) => {
   const win = BrowserWindow.fromWebContents(e.sender);
@@ -22,6 +30,21 @@ ipcMain.on('window:close', (e) => {
   if (win) win.close();
 });
 
+// Renderer edge grips use screen-coordinate deltas in device-independent pixels.
+ipcMain.handle('window:get-bounds', (e) => {
+  const win = BrowserWindow.fromWebContents(e.sender);
+  return win && !win.isDestroyed() && !win.isMaximized() && !win.isFullScreen()
+    && win.isResizable() ? win.getBounds() : null;
+});
+
+ipcMain.on('window:set-bounds', (e, x, y, width, height) => {
+  const win = BrowserWindow.fromWebContents(e.sender);
+  if (!win || win.isDestroyed() || win.isMaximized() || win.isFullScreen() || !win.isResizable()) return;
+  if (![x, y, width, height].every(Number.isFinite)) return;
+  win.setBounds({ x: Math.round(x), y: Math.round(y),
+    width: Math.max(300, Math.round(width)), height: Math.max(200, Math.round(height)) });
+});
+
 ipcMain.handle('dialog:open-folder', async (e) => {
   const win = BrowserWindow.fromWebContents(e.sender);
   const result = await dialog.showOpenDialog(win, {
@@ -33,29 +56,179 @@ ipcMain.handle('dialog:open-folder', async (e) => {
   return result.filePaths[0];
 });
 
+ipcMain.handle('dialog:open-file', async (e) => {
+  const win = BrowserWindow.fromWebContents(e.sender);
+  const result = await dialog.showOpenDialog(win, { properties: ['openFile'] });
+  return result.canceled ? null : result.filePaths[0] || null;
+});
+
+ipcMain.handle('fs:read-text-file', async (_e, filePath) => {
+  const bytes = await fs.promises.readFile(filePath);
+  if (bytes.includes(0)) throw new Error('Binary files cannot be opened as text');
+  return new TextDecoder('utf-8', { fatal: true }).decode(bytes);
+});
+
+ipcMain.handle('fs:write-text-file', async (_e, filePath, contents) => {
+  await fs.promises.writeFile(filePath, contents, 'utf8');
+  return true;
+});
+
+ipcMain.handle('fs:create-file', (_e, filePath) => fsOps.createFile(filePath));
+ipcMain.handle('fs:create-folder', (_e, dirPath) => fsOps.createFolder(dirPath));
+ipcMain.handle('fs:rename-path', (_e, oldPath, newPath) => fsOps.renamePath(oldPath, newPath));
+ipcMain.handle('fs:delete-path', (_e, targetPath) => fsOps.deletePath(targetPath));
+ipcMain.handle('fs:probe-text-file', (_e, filePath) => fsOps.probeTextFile(filePath));
+ipcMain.handle('fs:read-legacy-text-file', (_e, filePath) => fsOps.readLegacyTextFile(filePath));
+
+const terminals = new Map();
+let terminalCounter = 0;
+ipcMain.handle('terminal:start', async (e, kind, cwd) => {
+  if (kind !== 'cmd' && kind !== 'powershell') throw new Error('Unsupported shell');
+  if (!(await fs.promises.stat(cwd)).isDirectory()) throw new Error('Terminal working directory is not a folder');
+  const win = BrowserWindow.fromWebContents(e.sender);
+  const id = `terminal-${++terminalCounter}`;
+  const shell = kind === 'cmd' ? 'cmd.exe' : 'powershell.exe';
+  const termProcess = pty.spawn(shell, [], { cwd, cols: 80, rows: 24, env: processEnvForTerminal() });
+  const state = { process: termProcess, output: '', pendingPush: '', pushTimer: null, streaming: false, exited: false };
+  const flushPush = () => {
+    if (state.pushTimer) clearTimeout(state.pushTimer);
+    state.pushTimer = null;
+    const data = state.pendingPush;
+    state.pendingPush = '';
+    if (data && win && !win.isDestroyed()) win.webContents.send('terminal:data', id, data);
+  };
+  termProcess.onData((data) => {
+    if (!state.streaming) {
+      state.output = (state.output + data).slice(-1_000_000);
+    } else {
+      state.pendingPush += data;
+      if (!state.pushTimer) state.pushTimer = setTimeout(flushPush, 16);
+    }
+  });
+  termProcess.onExit(() => {
+    flushPush();
+    state.exited = true;
+    if (win && !win.isDestroyed()) {
+      win.webContents.send('terminal:exit', id);
+    }
+  });
+  terminals.set(id, state);
+  return id;
+});
+
+function processEnvForTerminal() { return { ...process.env }; }
+ipcMain.handle('terminal:read', (_e, id) => {
+  const state = terminals.get(id);
+  if (!state) return { output: '', exited: true };
+  const output = state.output;
+  state.output = '';
+  state.streaming = true;
+  return { output, exited: state.exited };
+});
+ipcMain.handle('terminal:write', (_e, id, data) => { terminals.get(id)?.process.write(data); });
+ipcMain.handle('terminal:resize', (_e, id, cols, rows) => {
+  terminals.get(id)?.process.resize(Math.max(2, cols), Math.max(2, rows));
+});
+ipcMain.handle('terminal:close', (_e, id) => {
+  const state = terminals.get(id);
+  if (state?.pushTimer) clearTimeout(state.pushTimer);
+  try { state?.process.kill(); } catch { /* already exited */ }
+  terminals.delete(id);
+});
+
 ipcMain.handle('fs:read-dir', async (_e, dirPath) => {
   try {
     const entries = await fs.promises.readdir(dirPath, { withFileTypes: true });
     return await Promise.all(
       entries.map(async (entry) => {
         let isContainer = entry.isDirectory();
-        if (!isContainer && entry.isSymbolicLink()) {
-          try {
-            const stat = await fs.promises.stat(path.join(dirPath, entry.name));
-            isContainer = stat.isDirectory();
-          } catch {
-            isContainer = false;
-          }
+        const fullPath = path.join(dirPath, entry.name);
+        // Always stat now (not just for symlinks) — size/mtime (v0.3
+        // WK-118) need it regardless of entry kind, and it also still
+        // resolves a symlink's real isContainer the same way as before.
+        let size = null;
+        let mtimeMs = 0;
+        try {
+          const stat = await fs.promises.stat(fullPath);
+          if (entry.isSymbolicLink()) isContainer = stat.isDirectory();
+          if (!isContainer) size = stat.size;
+          mtimeMs = stat.mtimeMs;
+        } catch {
+          // Broken symlink or a permission error reading this one entry —
+          // keep the Dirent's own isContainer guess, leave size/mtimeMs at
+          // their unknown defaults rather than failing the whole directory.
+          if (entry.isSymbolicLink()) isContainer = false;
         }
         return {
           name: entry.name,
-          path: path.join(dirPath, entry.name),
+          path: fullPath,
           isContainer,
+          size,
+          mtimeMs,
         };
       })
     );
   } catch (err) {
     throw new Error(`Failed to read directory ${dirPath}: ${err.message}`);
+  }
+});
+
+/**
+ * Every accessible drive root, with its volume label (v0.3 WK-111 /
+ * WK-111 follow-up, user request, 2026-09-17: show it Explorer-style, e.g.
+ * "System (C:)") in one PowerShell call —
+ * `[System.IO.DriveInfo]::GetDrives()`, .NET's own API, not the `Get-
+ * Volume` cmdlet: `Get-Volume` reads the newer Storage Management API,
+ * which silently OMITS a virtual/cloud-mounted drive letter (e.g. Google
+ * Drive's own drive) entirely — found empirically (2026-09-17) as a real
+ * dual-host inconsistency: pywebview's `GetVolumeInformationW` (the
+ * classic win32 API `DriveInfo` itself calls under the hood) correctly
+ * reported a Google Drive mount's label while `Get-Volume` did not list it
+ * at all. `DriveInfo`'s `IsReady` filter also replaces the previous
+ * per-letter `fs.promises.access()` loop — both ask the same underlying
+ * question ("is this drive actually reachable right now"), so one
+ * PowerShell call now does the whole job. Not the `vol` command's free-
+ * text output either, since that text is in the OS's OWN display language
+ * and would silently fail to parse on a Korean/other non-English system —
+ * `DriveInfo`'s property NAMES stay `Name`/`VolumeLabel` regardless.
+ */
+ipcMain.handle('fs:list-drives', async () => {
+  if (process.platform !== 'win32') return Array.from([]);
+  return new Promise((resolve) => {
+    execFile(
+      'powershell.exe',
+      [
+        '-NoProfile',
+        '-NonInteractive',
+        '-Command',
+        '[System.IO.DriveInfo]::GetDrives() | Where-Object { $_.IsReady } | Select-Object Name,VolumeLabel | ConvertTo-Json -Compress',
+      ],
+      { timeout: 5000, windowsHide: true },
+      (err, stdout) => {
+        if (err || !stdout) return resolve([]);
+        try {
+          const parsed = JSON.parse(stdout);
+          const rows = Array.isArray(parsed) ? parsed : [parsed];
+          resolve(
+            rows
+              .filter((row) => row && row.Name)
+              .map((row) => ({ path: row.Name, label: row.VolumeLabel || '' }))
+          );
+        } catch {
+          resolve([]);
+        }
+      }
+    );
+  });
+});
+
+ipcMain.handle('fs:drive-total-bytes', async (_e, targetPath) => {
+  try {
+    const driveRoot = path.parse(targetPath).root;
+    const stat = await fs.promises.statfs(driveRoot);
+    return stat.blocks * stat.bsize;
+  } catch {
+    return 0;
   }
 });
 
@@ -65,6 +238,7 @@ JSON.stringify({
   title: document.title,
   statusbarText: document.getElementById('statusbar-message') ? document.getElementById('statusbar-message').textContent.trim() : (document.getElementById('statusbar') ? document.getElementById('statusbar').textContent.trim() : null),
   domAssets: Array.from(document.querySelectorAll('script[src], link[href]')).map(function(el) { return el.getAttribute('src') || el.getAttribute('href'); }),
+  bundledFontFaces: Array.from(document.fonts).filter(function(face) { return face.family === 'Workbench D2Coding'; }).map(function(face) { return { weight: face.weight, status: face.status }; }),
   styleSheetsCount: document.styleSheets.length,
   styleSheetRulesCount: document.styleSheets.length > 0 && document.styleSheets[0].cssRules ? document.styleSheets[0].cssRules.length : 0,
   computedBg: window.getComputedStyle ? window.getComputedStyle(document.body).backgroundColor : null
@@ -76,20 +250,20 @@ function hashFile(filePath) {
   return crypto.createHash('sha256').update(bytes).digest('hex');
 }
 
-function computeDigestMap(distDir, domAssets) {
+function computeDigestMap(distDir) {
   const map = {};
-  const indexPath = path.join(distDir, 'index.html');
-  map['index.html'] = hashFile(indexPath);
-
-  for (const rawAsset of domAssets) {
-    if (!rawAsset) continue;
-    const cleanRel = rawAsset.replace(/^\.\//, '').replace(/^\//, '');
-    const assetPath = path.join(distDir, cleanRel);
-    if (fs.existsSync(assetPath)) {
-      const relKey = path.relative(distDir, assetPath).replace(/\\/g, '/');
-      map[relKey] = hashFile(assetPath);
+  function visit(dir) {
+    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+      const assetPath = path.join(dir, entry.name);
+      if (entry.isDirectory()) {
+        visit(assetPath);
+      } else if (entry.isFile()) {
+        const relKey = path.relative(distDir, assetPath).replace(/\\/g, '/');
+        map[relKey] = hashFile(assetPath);
+      }
     }
   }
+  visit(distDir);
   return map;
 }
 
@@ -117,7 +291,7 @@ function createWindow() {
         const currentUrl = win.webContents.getURL();
         const inspectionJson = await win.webContents.executeJavaScript(INSPECTION_EXPRESSION);
         const inspection = JSON.parse(inspectionJson);
-        const digestMap = computeDigestMap(distDir, inspection.domAssets || []);
+        const digestMap = computeDigestMap(distDir);
 
         process.stdout.write(`[Electron] Local Path: ${realDistIndexPath}\n`);
         process.stdout.write(`[Electron] Loaded URL: ${currentUrl}\n`);
@@ -158,7 +332,7 @@ function createWindow() {
     if (allowClose) return;
     event.preventDefault();
     win.webContents
-      .executeJavaScript('window.__workbenchApp ? window.__workbenchApp.editor.confirmQuit() : true')
+      .executeJavaScript('window.__workbenchApp ? window.__workbenchApp.confirmQuit() : true')
       .then((ok) => {
         if (ok) {
           allowClose = true;
@@ -187,6 +361,14 @@ app.whenReady().then(() => {
       createWindow();
     }
   });
+});
+
+app.on('before-quit', () => {
+  for (const state of terminals.values()) {
+    if (state.pushTimer) clearTimeout(state.pushTimer);
+    try { state.process.kill(); } catch { /* ignore */ }
+  }
+  terminals.clear();
 });
 
 app.on('window-all-closed', () => {

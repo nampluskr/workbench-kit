@@ -9,8 +9,32 @@ import {
   GroupPanelPartInitParameters,
   Direction,
   DockviewPanelRenderer,
+  SerializedDockview,
 } from 'dockview-core';
 import { ConfirmDialogController } from './dialog';
+import type { IconDescriptor } from './icontheme';
+import { renderIconMarkup } from './tree';
+
+/**
+ * How a tab dresses itself beyond its title (user request, 2026-09-23). The
+ * shell only renders what it is handed — it never decides what a tab shows,
+ * so it stays kind-agnostic (D-4): whoever registers a decorator (the app's
+ * presets) maps a panel's params to this.
+ */
+export interface TabDecoration {
+  /** Drawn before the title, the same way the Explorer tree draws a row's icon. */
+  icon?: IconDescriptor | null;
+  /**
+   * A codicon name (`lock`, say) shown in the close button's place while the
+   * pointer is not over it — hovering still reveals the ×, so the tab stays
+   * closable. A dirty tab's ● takes the spot instead (FR-L1 comes first).
+   */
+  restIcon?: string | null;
+  /** Hover text for the whole tab. */
+  tooltip?: string | null;
+}
+
+export type TabDecorator = (params: Record<string, unknown>, title: string) => TabDecoration | null;
 
 /**
  * Returns whether the save succeeded. On a falsy result the shell keeps the
@@ -38,6 +62,8 @@ export interface EditorOpenOptions {
    * user confirms it.
    */
   mode?: EditorOpenMode;
+  /** Always creates another tab, even when this target and mode are open. */
+  forceNew?: boolean;
   /**
    * Opaque metadata the caller attaches to a panel (FR-I1, D-4, NFR-1).
    * The shell stores and forwards this bag without inspecting its keys or
@@ -233,34 +259,24 @@ export class EditorHeaderActionsRenderer implements IHeaderActionsRenderer {
 
   private render(): void {
     this.element.innerHTML = `
+      <button class="editor-action-btn tab-action-new" title="New Tab (Ctrl+N)" aria-label="New Tab">
+        <i class="codicon codicon-diff-added"></i>
+      </button>
       <button class="editor-action-btn tab-action-split-right" title="Split Right (Ctrl+\\)" aria-label="Split Right">
         <i class="codicon codicon-split-horizontal"></i>
       </button>
-      <button class="editor-action-btn tab-action-split-down" title="Split Down" aria-label="Split Down">
+      <button class="editor-action-btn tab-action-split-down" title="Split Down (Ctrl+K Ctrl+\\)" aria-label="Split Down">
         <i class="codicon codicon-split-vertical"></i>
       </button>
-      <button class="editor-action-btn tab-action-new" title="New Tab" aria-label="New Tab">
-        <i class="codicon codicon-plus"></i>
+      <button class="editor-action-btn tab-action-close-all" title="Close All Tabs in Group (Ctrl+K W)" aria-label="Close All Tabs in Group">
+        <i class="codicon codicon-close-all"></i>
       </button>
     `;
 
+    const newBtn = this.element.querySelector('.tab-action-new') as HTMLButtonElement | null;
     const splitRightBtn = this.element.querySelector('.tab-action-split-right') as HTMLButtonElement | null;
     const splitDownBtn = this.element.querySelector('.tab-action-split-down') as HTMLButtonElement | null;
-    const newBtn = this.element.querySelector('.tab-action-new') as HTMLButtonElement | null;
-
-    splitRightBtn?.addEventListener('click', (e) => {
-      e.stopPropagation();
-      if (this.group) {
-        this.editorController.splitGroupForUser(this.group, 'right');
-      }
-    });
-
-    splitDownBtn?.addEventListener('click', (e) => {
-      e.stopPropagation();
-      if (this.group) {
-        this.editorController.splitGroupForUser(this.group, 'below');
-      }
-    });
+    const closeAllBtn = this.element.querySelector('.tab-action-close-all') as HTMLButtonElement | null;
 
     newBtn?.addEventListener('click', (e) => {
       e.stopPropagation();
@@ -280,6 +296,27 @@ export class EditorHeaderActionsRenderer implements IHeaderActionsRenderer {
       }
       this.editorController.addNewTab(group);
     });
+
+    splitRightBtn?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (this.group) {
+        this.editorController.splitGroupForUser(this.group, 'right');
+      }
+    });
+
+    splitDownBtn?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (this.group) {
+        this.editorController.splitGroupForUser(this.group, 'below');
+      }
+    });
+
+    closeAllBtn?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (this.group) {
+        void this.editorController.closeAllTabsInGroup(this.group);
+      }
+    });
   }
 
   public dispose(): void {
@@ -297,7 +334,9 @@ export class EditorController {
   private activePanelChangeListeners: ((panel: IDockviewPanel | undefined) => void)[] = [];
   private layoutChangeListeners: (() => void)[] = [];
   private customComponentFactory: EditorComponentFactory | null = null;
+  private tabDecorator: TabDecorator | null = null;
   private saveHandler: SaveHandler | null = null;
+  private panelClosedHandler: ((panel: IDockviewPanel) => void) | null = null;
   private dialogController: ConfirmDialogController | null = null;
   public readonly panelLifecycleStats = new Map<string, {
     creationCount: number;
@@ -427,6 +466,31 @@ export class EditorController {
       this.pinPanel(event.panel);
     });
 
+    // Every panel gets the dirty-confirmation close wiring, regardless of
+    // how it was created (v0.3 D-8, WK-107/108: Folder Workspace mode
+    // restores a saved layout via `getApi().fromJSON()`, which builds panels
+    // through dockview's own internal pipeline — bypassing `openItem()`/
+    // `addNewTab()`, and with them the `wirePanelClose()` call each of those
+    // makes directly). Calling `wirePanelClose` a second time for a panel
+    // openItem/addNewTab already wired is harmless — it just reassigns the
+    // same closure.
+    this.api.onDidAddPanel((panel) => {
+      this.wirePanelClose(panel);
+      // A mode switch (a file tab going Viewer -> Editor, say) or a preview
+      // tab taking a new target arrives as a params change — redraw the
+      // tab's icon and close-button marker from the new params right away.
+      // dockview's own `onDidParametersChange` only fires for
+      // `api.updateParameters()`, not for `panel.update()`, which is what
+      // every caller here uses — so the redraw rides on `update` itself.
+      const update = panel.update.bind(panel);
+      panel.update = (event) => {
+        update(event);
+        this.applyTabDecoration(panel);
+      };
+      this.applyTabDecoration(panel);
+      queueMicrotask(() => this.applyTabDecoration(panel));
+    });
+
     this.api.onDidLayoutChange(() => {
       // dockview rebuilds tab elements when panels move between groups or the
       // layout is restored, which drops the class carrying preview state. Put
@@ -434,6 +498,7 @@ export class EditorController {
       // (user request, 2026-09-15) rides along for the same reason.
       this.refreshPreviewClasses();
       this.refreshDirtyClasses();
+      this.refreshTabDecorations();
       // Safety net only. A drag between groups is resolved above by confirming
       // the moved tab, so this should find nothing. It runs after the current
       // event turn so that the move handler always gets there first — run
@@ -443,6 +508,7 @@ export class EditorController {
         this.reconcilePreviewUniqueness();
         this.refreshPreviewClasses();
         this.refreshDirtyClasses();
+        this.refreshTabDecorations();
       });
       this.layoutChangeListeners.forEach((cb) => cb());
     });
@@ -455,6 +521,11 @@ export class EditorController {
   /** Registers what "save" does (FR-P7, D-28). The shell never saves itself. */
   public setSaveHandler(fn: SaveHandler | null): void {
     this.saveHandler = fn;
+  }
+
+  /** Runs only for an explicit tab close, not layout serialization/restoration. */
+  public setPanelClosedHandler(fn: ((panel: IDockviewPanel) => void) | null): void {
+    this.panelClosedHandler = fn;
   }
 
   /** Wires the confirm-dialog device the shell uses before a dirty tab or the app closes (D-28). */
@@ -585,6 +656,7 @@ export class EditorController {
   private wirePanelClose(panel: IDockviewPanel): void {
     const rawClose = () => {
       const isLastPanelInWorkbench = this.api.totalPanels === 1 && this.api.groups.length === 1;
+      this.panelClosedHandler?.(panel);
       (this.api as any).component.removePanel(panel, { removeEmptyGroup: !isLastPanelInWorkbench });
       if (this.api.groups.length === 0) {
         this.api.addGroup();
@@ -618,6 +690,7 @@ export class EditorController {
     if (!this.dialogController) return true;
     for (const panel of panels) {
       if (!panel.params?.isDirty) continue;
+      panel.api.setActive();
       const choice = await this.dialogController.show(
         `Do you want to save the changes you made to ${panel.title || panel.id}?`
       );
@@ -630,8 +703,14 @@ export class EditorController {
     return true;
   }
 
-  /** Closes a panel through its raw path — no dirty prompt (see confirmCloseAll). */
-  private forceClosePanel(panel: IDockviewPanel): void {
+  /**
+   * Closes a panel through its raw path — no dirty prompt (see
+   * confirmCloseAll). Public so an app-layer caller that has already
+   * deleted the underlying resource (Explorer delete, v0.3, user request
+   * 2026-09-25) can close its now-dangling tab without a "save first?"
+   * prompt — same reasoning as confirmCloseAll's own bulk force-close.
+   */
+  public forceClosePanel(panel: IDockviewPanel): void {
     (panel as unknown as { __rawClose?: () => void }).__rawClose?.();
   }
 
@@ -841,7 +920,13 @@ export class EditorController {
     // whole workbench (narrows v0.1 FR-B2/D-5). The same target may sit open,
     // confirmed, in another group at the same time — this deliberately does
     // not find it there.
-    const existingPanel = group.panels.find((p) => p.params?.targetId === targetId);
+    const activePanel = group.activePanel;
+    const isActiveBlank = Boolean(activePanel && activePanel.params?.targetId == null && !activePanel.params?.isDirty);
+    const existingPanel = isActiveBlank || options?.forceNew ? undefined : group.panels.find((p) =>
+      p.params?.targetId === targetId &&
+      (meta.kind === undefined || p.params?.kind === meta.kind) &&
+      (meta.mode === undefined || p.params?.mode === meta.mode)
+    );
     if (existingPanel) {
       if (mode === 'pinned') this.pinPanel(existingPanel);
       existingPanel.api.setActive();
@@ -858,7 +943,9 @@ export class EditorController {
     const isBlankSpot = Boolean(
       previewSpot && previewSpot.params?.targetId == null && !previewSpot.params?.isDirty
     );
-    const reusable = mode === 'preview' || isBlankSpot ? previewSpot : undefined;
+    const compatiblePreview = previewSpot &&
+      (meta.mode === undefined || previewSpot.params?.mode === undefined || previewSpot.params?.mode === meta.mode);
+    const reusable = options?.forceNew ? undefined : isActiveBlank ? activePanel : (mode === 'preview' && compatiblePreview) || isBlankSpot ? previewSpot : undefined;
     if (reusable) {
       reusable.setTitle(displayTitle);
       reusable.api.setRenderer(requestedRenderer);
@@ -1193,27 +1280,23 @@ export class EditorController {
   }
 
   /**
-   * Sets tab dirty indicator (●) (FR-L1).
+   * Sets the tab dirty indicator (FR-L1). VS Code-style (user request,
+   * 2026-09-17): no icon or character is ever prepended to the title — the
+   * indicator instead replaces the tab's own close (×) button with a filled
+   * dot at rest; hovering that button still reveals the real × so it stays
+   * clickable (see .workbench-dirty-tab's CSS in style.css).
    */
   public setTabDirty(panelId: string, dirty: boolean): void {
     const panel = this.api.getPanel(panelId);
     if (!panel) return;
 
-    const baseTitle = (panel.title || '').replace(/^●\s*/, '');
-    const newTitle = dirty ? `● ${baseTitle}` : baseTitle;
-    panel.setTitle(newTitle);
     panel.update({ params: { isDirty: dirty } });
     this.applyDirtyClass(panel);
   }
 
   /**
-   * Mirrors a panel's dirty state onto its rendered tab (user request,
-   * 2026-09-15): the ● is the title's own first character (dockview's
-   * default tab only takes plain text, so there is no separate DOM node for
-   * it), and a preview tab's title is italic (`workbench-preview-tab`
-   * above). Without this class, `::first-letter` in style.css would have no
-   * dirty-only hook to keep the ● upright while the rest of the title stays
-   * italic.
+   * Mirrors a panel's dirty state onto its rendered tab as a CSS class —
+   * style.css does the rest (swapping the close button for a dot at rest).
    */
   private applyDirtyClass(panel: IDockviewPanel): void {
     const el = document.querySelector(`.dv-tab[data-tab-panel-id="${panel.id}"]`);
@@ -1225,6 +1308,80 @@ export class EditorController {
   private refreshDirtyClasses(): void {
     for (const panel of this.api.panels) {
       this.applyDirtyClass(panel);
+    }
+  }
+
+  /** Registers what each tab shows beside its title (see `TabDecoration`). */
+  public setTabDecorator(fn: TabDecorator | null): void {
+    this.tabDecorator = fn;
+    this.refreshTabDecorations();
+  }
+
+  /** Redraws every tab's decoration — after dockview rebuilds tabs, or when the icon or color theme changes. */
+  public refreshTabDecorations(): void {
+    for (const panel of this.api.panels) {
+      this.applyTabDecoration(panel);
+    }
+  }
+
+  /**
+   * Draws a panel's `TabDecoration` into dockview's own default tab: an icon
+   * slot before the title, a marker inside the close button, and the tab's
+   * hover text. Same approach as the preview/dirty classes above — dockview
+   * owns and rebuilds the tab element, so this patches it in place and is
+   * re-run whenever it may have been rebuilt, rather than replacing the tab
+   * component (which would mean re-implementing close, ● and preview).
+   */
+  private applyTabDecoration(panel: IDockviewPanel): void {
+    const el = document.querySelector(`.dv-tab[data-tab-panel-id="${panel.id}"]`) as HTMLElement | null;
+    if (!el) return;
+    const decoration = this.tabDecorator?.((panel.params || {}) as Record<string, unknown>, panel.title || '') ?? null;
+
+    const tab = el.querySelector('.dv-default-tab');
+    if (tab) {
+      let slot = tab.querySelector(':scope > .workbench-tab-icon') as HTMLElement | null;
+      const markup = decoration?.icon ? renderIconMarkup(decoration.icon) : '';
+      if (markup) {
+        if (!slot) {
+          slot = document.createElement('span');
+          slot.className = 'workbench-tab-icon';
+          tab.insertBefore(slot, tab.firstChild);
+        }
+        if (slot.dataset.markup !== markup) {
+          slot.innerHTML = markup;
+          slot.dataset.markup = markup;
+          // Icon colour rides in on `data-fg` and is painted through the
+          // CSSOM, the same CSP-safe path the Explorer tree uses (D-20).
+          slot.querySelectorAll<HTMLElement>('[data-fg]').forEach((icon) => {
+            icon.style.color = icon.getAttribute('data-fg') || '';
+          });
+        }
+      } else {
+        slot?.remove();
+      }
+    }
+
+    const action = el.querySelector('.dv-default-tab-action');
+    let rest = action?.querySelector(':scope > .workbench-tab-rest-icon') as HTMLElement | null;
+    const restIcon = decoration?.restIcon || '';
+    if (restIcon && action) {
+      if (!rest) {
+        rest = document.createElement('i');
+        action.appendChild(rest);
+      }
+      rest.className = `codicon codicon-${restIcon} workbench-tab-rest-icon`;
+    } else {
+      rest?.remove();
+    }
+    el.classList.toggle('workbench-rest-icon-tab', Boolean(restIcon && action));
+
+    // Only ever clears a title this method itself set, never dockview's own.
+    if (decoration?.tooltip) {
+      el.title = decoration.tooltip;
+      el.dataset.decoratedTitle = 'true';
+    } else if (el.dataset.decoratedTitle) {
+      el.removeAttribute('title');
+      delete el.dataset.decoratedTitle;
     }
   }
 
@@ -1247,4 +1404,22 @@ export class EditorController {
       this.layoutChangeListeners = this.layoutChangeListeners.filter((cb) => cb !== callback);
     };
   }
+}
+
+/**
+ * Whether a *saved* (not currently live) dockview layout has any dirty
+ * panel — purely structural, reading only `params.isDirty` out of the
+ * serialized JSON (same field `hasDirtyPanels()` reads off a live panel),
+ * so this stays kind-agnostic like the rest of this file (D-4, D-9). A
+ * caller that keeps multiple saved layouts around for tabs that are not
+ * currently displayed (v0.3 D-7/D-8's Folder Workspace mode, in
+ * `src/main.ts`) uses this to know whether quitting would silently discard
+ * unsaved content nothing else is watching (`EditorController.hasDirtyPanels()`/
+ * `confirmQuit()` only see the one layout that is currently live).
+ */
+export function snapshotHasDirtyPanels(snapshot: SerializedDockview | null | undefined): boolean {
+  if (!snapshot) return false;
+  const panels = (snapshot as { panels?: Record<string, { params?: { isDirty?: boolean } }> }).panels;
+  if (!panels) return false;
+  return Object.values(panels).some((p) => Boolean(p?.params?.isDirty));
 }

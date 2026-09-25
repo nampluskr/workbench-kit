@@ -157,11 +157,12 @@ window.__runV02Phase4Suite = async function runV02Phase4Suite() {
       const menuText = dropdown() ? dropdown().textContent : '';
       record(
         'V2P4-FR-M11',
-        arrows.length === 3 &&
+        // Four groups since D-13 added Edit.
+        arrows.length === 4 &&
           arrows.every((el) => el.classList.contains('codicon-chevron-right') && visible(el)) &&
           glyphs.every((g) => g && g !== 'none' && g !== 'normal' && g === glyphs[0]) &&
           !/[▶>›]/.test(menuText),
-        'File, View and Help each show the same visible chevron glyph, and the menu contains 0 "▶" and 0 ">" (FR-M11) glyphs=' + JSON.stringify(glyphs)
+        'File, Edit, View and Help each show the same visible chevron glyph, and the menu contains 0 "▶" and 0 ">" (FR-M11) glyphs=' + JSON.stringify(glyphs)
       );
     }
 
@@ -695,7 +696,7 @@ window.__runV02Phase4Suite = async function runV02Phase4Suite() {
       const actionLabels = Array.from(document.querySelectorAll('#activity-bar .activity-bar-item'))
         .filter(visible)
         .map((el) => (el.dataset.itemId || '') + ' ' + (el.getAttribute('title') || '') + ' ' + (el.getAttribute('aria-label') || ''));
-      const headerLabels = Array.from(document.querySelectorAll('.editor-action-btn'))
+      const headerLabels = Array.from(document.querySelectorAll('.editor-action-btn:not(.tab-action-close-all)'))
         .filter(visible)
         .map((el) => (el.getAttribute('title') || '') + ' ' + (el.getAttribute('aria-label') || ''));
 

@@ -239,10 +239,13 @@ window.__runV02Phase3Suite = async function runV02Phase3Suite() {
       const right = byId('statusbar-right');
       const text = right ? right.textContent : '';
       const shellInfo = /workbench-kit|v\d+\.\d+|electron|pywebview/i.test(text);
+      // The app's "Presets: file, folder" item was removed (user request,
+      // 2026-09-23), so this no longer requires it — only that the shell
+      // itself puts nothing there.
       record(
         'V2P3-FR-C10',
-        right && !shellInfo && /Presets/.test(text) && byId('statusbar-app-info') === null,
-        'The status bar right side carries 0 program / version / host entries from the shell and keeps the preset information (FR-C10) text="' + text.trim() + '"'
+        right && !shellInfo && byId('statusbar-app-info') === null,
+        'The status bar right side carries 0 program / version / host entries from the shell (FR-C10) text="' + text.trim() + '"'
       );
     }
 

@@ -14,12 +14,21 @@ export interface WorkbenchLayoutElements {
   activityBar: HTMLElement;
   activityBarTop: HTMLElement;
   activityBarBottom: HTMLElement;
+  /** Folder Tabs rail, between the Activity Bar and Explorer (v0.3 D-1). */
+  folderTabsRail: HTMLElement;
+  folderTabsAddBtn: HTMLButtonElement;
+  /** "Add All Drives" toggle (v0.3 WK-111) — see FolderTabsController.addDriveTabs/removeDriveTabs. */
+  folderTabsDrivesBtn: HTMLButtonElement;
+  folderTabsList: HTMLElement;
+  /** Drag handle between the Folder Tabs rail and the Explorer (user request, 2026-09-17). */
+  folderTabsResizeHandle: HTMLElement;
   sidebar: HTMLElement;
   sidebarHeader: HTMLElement;
   sidebarTitle: HTMLElement;
   sidebarActions: HTMLElement;
   sidebarAppActions: HTMLElement;
   /** Shell view-titlebar actions, left to right (v0.2 FR-X2). */
+  sidebarSearchBtn: HTMLButtonElement;
   sidebarNewFileBtn: HTMLButtonElement;
   sidebarNewFolderBtn: HTMLButtonElement;
   sidebarRefreshBtn: HTMLButtonElement;
@@ -32,6 +41,7 @@ export interface WorkbenchLayoutElements {
   statusbar: HTMLElement;
   statusbarPath: HTMLElement;
   statusbarMessage: HTMLElement;
+  statusbarModeBtn: HTMLButtonElement;
   statusbarAppItems: HTMLElement;
 }
 
@@ -59,11 +69,26 @@ export function createWorkbenchLayout(container: HTMLElement): WorkbenchLayoutEl
           <div id="activity-bar-bottom" class="activity-bar-group bottom"></div>
         </nav>
 
+        <aside id="foldertabs-rail" class="workbench-foldertabs-rail" aria-label="Folder Tabs">
+          <div id="foldertabs-header" class="foldertabs-header">
+            <span id="foldertabs-title" class="foldertabs-title">ROOTS</span>
+            <div class="foldertabs-header-actions">
+              <button id="foldertabs-add-btn" class="foldertabs-action-btn" title="Add Folder" aria-label="Add Folder"><i class="codicon codicon-new-folder"></i></button>
+              <!-- Icon set by main.ts's refreshDrivesButtonState() (v0.3 WK-111) — it is per-icon-theme, so there is no single correct default to bake in here. -->
+              <button id="foldertabs-drives-btn" class="foldertabs-action-btn" title="Add All Drives" aria-label="Add All Drives" aria-pressed="false"></button>
+            </div>
+          </div>
+          <div id="foldertabs-list" class="foldertabs-list" role="tablist" aria-label="Folder Tabs List"></div>
+        </aside>
+
+        <div id="foldertabs-resize-handle" class="foldertabs-resize-handle" role="separator" aria-orientation="vertical" aria-label="Resize Folder Tabs"></div>
+
         <aside id="sidebar" class="workbench-sidebar" aria-label="Explorer">
           <div id="sidebar-header" class="sidebar-header">
-            <span id="sidebar-title" class="sidebar-title">EXPLORER</span>
+            <span id="sidebar-title" class="sidebar-title">TREE</span>
             <div id="sidebar-actions" class="sidebar-actions">
               <div id="sidebar-app-actions" class="sidebar-app-actions"></div>
+              <button id="sidebar-action-search" class="sidebar-action-btn" title="Find in Explorer" aria-label="Find in Explorer"><i class="codicon codicon-search"></i></button>
               <button id="sidebar-action-new-file" class="sidebar-action-btn" title="New File..." aria-label="New File..."><i class="codicon codicon-new-file"></i></button>
               <button id="sidebar-action-new-folder" class="sidebar-action-btn" title="New Folder..." aria-label="New Folder..."><i class="codicon codicon-new-folder"></i></button>
               <button id="sidebar-action-refresh" class="sidebar-action-btn" title="Refresh Explorer" aria-label="Refresh Explorer"><i class="codicon codicon-refresh"></i></button>
@@ -88,6 +113,7 @@ export function createWorkbenchLayout(container: HTMLElement): WorkbenchLayoutEl
           <span id="statusbar-message" class="statusbar-message">Ready</span>
         </div>
         <div id="statusbar-right" class="statusbar-item statusbar-right">
+          <button id="statusbar-mode-btn" class="statusbar-mode-btn" type="button" style="display: none;"></button>
           <div id="statusbar-app-items" class="statusbar-app-items"></div>
         </div>
       </footer>
@@ -117,11 +143,17 @@ export function createWorkbenchLayout(container: HTMLElement): WorkbenchLayoutEl
     activityBar: container.querySelector('#activity-bar') as HTMLElement,
     activityBarTop: container.querySelector('#activity-bar-top') as HTMLElement,
     activityBarBottom: container.querySelector('#activity-bar-bottom') as HTMLElement,
+    folderTabsRail: container.querySelector('#foldertabs-rail') as HTMLElement,
+    folderTabsAddBtn: container.querySelector('#foldertabs-add-btn') as HTMLButtonElement,
+    folderTabsDrivesBtn: container.querySelector('#foldertabs-drives-btn') as HTMLButtonElement,
+    folderTabsList: container.querySelector('#foldertabs-list') as HTMLElement,
+    folderTabsResizeHandle: container.querySelector('#foldertabs-resize-handle') as HTMLElement,
     sidebar: container.querySelector('#sidebar') as HTMLElement,
     sidebarHeader: container.querySelector('#sidebar-header') as HTMLElement,
     sidebarTitle: container.querySelector('#sidebar-title') as HTMLElement,
     sidebarActions: container.querySelector('#sidebar-actions') as HTMLElement,
     sidebarAppActions: container.querySelector('#sidebar-app-actions') as HTMLElement,
+    sidebarSearchBtn: container.querySelector('#sidebar-action-search') as HTMLButtonElement,
     sidebarNewFileBtn: container.querySelector('#sidebar-action-new-file') as HTMLButtonElement,
     sidebarNewFolderBtn: container.querySelector('#sidebar-action-new-folder') as HTMLButtonElement,
     sidebarRefreshBtn: container.querySelector('#sidebar-action-refresh') as HTMLButtonElement,
@@ -133,6 +165,7 @@ export function createWorkbenchLayout(container: HTMLElement): WorkbenchLayoutEl
     statusbar: container.querySelector('#statusbar') as HTMLElement,
     statusbarPath: container.querySelector('#statusbar-path') as HTMLElement,
     statusbarMessage: container.querySelector('#statusbar-message') as HTMLElement,
+    statusbarModeBtn: container.querySelector('#statusbar-mode-btn') as HTMLButtonElement,
     statusbarAppItems: container.querySelector('#statusbar-app-items') as HTMLElement,
   };
 }

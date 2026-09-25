@@ -27,8 +27,7 @@ export interface WindowControlsBridge {
   close: () => void;
   /**
    * Reads/writes the window's own bounds (user request, 2026-09-12).
-   * Electron never needs these — its frameless BrowserWindow already gets
-   * OS edge-resize for free. pywebview does need them: its WebView2 child
+   * Both hosts use these for the renderer's edge grips. The WebView2 child
    * control covers the window pixel-for-pixel, so neither Windows' own edge
    * hit-testing NOR a WM_SYSCOMMAND/SC_SIZE native resize loop ever sees the
    * mouse (both were tried and measurably failed — SC_SIZE's modal loop
@@ -118,12 +117,7 @@ const MIN_WINDOW_WIDTH = 300;
 const MIN_WINDOW_HEIGHT = 200;
 
 /**
- * Wires invisible edge/corner grips so a WebView2-backed host (pywebview)
- * gets the same edge-drag resize Electron gets natively (user request,
- * 2026-09-12). A no-op on Electron: getWindowBounds() resolves to null
- * there (no bridge implements it, and none needs to), so the drag loop
- * below never starts — the OS's own native resize handles Electron's edges
- * entirely outside this code.
+ * Wires invisible edge/corner grips to each host's window-bounds bridge.
  */
 export function setupResizeGrips(root: ParentNode): void {
   const directions: ResizeDirection[] = ['top', 'bottom', 'left', 'right', 'topleft', 'topright', 'bottomleft', 'bottomright'];
@@ -131,6 +125,7 @@ export function setupResizeGrips(root: ParentNode): void {
     const grip = root.querySelector(`[data-resize-grip="${direction}"]`);
     if (!grip) continue;
     grip.addEventListener('mousedown', (e) => {
+      if ((e as MouseEvent).button !== 0) return;
       e.preventDefault();
       void beginResize(direction, e as MouseEvent);
     });
@@ -138,12 +133,27 @@ export function setupResizeGrips(root: ParentNode): void {
 }
 
 async function beginResize(direction: ResizeDirection, downEvent: MouseEvent): Promise<void> {
-  const start = await getWindowBounds();
-  if (!start) return; // No bridge for this host — nothing to drive (Electron).
+  // Observe release before awaiting IPC so a quick click cannot start a late drag.
+  let released = false;
+  const releaseWhileWaiting = () => { released = true; };
+  document.addEventListener('mouseup', releaseWhileWaiting);
+  window.addEventListener('blur', releaseWhileWaiting);
+  let start: WindowBounds | null;
+  try {
+    start = await getWindowBounds();
+  } catch {
+    return;
+  } finally {
+    document.removeEventListener('mouseup', releaseWhileWaiting);
+    window.removeEventListener('blur', releaseWhileWaiting);
+  }
+  if (!start || released) return;
 
   const startScreenX = downEvent.screenX;
   const startScreenY = downEvent.screenY;
   let pendingFrame = 0;
+  let latestX = startScreenX;
+  let latestY = startScreenY;
 
   const applyDelta = (dx: number, dy: number) => {
     let { x, y, width, height } = start;
@@ -169,19 +179,27 @@ async function beginResize(direction: ResizeDirection, downEvent: MouseEvent): P
   };
 
   const onMove = (e: MouseEvent) => {
+    if ((e.buttons & 1) === 0) { onUp(); return; }
+    latestX = e.screenX;
+    latestY = e.screenY;
     if (pendingFrame) return;
     pendingFrame = requestAnimationFrame(() => {
       pendingFrame = 0;
-      applyDelta(e.screenX - startScreenX, e.screenY - startScreenY);
+      applyDelta(latestX - startScreenX, latestY - startScreenY);
     });
   };
   const onUp = () => {
     document.removeEventListener('mousemove', onMove);
     document.removeEventListener('mouseup', onUp);
-    if (pendingFrame) cancelAnimationFrame(pendingFrame);
+    window.removeEventListener('blur', onUp);
+    if (pendingFrame) {
+      cancelAnimationFrame(pendingFrame);
+      applyDelta(latestX - startScreenX, latestY - startScreenY);
+    }
   };
   document.addEventListener('mousemove', onMove);
   document.addEventListener('mouseup', onUp);
+  window.addEventListener('blur', onUp);
 }
 
 /**

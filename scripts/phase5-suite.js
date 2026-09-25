@@ -331,8 +331,21 @@ window.__runPhase5TestSuite = async function runPhase5TestSuite() {
     // ------------------------------------------------------------------------
     // 7. Status bar app item (FR-N10, WK-029)
     // ------------------------------------------------------------------------
+    // The app itself no longer ships an example item (the "Presets: file,
+    // folder" label was removed, user request 2026-09-23), so this suite
+    // plays the app: it appends its own item to the slot and checks it
+    // shows up beside the shell's slots.
     const appItemsEl = document.getElementById('statusbar-app-items');
-    record('P5-FR-N10-APPEND', appItemsEl !== null && appItemsEl.children.length >= 1, 'App status bar item is present (FR-N10)');
+    const testAppItem = document.createElement('span');
+    testAppItem.className = 'statusbar-app-item';
+    testAppItem.textContent = 'FR-N10 test item';
+    appItemsEl?.appendChild(testAppItem);
+    record(
+      'P5-FR-N10-APPEND',
+      appItemsEl !== null && appItemsEl.contains(testAppItem) && testAppItem.getBoundingClientRect().width > 0,
+      'App status bar item is present (FR-N10)'
+    );
+    testAppItem.remove();
     // v0.2 replaces part of v0.1 FR-N10 (SPEC 0.1): the shell's app-info slot
     // is gone (FR-C10, D-4), so the shell keeps two slots — path and message —
     // and the app item still attaches with zero core changes.

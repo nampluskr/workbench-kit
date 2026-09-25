@@ -1,6 +1,20 @@
 @import '@vscode/codicons/dist/codicon.css';
 
 @font-face {
+  font-family: 'Workbench D2Coding';
+  src: url('./assets/fonts/D2Coding-Ver1.3.3-20260725.ttf') format('truetype');
+  font-style: normal;
+  font-weight: 400;
+}
+
+@font-face {
+  font-family: 'Workbench D2Coding';
+  src: url('./assets/fonts/D2CodingBold-Ver1.3.3-20260725.ttf') format('truetype');
+  font-style: normal;
+  font-weight: 700;
+}
+
+@font-face {
   font-family: 'seti';
   src: url('./icons/assets/seti.woff') format('woff');
   font-weight: normal;
@@ -41,7 +55,12 @@
   --titlebar-height: var(--area-size);
   --statusbar-height: var(--area-size);
   --activitybar-width: var(--area-size);
-  --sidebar-width: 240px;
+  /* Default 200 / min 160 (user request, 2026-09-17). */
+  --sidebar-width: 200px;
+  /* Same default/min/max as the Explorer's own --sidebar-width, and resizable
+     the same way (user request, 2026-09-17: apply the Explorer's width
+     values to the Folder Tabs rail too). */
+  --foldertabs-width: 150px;
   --close-hover-bg: #e81123;
 }
 
@@ -50,16 +69,14 @@
 [data-theme="dark"] {
   --bg-color: #1f1f1f;
   --text-color: #cccccc;
-  /* Chrome (titlebar/activitybar/sidebar/statusbar/tabs/menu) lightened to
-     match the user's actual running VS Code theme (Monokai Dimmed), which
-     they asked to check — user request, 2026-09-14. --editor-bg and the
-     active-tab colors are unchanged on purpose (same request). */
+  /* VS Code Monokai Dimmed styling (user request, 2026-09-25) */
   --titlebar-bg: #505050;
   --titlebar-fg: #e0e0e0;
   --activitybar-bg: #353535;
   --activitybar-fg: #d7d7d7;
-  --sidebar-bg: #272727;
+  --sidebar-bg: #353535;
   --sidebar-fg: #cccccc;
+  --foldertabs-bg: #272727;
   --editor-bg: #1f1f1f;
   --statusbar-bg: #505050;
   --statusbar-fg: #e0e0e0;
@@ -73,15 +90,26 @@
   --menu-hover-bg: #454545;
   --menu-hover-fg: #ffffff;
   --menu-shortcut-fg: #909090;
-  --tabs-bg: #282828;
-  --tab-active-bg: #1f1f1f;
+  /* --border-color (#2b2b2b) sits only 4 levels above --menu-bg (#272727),
+     so the hamburger/right-click menu's own divider was reading as
+     invisible against it (user report, 2026-09-25). --menu-hover-bg is
+     already the theme's "one step up from --menu-bg" tone (see the note
+     above), so the separator reuses it instead of a new one-off value. */
+  --menu-separator-color: var(--menu-hover-bg);
+  --tabs-bg: #1f1f1f;
+  --tab-active-bg: #4e4e4e;
   --tab-active-fg: #ffffff;
-  --tab-inactive-bg: #404040;
-  --tab-inactive-fg: #b8b8b8;
+  --tab-inactive-bg: #1f1f1f;
+  --tab-inactive-fg: #cccccc;
   /* Soft gray ring for the tree cursor and the focused tab: still >= 3:1 on
      the sidebar and on the selection (FR-F11), without the old white glare. */
   --focus-ring: #7a7a7a;
-  --tree-indent-guide: rgba(255, 255, 255, 0.1);
+  /* Area boundaries — rail | Explorer | editor (user request, 2026-09-24).
+     --border-color sits within a shade of the sidebar here, so it vanished;
+     this is the title bar's own gray. The indent guides were dimmed at the
+     same time so a tree guide no longer out-draws an area edge. */
+  --area-divider: transparent;
+  --tree-indent-guide: rgba(255, 255, 255, 0.06);
   --scrollbar-track: rgba(255, 255, 255, 0.04);
   --scrollbar-thumb: rgba(204, 204, 204, 0.28);
   --scrollbar-thumb-hover: rgba(204, 204, 204, 0.46);
@@ -116,16 +144,15 @@
 [data-theme="light"] {
   --bg-color: #ffffff;
   --text-color: #3b3b3b;
-  /* Chrome a step darker than the white editor so the two areas separate
-     (user request, 2026-09-14). */
-  --titlebar-bg: #f0f0f0;
+  --titlebar-bg: #d8d8d8;
   --titlebar-fg: #333333;
   --activitybar-bg: #f0f0f0;
   --activitybar-fg: #1f1f1f;
   --sidebar-bg: #f0f0f0;
   --sidebar-fg: #3b3b3b;
+  --foldertabs-bg: #e4e4e4;
   --editor-bg: #ffffff;
-  --statusbar-bg: #f0f0f0;
+  --statusbar-bg: #d8d8d8;
   --statusbar-fg: #333333;
   --border-color: #e5e5e5;
   --button-hover-bg: rgba(0, 0, 0, 0.07);
@@ -136,13 +163,17 @@
   --menu-hover-bg: #e0e0e0;
   --menu-hover-fg: #1f1f1f;
   --menu-shortcut-fg: #505050;
-  --tabs-bg: #f0f0f0;
-  --tab-active-bg: #ffffff;
-  --tab-active-fg: #333333;
-  --tab-inactive-bg: #f0f0f0;
+  /* --border-color already reads clearly against --menu-bg here — no
+     contrast fix needed (see the dark theme's own note above). */
+  --menu-separator-color: var(--border-color);
+  --tabs-bg: #ffffff;
+  --tab-active-bg: #d8d8d8;
+  --tab-active-fg: #1f1f1f;
+  --tab-inactive-bg: #ffffff;
   --tab-inactive-fg: #6c6c6c;
   --focus-ring: #8a8a8a;
-  --tree-indent-guide: rgba(0, 0, 0, 0.15);
+  --area-divider: transparent;
+  --tree-indent-guide: rgba(0, 0, 0, 0.09);
   --scrollbar-track: rgba(0, 0, 0, 0.03);
   --scrollbar-thumb: rgba(100, 100, 100, 0.35);
   --scrollbar-thumb-hover: rgba(100, 100, 100, 0.55);
@@ -176,14 +207,15 @@
 [data-theme="gray"] {
   --bg-color: #c0c0c0;
   --text-color: #1a1a1a;
-  --titlebar-bg: #a6a6a6;
+  --titlebar-bg: #888888;
   --titlebar-fg: #1a1a1a;
   --activitybar-bg: #a6a6a6;
   --activitybar-fg: #1a1a1a;
   --sidebar-bg: #a6a6a6;
   --sidebar-fg: #1a1a1a;
+  --foldertabs-bg: #989898;
   --editor-bg: #c0c0c0;
-  --statusbar-bg: #a6a6a6;
+  --statusbar-bg: #888888;
   --statusbar-fg: #1a1a1a;
   --border-color: #9a9a9a;
   --button-hover-bg: rgba(0, 0, 0, 0.1);
@@ -195,13 +227,17 @@
   --menu-hover-bg: #a6a6a6;
   --menu-hover-fg: #1a1a1a;
   --menu-shortcut-fg: #1a1a1a;
-  --tabs-bg: #a6a6a6;
-  --tab-active-bg: #c0c0c0;
+  /* --border-color already reads clearly against --menu-bg here — no
+     contrast fix needed (see the dark theme's own note above). */
+  --menu-separator-color: var(--border-color);
+  --tabs-bg: #c0c0c0;
+  --tab-active-bg: #8e8e8e;
   --tab-active-fg: #1a1a1a;
-  --tab-inactive-bg: #a6a6a6;
-  --tab-inactive-fg: #333333;
+  --tab-inactive-bg: #c0c0c0;
+  --tab-inactive-fg: #404040;
   --focus-ring: #505050;
-  --tree-indent-guide: rgba(0, 0, 0, 0.2);
+  --area-divider: transparent;
+  --tree-indent-guide: rgba(0, 0, 0, 0.12);
   --scrollbar-track: rgba(0, 0, 0, 0.06);
   --scrollbar-thumb: rgba(17, 17, 17, 0.30);
   --scrollbar-thumb-hover: rgba(17, 17, 17, 0.48);
@@ -327,14 +363,103 @@
 }
 
 /*
- * The one token colour a plain text document uses. Syntax highlighting draws
- * .mtk2 and up, whose colours live only in that blocked stylesheet — out of
- * scope until an app turns a language on (user decision, 2026-09-15). Hand
- * copied here for the same reason the dv-* rules are.
+ * Syntax highlighting token colours. monaco assigns .mtk{n} by the order a
+ * colour first appears in the active theme's rule list and emits the matching
+ * CSS into the <style class="monaco-colors"> element the CSP blocks, so
+ * without these every token renders at the .mtk1 default and highlighting
+ * looks switched off even though tokenization ran (found 2026-09-20, after
+ * the language grammars landed and made .mtk2+ reachable for the first time).
+ *
+ * Generated from monaco 0.56.0's own `vs`/`vs-dark` themes via
+ * TokenTheme.createFromRawTokenTheme + generateTokensCSSForColorMap, the same
+ * pair that produces the blocked stylesheet — not picked by eye. Regenerate
+ * both blocks when monaco is upgraded. `.mtk1` keeps reading the app token so
+ * plain text still follows this app's three colour themes.
  */
 .monaco-editor .mtk1 {
   color: var(--vscode-editor-foreground);
 }
+
+/* vs-dark — the base texteditor.ts selects for the dark theme only. */
+.monaco-editor .mtk2 { color: #1e1e1e; }
+.monaco-editor .mtk3 { color: #cc6666; }
+.monaco-editor .mtk4 { color: #9cdcfe; }
+.monaco-editor .mtk5 { color: #ce9178; }
+.monaco-editor .mtk6 { color: #b5cea8; }
+.monaco-editor .mtk7 { color: #608b4e; }
+.monaco-editor .mtk8 { color: #569cd6; }
+.monaco-editor .mtk9 { color: #dcdcdc; }
+.monaco-editor .mtk10 { color: #808080; }
+.monaco-editor .mtk11 { color: #f44747; }
+.monaco-editor .mtk12 { color: #c586c0; }
+.monaco-editor .mtk13 { color: #a79873; }
+.monaco-editor .mtk14 { color: #dd6a6f; }
+.monaco-editor .mtk15 { color: #5bb498; }
+.monaco-editor .mtk16 { color: #909090; }
+.monaco-editor .mtk17 { color: #778899; }
+.monaco-editor .mtk18 { color: #ff00ff; }
+.monaco-editor .mtk19 { color: #b46695; }
+.monaco-editor .mtk20 { color: #ff0000; }
+.monaco-editor .mtk21 { color: #4f76ac; }
+.monaco-editor .mtk22 { color: #3dc9b0; }
+.monaco-editor .mtk23 { color: #74b0df; }
+.monaco-editor .mtk24 { color: #4864aa; }
+
+/* vs — the base for BOTH light and gray (setEditorColorTheme sends everything
+   but dark here), whose colour order differs entirely from vs-dark's. */
+[data-theme="light"] .monaco-editor .mtk2,
+[data-theme="gray"] .monaco-editor .mtk2 { color: #fffffe; }
+[data-theme="light"] .monaco-editor .mtk3,
+[data-theme="gray"] .monaco-editor .mtk3 { color: #808080; }
+[data-theme="light"] .monaco-editor .mtk4,
+[data-theme="gray"] .monaco-editor .mtk4 { color: #ff0000; }
+[data-theme="light"] .monaco-editor .mtk5,
+[data-theme="gray"] .monaco-editor .mtk5 { color: #0451a5; }
+[data-theme="light"] .monaco-editor .mtk6,
+[data-theme="gray"] .monaco-editor .mtk6 { color: #0000ff; }
+[data-theme="light"] .monaco-editor .mtk7,
+[data-theme="gray"] .monaco-editor .mtk7 { color: #098658; }
+[data-theme="light"] .monaco-editor .mtk8,
+[data-theme="gray"] .monaco-editor .mtk8 { color: #008000; }
+[data-theme="light"] .monaco-editor .mtk9,
+[data-theme="gray"] .monaco-editor .mtk9 { color: #dd0000; }
+[data-theme="light"] .monaco-editor .mtk10,
+[data-theme="gray"] .monaco-editor .mtk10 { color: #383838; }
+[data-theme="light"] .monaco-editor .mtk11,
+[data-theme="gray"] .monaco-editor .mtk11 { color: #cd3131; }
+[data-theme="light"] .monaco-editor .mtk12,
+[data-theme="gray"] .monaco-editor .mtk12 { color: #863b00; }
+[data-theme="light"] .monaco-editor .mtk13,
+[data-theme="gray"] .monaco-editor .mtk13 { color: #af00db; }
+[data-theme="light"] .monaco-editor .mtk14,
+[data-theme="gray"] .monaco-editor .mtk14 { color: #800000; }
+[data-theme="light"] .monaco-editor .mtk15,
+[data-theme="gray"] .monaco-editor .mtk15 { color: #e00000; }
+[data-theme="light"] .monaco-editor .mtk16,
+[data-theme="gray"] .monaco-editor .mtk16 { color: #3030c0; }
+[data-theme="light"] .monaco-editor .mtk17,
+[data-theme="gray"] .monaco-editor .mtk17 { color: #666666; }
+[data-theme="light"] .monaco-editor .mtk18,
+[data-theme="gray"] .monaco-editor .mtk18 { color: #778899; }
+[data-theme="light"] .monaco-editor .mtk19,
+[data-theme="gray"] .monaco-editor .mtk19 { color: #c700c7; }
+[data-theme="light"] .monaco-editor .mtk20,
+[data-theme="gray"] .monaco-editor .mtk20 { color: #a31515; }
+[data-theme="light"] .monaco-editor .mtk21,
+[data-theme="gray"] .monaco-editor .mtk21 { color: #4f76ac; }
+[data-theme="light"] .monaco-editor .mtk22,
+[data-theme="gray"] .monaco-editor .mtk22 { color: #008080; }
+[data-theme="light"] .monaco-editor .mtk23,
+[data-theme="gray"] .monaco-editor .mtk23 { color: #001188; }
+[data-theme="light"] .monaco-editor .mtk24,
+[data-theme="gray"] .monaco-editor .mtk24 { color: #4864aa; }
+
+/* The font-style/decoration classes from the same blocked stylesheet. */
+.monaco-editor .mtki { font-style: italic; }
+.monaco-editor .mtkb { font-weight: bold; }
+.monaco-editor .mtku { text-decoration: underline; text-underline-position: under; }
+.monaco-editor .mtks { text-decoration: line-through; }
+.monaco-editor .mtks.mtku { text-decoration: underline line-through; text-underline-position: under; }
 
 /*
  * The caret and the current-line marker get no colour from the bundled
@@ -347,9 +472,15 @@
   color: var(--vscode-editor-background);
 }
 
-.monaco-editor .view-overlays .current-line,
-.monaco-editor .margin-view-overlays .current-line {
+/* VS Code draws this border only on the content side of the current line,
+   never around the line-number margin (user request, 2026-09-17) — the
+   margin-side box below is left with no border on purpose. */
+.monaco-editor .view-overlays .current-line {
   border: 1px solid var(--vscode-editor-lineHighlightBorder);
+}
+
+.monaco-editor .margin-view-overlays .current-line {
+  border: none;
 }
 
 * {
@@ -378,13 +509,8 @@ html, body, #app {
 }
 
 /*
- * Edge/corner resize grips (user request, 2026-09-12). Electron's frameless
- * window already gets native OS edge-resize; pywebview's WebView2 child
- * covers the window pixel-for-pixel, so the OS never sees the cursor at the
- * true edge to hit-test against. These invisible strips give the cursor
- * feedback everywhere, and their mousedown starts a native resize via
- * core/window.ts's startResize() — a no-op on Electron, where the OS
- * handles it below the page entirely.
+ * Edge/corner resize grips for both hosts. The renderer handles drags
+ * through core/window.ts and the host's window-bounds bridge.
  */
 .resize-grip {
   position: fixed;
@@ -445,7 +571,7 @@ html, body, #app {
   font-size: 13px;
   -webkit-app-region: drag;
   flex-shrink: 0;
-  border-bottom: 1px solid var(--border-color);
+  border-bottom: none;
 }
 
 .titlebar-left, .titlebar-right {
@@ -523,7 +649,7 @@ html, body, #app {
   flex-direction: column;
   justify-content: space-between;
   flex-shrink: 0;
-  border-right: 1px solid var(--border-color);
+  border-right: none;
 }
 
 .activity-bar-group {
@@ -555,20 +681,392 @@ html, body, #app {
   background-color: var(--button-hover-bg);
 }
 
+/*
+ * 2b. Folder Tabs rail (v0.3 D-1) — a vertical strip of registered working
+ * folders, between the Activity Bar and the Explorer. Deliberately its own
+ * area, not part of .workbench-sidebar: Activity Bar toggles pick WHICH view
+ * shows, while this rail lists the sidebar's own dataset (v0.3 INTENT 3).
+ */
+.workbench-foldertabs-rail {
+  /* Starts at 150px and clamps at 100px; see setupFolderTabsResize() for
+     the matching drag/keyboard minimum and ~60% window maximum. */
+  width: var(--foldertabs-width);
+  min-width: 100px;
+  background-color: var(--foldertabs-bg, var(--sidebar-bg));
+  color: var(--sidebar-fg);
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+  /* No right border: the Explorer's (or, with it hidden, the editor's) left
+     edge draws this boundary (user request, 2026-09-24). */
+}
+
+/* Drag handle between the Folder Tabs rail and the Explorer (user request,
+   2026-09-17) — same shape/behavior as .sidebar-resize-handle. */
+.foldertabs-resize-handle {
+  flex: 0 0 5px;
+  width: 5px;
+  margin-left: -3px;
+  margin-right: -2px;
+  z-index: 5;
+  cursor: ew-resize;
+  background-color: transparent;
+}
+
+.foldertabs-resize-handle:hover,
+body.is-resizing-foldertabs .foldertabs-resize-handle {
+  background-color: var(--menu-hover-bg);
+}
+
+body.is-resizing-foldertabs {
+  cursor: ew-resize;
+  user-select: none;
+}
+
+.workbench-root.zen-mode .foldertabs-resize-handle,
+.workbench-foldertabs-rail.hidden + .foldertabs-resize-handle {
+  display: none;
+}
+
+.foldertabs-header {
+  height: var(--area-size);
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 5px 0 10px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.foldertabs-title {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
+.foldertabs-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.foldertabs-action-btn {
+  width: 22px;
+  height: 22px;
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  color: inherit;
+  cursor: pointer;
+  border-radius: 3px;
+  font-size: 15px;
+  opacity: 0.8;
+  padding: 0;
+  outline: none;
+}
+
+.foldertabs-action-btn:hover {
+  opacity: 1;
+  background-color: var(--button-hover-bg);
+}
+
+/* "Add All Drives" toggle's pressed state (v0.3 WK-111), same convention
+   as .activity-bar-item.active. */
+.foldertabs-action-btn.active {
+  opacity: 1;
+  background-color: var(--button-hover-bg);
+}
+
+.foldertabs-action-btn:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.foldertabs-action-btn:disabled:hover {
+  background-color: transparent;
+}
+
+.foldertabs-list {
+  flex: 1;
+  /* Vertical only — a long folder name now wraps onto further lines inside
+     its own row instead of overflowing horizontally (user request,
+     2026-09-17, superseding the earlier horizontal-scroll-instead-of-
+     ellipsis behavior — the user explicitly chose wrapping for both the
+     rename input and normal, non-editing row display). */
+  overflow-y: auto;
+  overflow-x: hidden;
+  /* Matches the Explorer's .tree-list font-size, so the two areas read at
+     the same scale (user request, 2026-09-17). */
+  font-size: 13px;
+}
+
+.foldertabs-tab {
+  display: flex;
+  /* Was center — a row can now be taller than one line, so the icon aligns
+     with the FIRST line of a wrapped title rather than the row's vertical
+     center (user request, 2026-09-17). */
+  align-items: flex-start;
+  /* Was a fixed height — now only a floor, so a wrapped multi-line title
+     can grow the row taller (user request, 2026-09-17). Matches the
+     Explorer's single-line .tree-row height (plus this row's own vertical
+     padding) when the title fits on one line. */
+  min-height: 22px;
+  /* Right side narrowed to 2px, matching the editor tab's own right padding
+     (.dv-tab's `padding: 0 2px 0 5px`) — the space after its × icon (user
+     request, 2026-09-17). Left/top/bottom unchanged (unrelated to the ×). */
+  padding: 3px 2px 3px 10px;
+  cursor: pointer;
+  outline: none;
+  box-sizing: border-box;
+  color: var(--sidebar-fg);
+  border-left: 2px solid transparent;
+}
+
+.foldertabs-tab:hover {
+  background-color: var(--button-hover-bg);
+}
+
+.foldertabs-tab.active {
+  background-color: var(--tab-active-bg);
+  color: var(--tab-active-fg);
+  border-left-color: transparent;
+}
+
+/* When a custom colour is set on a tab (v0.3 WK-112, Windows Terminal model):
+   hover provides a subtle brightness lift without overriding the tab's colour. */
+.foldertabs-tab.has-custom-color:hover {
+  filter: brightness(1.12);
+}
+
+[data-theme="light"] .foldertabs-tab.has-custom-color:hover {
+  filter: brightness(0.95);
+}
+
+.foldertabs-tab.has-custom-color .foldertabs-tab-close:hover {
+  background-color: rgba(128, 128, 128, 0.25);
+}
+
+.foldertabs-tab-label {
+  /* Shrinks to the row's remaining width (after the icon) and wraps within
+     that box — every wrapped line lands at THIS box's own left edge, which
+     is already to the right of the icon, not the row's left edge. That is
+     what naturally produces "wrapped lines align with each other, not with
+     the icon" without any extra indent math (user request, 2026-09-17). */
+  flex: 1 1 auto;
+  min-width: 0;
+  white-space: normal;
+  overflow-wrap: break-word;
+  word-break: break-word;
+  line-height: 1.4;
+}
+
+/* Hidden until hover/focus, like .sidebar-action-btn's app-actions (v0.3 D-4:
+   "show x on hover"). Kept in the DOM (not display:none) so it stays
+   reachable by keyboard focus within the row. */
+.foldertabs-tab-close {
+  flex: 0 0 auto;
+  width: 18px;
+  height: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  color: inherit;
+  cursor: pointer;
+  border-radius: 3px;
+  font-size: 13px;
+  padding: 0;
+  margin-left: 3px;
+  opacity: 0;
+  outline: none;
+}
+
+/* codicon.css's own `.codicon[class*='codicon-']` rule hard-codes
+   its font shorthand — that shorthand always wins
+   over this button's own font-size: 13px above (equal specificity, but the
+   vendor rule is a single rule setting the <i>'s own font directly), so the
+   × rendered noticeably larger/heavier here than the editor tab's own close
+   glyph, which sets font-size: 13px explicitly on its own ::before (user
+   report, 2026-09-17: this one looked bold, the editor tab's looked thin).
+   Selector specificity intentionally higher (3 classes vs the vendor
+   rule's 2) so this wins regardless of import order. */
+.foldertabs-tab-close .codicon.codicon-close {
+  font-size: 13px;
+}
+
+.foldertabs-tab:hover .foldertabs-tab-close,
+.foldertabs-tab-close:focus {
+  opacity: 0.8;
+}
+
+.foldertabs-tab-close:hover {
+  opacity: 1;
+  background-color: var(--button-hover-bg);
+}
+
+/* Error state (v0.3 D-6): a tab whose path no longer opens. Never removed
+   automatically — this only marks it, using the same error colour token the
+   statusbar's own error state already uses (D-6, WK-102). */
+.foldertabs-tab.error {
+  color: var(--statusbar-error-fg, #f48771);
+}
+
+.foldertabs-tab.error .tree-icon {
+  color: var(--statusbar-error-fg, #f48771);
+}
+
+/* Visible whenever the tab has an error, not just on hover like × — it is
+   the tab's whole reason for needing the user's attention right now. */
+.foldertabs-tab-relocate {
+  flex: 0 0 auto;
+  width: 18px;
+  height: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  color: inherit;
+  cursor: pointer;
+  border-radius: 3px;
+  font-size: 13px;
+  padding: 0;
+  margin-left: 3px;
+  opacity: 0.8;
+  outline: none;
+}
+
+.foldertabs-tab-relocate:hover,
+.foldertabs-tab-relocate:focus {
+  opacity: 1;
+  background-color: var(--button-hover-bg);
+}
+
+/* Divider between the pinned drive-tab block and regular tabs below it
+   (v0.3 WK-111) — same look as the View menu's own separator. */
+.foldertabs-drive-separator {
+  height: 1px;
+  background-color: var(--border-color);
+  margin: 3px 0;
+}
+
+/* "Set Tab Color" palette popup (v0.3 WK-112) — same floating-panel
+   convention as .workbench-context-menu (D-22). 4x4 grid: 15 preset colours
+   plus "None" in the 16th (last) cell (user request, 2026-09-17 — modelled
+   after Windows Terminal's own tab-colour flyout size). */
+.foldertabs-color-popup {
+  position: fixed;
+  z-index: 1200;
+  display: grid;
+  grid-template-columns: repeat(4, 18px);
+  gap: 5px;
+  padding: 5px;
+  background-color: var(--menu-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 3px;
+  box-shadow: 0 5px 15px rgba(0, 0, 0, 0.35);
+}
+
+.foldertabs-color-swatch {
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 50%;
+  cursor: pointer;
+  outline: none;
+}
+
+.foldertabs-color-swatch:hover,
+.foldertabs-color-swatch:focus {
+  transform: scale(1.15);
+}
+
+/* "None" — clears the tab's colour (v0.3 WK-112, Warp's own "none" idea).
+   Square, not round, and shows a plain × instead of a colour fill, so it
+   reads as "remove" rather than as one more colour choice. */
+.foldertabs-color-none {
+  border-radius: 3px;
+  background-color: transparent;
+  border-color: var(--border-color);
+  color: var(--sidebar-fg);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+}
+
+.foldertabs-color-none:hover,
+.foldertabs-color-none:focus {
+  background-color: var(--button-hover-bg);
+  transform: none;
+}
+
+/* Inline rename row (v0.3 D-4): Enter saves, Escape cancels. */
+.foldertabs-tab.renaming {
+  cursor: default;
+}
+
+.foldertabs-tab-rename-input {
+  flex: 1 1 auto;
+  min-width: 0;
+  height: 20px;
+  background-color: var(--bg-color);
+  color: var(--sidebar-fg);
+  border: 1px solid var(--focus-ring);
+  border-radius: 2px;
+  padding: 0 3px;
+  font-family: inherit;
+  font-size: inherit;
+  outline: none;
+}
+
+/* Vertical drag reorder (v0.3 D-4): a themed line shows where the tab would
+   land, drawn on the neighbouring row rather than a separate floating
+   element so it never needs its own z-index/positioning story. */
+.foldertabs-list.dragging .foldertabs-tab {
+  cursor: grabbing;
+}
+
+.foldertabs-tab.drop-before {
+  box-shadow: inset 0 2px 0 0 var(--focus-ring);
+}
+
+.foldertabs-tab.drop-after {
+  box-shadow: inset 0 -2px 0 0 var(--focus-ring);
+}
+
 /* 3. Sidebar */
 .workbench-sidebar {
   width: var(--sidebar-width);
-  /* Lowered from 260px toward VS Code's narrower range (user request,
-     2026-09-12). A9's Critical finding was at 170px — the title + shell's
-     4 actions (~187px incl. header padding) did not fit. 200px keeps a
-     (tighter) margin above that floor. */
-  min-width: 200px;
+  /* Lowered to 160px (user request, 2026-09-17) — NOTE: A9's Critical
+     finding (2026-09-12) found the EXPLORER title + shell's 4 header
+     actions need ~187px including header padding, and clipped at 170px;
+     200px was chosen specifically to keep a margin above that floor. This
+     160px value is BELOW that measured floor and will very likely
+     reintroduce that same clipping at the resized minimum. A 5th shell
+     action (Find, v0.3, user request 2026-09-25) raises that floor further
+     — not remeasured, flagged here rather than guessed. */
+  min-width: 160px;
   background-color: var(--sidebar-bg);
   color: var(--sidebar-fg);
   display: flex;
   flex-direction: column;
   flex-shrink: 0;
-  border-right: 1px solid var(--border-color);
+  border-left: none;
+}
+
+/* With the rail hidden the Explorer sits against the Activity Bar, which has
+   its own edge. */
+.workbench-foldertabs-rail.hidden ~ .workbench-sidebar {
+  border-left: none;
 }
 
 /* Drag handle between the explorer and the editor area (v0.2 FR-X5). */
@@ -603,7 +1101,7 @@ body.is-resizing-sidebar {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0 10px;
+  padding: 0 5px 0 10px;
   font-size: 11px;
   font-weight: 600;
   letter-spacing: 0.5px;
@@ -630,9 +1128,9 @@ body.is-resizing-sidebar {
 }
 
 /*
- * The shell's four actions never shrink or clip (FR-X6). App-added actions
+ * The shell's five actions never shrink or clip (FR-X6). App-added actions
  * (FR-I10, any number) go in this box, which gives up space and clips first
- * when the header is narrow — the shell four and the EXPLORER title stay.
+ * when the header is narrow — the shell five and the EXPLORER title stay.
  */
 .sidebar-app-actions {
   display: flex;
@@ -661,7 +1159,8 @@ body.is-resizing-sidebar {
   outline: none;
 }
 
-/* The shell's own four never give up their width. */
+/* The shell's own five never give up their width. */
+#sidebar-action-search,
 #sidebar-action-new-file,
 #sidebar-action-new-folder,
 #sidebar-action-refresh,
@@ -701,8 +1200,12 @@ body.is-resizing-sidebar {
 }
 
 /* Same thickness as the tab row's bar (user request, 2026-09-14); the monaco
-   editor's own bars are sized to match in texteditor.ts. */
+   editor's own bars are sized to match in texteditor.ts. The Folder Tabs
+   rail's own list matches .tree-list here too (user request, 2026-09-17), and
+   so do the File Filter popup's extension lists (user request, 2026-09-24). */
 .tree-list::-webkit-scrollbar,
+.foldertabs-list::-webkit-scrollbar,
+.file-filter-list::-webkit-scrollbar,
 .sidebar-content::-webkit-scrollbar,
 .dv-content-container::-webkit-scrollbar {
   width: 5px;
@@ -710,6 +1213,8 @@ body.is-resizing-sidebar {
 }
 
 .tree-list::-webkit-scrollbar-track,
+.foldertabs-list::-webkit-scrollbar-track,
+.file-filter-list::-webkit-scrollbar-track,
 .sidebar-content::-webkit-scrollbar-track,
 .dv-content-container::-webkit-scrollbar-track,
 .workbench-menu-dropdown::-webkit-scrollbar-track,
@@ -718,6 +1223,8 @@ body.is-resizing-sidebar {
 }
 
 .tree-list::-webkit-scrollbar-thumb,
+.foldertabs-list::-webkit-scrollbar-thumb,
+.file-filter-list::-webkit-scrollbar-thumb,
 .sidebar-content::-webkit-scrollbar-thumb,
 .dv-content-container::-webkit-scrollbar-thumb,
 .workbench-menu-dropdown::-webkit-scrollbar-thumb,
@@ -727,6 +1234,8 @@ body.is-resizing-sidebar {
 }
 
 .tree-list::-webkit-scrollbar-thumb:hover,
+.foldertabs-list::-webkit-scrollbar-thumb:hover,
+.file-filter-list::-webkit-scrollbar-thumb:hover,
 .sidebar-content::-webkit-scrollbar-thumb:hover,
 .dv-content-container::-webkit-scrollbar-thumb:hover,
 .workbench-menu-dropdown::-webkit-scrollbar-thumb:hover,
@@ -735,6 +1244,8 @@ body.is-resizing-sidebar {
 }
 
 .tree-list::-webkit-scrollbar-thumb:active,
+.foldertabs-list::-webkit-scrollbar-thumb:active,
+.file-filter-list::-webkit-scrollbar-thumb:active,
 .sidebar-content::-webkit-scrollbar-thumb:active,
 .dv-content-container::-webkit-scrollbar-thumb:active,
 .workbench-menu-dropdown::-webkit-scrollbar-thumb:active,
@@ -743,6 +1254,7 @@ body.is-resizing-sidebar {
 }
 
 .tree-list::-webkit-scrollbar-corner,
+.foldertabs-list::-webkit-scrollbar-corner,
 .sidebar-content::-webkit-scrollbar-corner {
   background-color: var(--scrollbar-track);
 }
@@ -754,6 +1266,11 @@ body.is-resizing-sidebar {
   overflow: hidden;
   position: relative;
   background-color: var(--editor-bg);
+  border-left: none;
+}
+
+.workbench-root.zen-mode .workbench-main-area {
+  border-left: none;
 }
 
 .editor-container {
@@ -853,10 +1370,10 @@ body.is-resizing-sidebar {
 .tree-indent-unit::before {
   content: "";
   position: absolute;
-  /* Centre of the twistie glyph: codicons forces the <i> to 16px (overriding
+  /* Centre of the twistie glyph: codicons forces the <i> size (overriding
      .tree-twistie's font-size), and .tree-twistie has no left padding, so the
-     "v" is centred 8px in from the box edge. */
-  left: 8px;
+     "v" is centred in from the box edge. */
+  left: 7px;
   top: 0;
   bottom: 0;
   width: 1px;
@@ -869,30 +1386,17 @@ body.is-resizing-sidebar {
 
 .tree-row.selected {
   /* Same inner color the editor uses to mark its active area (--tab-active-bg/
-     -fg), not the blue menu-hover accent — user request, 2026-09-12. */
+     -fg), matching active tab (user request, 2026-09-25). */
   background-color: var(--tab-active-bg);
   color: var(--tab-active-fg);
 }
 
-/*
- * Selection and focus are separate marks (v0.2 D-10, FR-F6). The selected
- * row keeps its background wherever keyboard focus goes; the cursor's ring is
- * drawn only while the tree itself holds focus, so the ring alone says which
- * area is current. On a selected row the ring uses the selection foreground,
- * because a ring in the selection colour would vanish into its background.
- */
 .tree-list:focus .tree-row.focused {
-  /* A per-theme soft gray, not the accent: the accent sits too close to the
-     gray theme's background to read as a mark (FR-F11). */
-  outline: 1px solid var(--focus-ring);
-  outline-offset: -1px;
+  outline: none;
 }
 
 .tree-list:focus .tree-row.selected.focused {
-  /* Same ring color the editor's active-tab-with-focus ring uses, so both
-     areas share border AND fill color. */
-  outline: 1px solid var(--focus-ring);
-  outline-offset: -1px;
+  outline: none;
 }
 
 .tree-twistie {
@@ -900,7 +1404,7 @@ body.is-resizing-sidebar {
   height: 18px;
   display: flex;
   align-items: center;
-  /* Left-aligned so the glyph centre sits at a fixed 8px from the box edge,
+  /* Left-aligned so the glyph centre aligns from the box edge,
      which .tree-indent-unit::before's left relies on to put the guide
      straight under this "v" (user request, 2026-09-14). */
   justify-content: flex-start;
@@ -1023,6 +1527,13 @@ body.is-resizing-sidebar {
   border-color: var(--menu-hover-bg);
 }
 
+/* F2 rename (D-14): the input takes the label's place in the row, in the
+   label's own font, and may shrink with a narrow Explorer. */
+.tree-rename-field {
+  min-width: 0;
+  font-family: inherit;
+}
+
 /* 4. Main Area */
 .workbench-main-area {
   flex: 1;
@@ -1063,13 +1574,17 @@ body.is-resizing-sidebar {
  * codepoint (U+005C) with a won-sign (￦) glyph — a legacy code-page-949
  * convention it keeps for compatibility. The character itself is a real "\"
  * the whole way through (host, bridge, DOM text); only the glyph is wrong.
- * statusbar-path and the preset-info item are the two statusbar spots that
- * show Windows paths, so they get an explicit non-substituting font stack
- * instead of inheriting --font-family (user report, 2026-09-15).
+ * statusbar-path and any app status bar item are the statusbar spots that
+ * can show Windows paths, so they put the bundled D2Coding font first — its
+ * cmap maps U+005C to its own `backslash` glyph, distinct from the
+ * `uni20A9` won-sign glyph at U+20A9, so it draws a real backslash; Hangul
+ * still falls through to the system font (user report, 2026-09-15; Arial
+ * swapped for the already-bundled D2Coding, user request, 2026-09-25 — no
+ * dependency on a system font being installed).
  */
 .statusbar-path,
 .statusbar-app-item {
-  font-family: Consolas, 'SFMono-Regular', Menlo, monospace;
+  font-family: 'Workbench D2Coding', var(--font-family);
 }
 
 .statusbar-item {
@@ -1082,18 +1597,435 @@ body.is-resizing-sidebar {
 }
 
 .statusbar-left {
-  flex: 1;
+  /* The path gets up to half the status bar (user request, 2026-09-23) —
+     under the old 1:2:1 split it was clipped at a quarter even while the
+     centre message slot sat empty. Past half, it elides from the start. */
+  flex: 0 1 auto;
+  max-width: 50%;
   justify-content: flex-start;
+  /* Lets #statusbar-path actually shrink below its own content width inside
+     this flex row — without it, a flex item's default min-width: auto
+     keeps it at its full natural width, so nothing here ever clips (user
+     request, 2026-09-17: a long path was being hard-clipped by
+     .statusbar-item's overflow: hidden with no "…" at all, since
+     text-overflow on a flex CONTAINER never reaches into a flex-item
+     child's own text — .statusbar-path needs, and now has, its own
+     overflow handling below). */
+  min-width: 0;
+}
+
+/*
+ * Elides a long path from the START, not the end (user request,
+ * 2026-09-17) — the final folder/file segment is the part worth reading,
+ * and .statusbar-left's flex-container ellipsis above never actually
+ * reached this child span to begin with (it was being silently hard-
+ * clipped, no "…" shown). direction: rtl + text-align: left moves the CSS
+ * "which end truncates" anchor to the front while the text itself renders
+ * in normal left-to-right order — bidi only reorders runs that contain an
+ * actual RTL character, and a Windows path has none.
+ */
+.statusbar-path {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  direction: rtl;
+  text-align: left;
+}
+
+/*
+ * The rtl trick above has one catch: characters with no direction of their
+ * own (`_`, `.`, `/`, `\`, space) at either END of the path take the
+ * paragraph's rtl direction and jump to the other side — a `__pycache__`
+ * folder rendered as `__D:\...\__pycache` (user report, 2026-09-23). A
+ * left-to-right mark (U+200E) at both ends gives those characters a strong
+ * LTR neighbour on each side, so the path renders exactly as written. The
+ * marks are pseudo-element content, so they never reach textContent or a
+ * copy.
+ */
+.statusbar-path::before,
+.statusbar-path::after {
+  content: '\200E';
 }
 
 .statusbar-center {
-  flex: 2;
+  flex: 1 1 0;
+  min-width: 0;
   justify-content: center;
 }
 
 .statusbar-right {
-  flex: 1;
+  flex: 0 0 auto;
   justify-content: flex-end;
+}
+
+.statusbar-mode-btn {
+  display: inline-flex;
+  align-items: center;
+  height: 100%;
+  padding: 0 5px;
+  background: transparent;
+  border: none;
+  color: inherit;
+  font-family: inherit;
+  font-size: inherit;
+  cursor: pointer;
+  border-radius: 2px;
+  outline: none;
+}
+
+.statusbar-mode-btn:hover {
+  background-color: var(--button-hover-bg);
+}
+
+.statusbar-mode-btn:focus-visible {
+  outline: 1px solid var(--focus-ring);
+}
+
+.statusbar-mode-btn:disabled {
+  cursor: default;
+  opacity: 0.85;
+}
+
+/* Explorer-delete gate indicator (v0.3, user request 2026-09-25) — same
+   sizing/interaction values as .statusbar-mode-btn just above (D-29 allows
+   no new pixel values, so this reuses that button's own). */
+.statusbar-delete-indicator {
+  display: inline-flex;
+  align-items: center;
+  height: 100%;
+  padding: 0 5px;
+  border-radius: 2px;
+  cursor: pointer;
+}
+
+.statusbar-delete-indicator:hover {
+  background-color: var(--button-hover-bg);
+}
+
+.statusbar-delete-indicator:focus-visible {
+  outline: 1px solid var(--focus-ring);
+}
+
+.statusbar-delete-indicator.delete-enabled {
+  color: var(--statusbar-error-fg, #f48771);
+}
+
+.folder-file-list {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  color: var(--vscode-editor-foreground);
+}
+
+.folder-file-list-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  /* No top padding (v0.3 WK-121, user request) — the address bar sits
+     flush against the panel's top edge; left/right/bottom unchanged. */
+  padding: 0 10px 10px;
+  border-bottom: 1px solid var(--vscode-panel-border);
+  gap: 10px;
+  flex: 0 0 auto;
+}
+
+/* Windows Explorer-style address bar (v0.3 WK-117) — same visual language as the folder tab rail's own inline-rename input (`.foldertabs-tab-rename-input`). */
+.folder-file-list-root {
+  flex: 0 0 22px;
+  height: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 0;
+  border-radius: 2px;
+  color: inherit;
+  background: transparent;
+  cursor: pointer;
+}
+
+.folder-file-list-root:hover {
+  background-color: var(--button-hover-bg);
+}
+
+.folder-file-list-root:focus-visible {
+  outline: 1px solid var(--focus-ring);
+  outline-offset: -1px;
+}
+
+.folder-file-list-path-input {
+  flex: 1 1 auto;
+  min-width: 0;
+  height: 22px;
+  background-color: var(--bg-color);
+  color: inherit;
+  border: 1px solid transparent;
+  border-radius: 2px;
+  padding: 0 3px;
+  /* A Windows path: the bundled D2Coding font first keeps "\" a real
+     backslash instead of the Korean UI font's won sign — same fix as
+     .workbench-tooltip and the statusbar-path note (user request,
+     2026-09-24; Arial swapped for D2Coding, user request, 2026-09-25). */
+  font-family: 'Workbench D2Coding', var(--font-family);
+  /* Was `inherit` — no ancestor in this panel's chain sets a font-size, so
+     it fell through to the browser default, one size larger than the
+     folder tab rail and every tree list (13px, see .foldertabs-list and
+     .tree-list). Explicit 13px matches that scale (user request,
+     2026-09-25). */
+  font-size: 13px;
+  outline: none;
+}
+
+.folder-file-list-path-input:hover {
+  border-color: var(--border-color);
+}
+
+.folder-file-list-path-input:focus {
+  border-color: var(--focus-ring);
+}
+
+.folder-file-list-status {
+  padding: 10px;
+  color: var(--sidebar-fg);
+  opacity: 0.7;
+  flex: 0 0 auto;
+}
+
+/* Total Commander-style status footer (v0.3 WK-125) — a separator (border)
+   above a single-line, read-only text row, same visual weight as the
+   address bar's own border-bottom. */
+.folder-file-list-footer {
+  flex: 0 0 auto;
+  height: 22px;
+  padding: 0 10px;
+  display: flex;
+  align-items: center;
+  border-top: 1px solid var(--vscode-panel-border);
+  color: var(--sidebar-fg);
+  font-family: inherit;
+  font-size: inherit;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+/*
+ * The row list itself (src/core/rowlist.ts) mounts its own `.rowlist-header`
+ * + `.tree-list` children here — `.tree-list` is the same class the
+ * Explorer sidebar uses, so hover, selection colour, focus ring and
+ * scrollbar theming all come from the existing `.tree-list`/`.tree-row`
+ * rules with 0 new ones (WK-113). This wrapper stacks the (fixed-height)
+ * header above the (scrollable) list (v0.3 WK-118).
+ */
+.folder-file-list-items {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.folder-file-list-items .tree-list {
+  flex: 1;
+}
+
+/* Details-view columns (v0.3 WK-118) — Name/Ext/Size/Date, Explorer-style. `--rowlist-grid` is set once via the DOM API in rowlist.ts (dockview-css.md's "no literal style= in rendered HTML" applies to this file too), inherited by both the header and every row below it. */
+.rowlist-header {
+  display: grid;
+  grid-template-columns: var(--rowlist-grid);
+  flex: 0 0 auto;
+  height: 22px;
+  border-bottom: 1px solid var(--border-color);
+  font-size: inherit;
+  /* Scrolled by hand to follow the list below (rowlist.ts), never by the user. */
+  overflow: hidden;
+}
+
+.rowlist-header-cell {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  padding: 0 10px;
+  cursor: pointer;
+  overflow: hidden;
+  white-space: nowrap;
+  color: var(--sidebar-fg);
+  opacity: 0.85;
+  /* Anchors `.rowlist-resize-handle` to this cell's own right edge. */
+  position: relative;
+}
+
+.rowlist-header-cell:hover {
+  background-color: var(--button-hover-bg);
+}
+
+.rowlist-sort-arrow {
+  font-size: 11px;
+  flex: 0 0 auto;
+}
+
+/* A thin drag strip on a header cell's right edge (v0.3 WK-121) — widens/
+   narrows this column and its neighbour in tandem (rowlist.ts's own
+   comment on `beginColumnResize` explains why the pair, not the whole
+   grid, absorbs the drag). */
+.rowlist-resize-handle {
+  position: absolute;
+  top: 0;
+  right: -2px;
+  bottom: 0;
+  width: 5px;
+  cursor: col-resize;
+  z-index: 1;
+}
+
+.rowlist-resize-handle:hover,
+.rowlist-resize-handle:active {
+  background-color: var(--focus-ring);
+}
+
+/* `.tree-row`'s own `padding-left` is a tree-indent affordance this grid
+   layout does not use — each cell below carries its own 10px gutter
+   instead, so the header's and a row's grid tracks start at the same x.
+   `width`/`min-width` are left to the base `.tree-row` rule (max-content,
+   min 100%) rather than forced to 100% here, so a panel narrower than the
+   four columns' combined width gets a real horizontal scrollbar instead of
+   silently clipping content (v0.3 WK-121). */
+.tree-row.rowlist-row {
+  display: grid;
+  grid-template-columns: var(--rowlist-grid);
+  padding-left: 0;
+}
+
+.rowlist-cell {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding: 0 10px;
+}
+
+.rowlist-cell-end {
+  text-align: right;
+}
+
+.rowlist-cell-name {
+  display: flex;
+  align-items: center;
+  padding: 0 10px;
+}
+
+/* Total Commander-style mark (v0.3 WK-125) — same red the statusbar/error-
+   tab states already use (`.foldertabs-tab.error`), not a new colour. Three
+   classes beats `.tree-row.selected`'s two on specificity alone, so a
+   marked+selected row still reads red without `!important`. */
+.tree-row.rowlist-row.marked {
+  color: var(--statusbar-error-fg, #f48771);
+}
+
+.folder-file-list-empty {
+  padding: 10px;
+  color: var(--sidebar-fg);
+  opacity: 0.7;
+}
+
+.preset-terminal-view {
+  width: 100%;
+  height: 100%;
+  box-sizing: border-box;
+  overflow: hidden;
+  background: #0c0c0c;
+  padding: 0;
+}
+
+.editor-panel-content:has(> .preset-terminal-view) {
+  padding: 0;
+  overflow: hidden;
+}
+
+.preset-terminal-view .xterm {
+  width: 100%;
+  height: 100%;
+  box-sizing: border-box;
+  padding: 2px 10px;
+  background-color: #0c0c0c;
+  /*
+   * xterm publishes the `fontFamily`/`fontSize` from its constructor through
+   * a <style> element it injects at runtime — the same element this app's CSP
+   * (style-src 'self') blocks for monaco's colours. Without these the rows
+   * inherit --font-family and the terminal renders in a PROPORTIONAL face
+   * (measured ratio 1.09, not 2.00), so nothing lines up (found 2026-09-20).
+   * Keep in step with the Terminal options in terminal-preset.ts. WebGL is
+   * preferred there, but these values remain the DOM fallback contract.
+   */
+  font-family: 'Workbench D2Coding', monospace;
+  font-size: 14px;
+  font-weight: normal;
+  letter-spacing: 0;
+}
+
+.preset-terminal-view .xterm-rows,
+.preset-terminal-view .xterm-rows > div,
+.preset-terminal-view .xterm-helper-textarea,
+.preset-terminal-view .xterm-char-measure-element {
+  font-family: 'Workbench D2Coding', monospace;
+  font-size: 14px;
+  font-weight: normal;
+  letter-spacing: 0;
+}
+
+.preset-terminal-view .xterm .xterm-viewport {
+  background-color: #0c0c0c;
+  overflow-y: auto !important;
+}
+
+/*
+ * xterm 6's DOM renderer tags the caret (.xterm-cursor, plus -bar/-block/
+ * -underline and -blink) but ships no rule that paints or animates it — its
+ * xterm.css carries only .xterm-cursor-pointer, the mouse pointer shape. The
+ * caret was therefore invisible and `cursorBlink: true` had no visible effect
+ * (found 2026-09-20). The theme's cursor colour set in terminal-preset.ts
+ * reaches the canvas/WebGL renderers, not this one, so the shape is drawn
+ * here against the same Campbell palette that preset uses.
+ */
+.preset-terminal-view .xterm-cursor.xterm-cursor-bar::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: #ffffff;
+}
+
+.preset-terminal-view .xterm-cursor.xterm-cursor-block {
+  background: #ffffff;
+  color: #0c0c0c;
+}
+
+.preset-terminal-view .xterm-cursor.xterm-cursor-underline::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 2px;
+  background: #ffffff;
+}
+
+.preset-terminal-view .xterm-cursor {
+  position: relative;
+}
+
+/* Only the focused terminal blinks, matching Windows Terminal: an unfocused
+   pane keeps a steady caret so several open terminals do not all pulse. */
+.preset-terminal-view .xterm.focus .xterm-cursor.xterm-cursor-blink::before,
+.preset-terminal-view .xterm.focus .xterm-cursor.xterm-cursor-blink.xterm-cursor-block {
+  animation: wb-terminal-cursor-blink 1s step-end infinite;
+}
+
+@keyframes wb-terminal-cursor-blink {
+  0%, 50% { opacity: 1; }
+  50.1%, 100% { opacity: 0; }
 }
 
 .statusbar-app-items {
@@ -1111,9 +2043,12 @@ body.is-resizing-sidebar {
   display: none !important;
 }
 
-/* Zen mode: hide titlebar, activity bar, sidebar, statusbar, and open menu; keep main-area only */
+/* Zen mode: hide titlebar, activity bar, folder tabs rail, sidebar,
+   statusbar, and open menu; keep main-area only (v0.3 WK-097: the rail
+   joins the other chrome areas here). */
 .workbench-root.zen-mode #titlebar,
 .workbench-root.zen-mode #activity-bar,
+.workbench-root.zen-mode #foldertabs-rail,
 .workbench-root.zen-mode #sidebar,
 .workbench-root.zen-mode #statusbar,
 .workbench-root.zen-mode .workbench-menu-dropdown {
@@ -1121,6 +2056,180 @@ body.is-resizing-sidebar {
 }
 
 /* 6. Hamburger Menu Dropdown */
+/*
+ * Themed hover text (user request, 2026-09-23) — src/core/tooltip.ts draws
+ * this in place of the OS tooltip for every `title`, which ignored the
+ * colour theme and read as a white, heavily outlined box. Same ground,
+ * border and shadow family as the menu dropdown below, lighter.
+ */
+.workbench-tooltip {
+  position: fixed;
+  z-index: 10000;
+  max-width: 700px;
+  padding: 3px 7px;
+  background-color: var(--menu-bg);
+  color: var(--sidebar-fg);
+  border: 1px solid var(--border-color);
+  border-radius: 3px;
+  box-shadow: 0 2px 7px rgba(0, 0, 0, 0.25);
+  /* Hover text often carries a Windows path. system-ui resolves to a Korean
+     UI font on a Korean Windows, which draws "\" as a won sign (see the
+     statusbar-path note above); the bundled D2Coding font first keeps a
+     real backslash (its cmap maps U+005C to `backslash`, distinct from the
+     `uni20A9` won-sign glyph at U+20A9), and Hangul still falls through to
+     the system font. Arial swapped for D2Coding, user request, 2026-09-25 —
+     no dependency on a system font being installed; D-29 rules out the
+     usual Windows UI face. */
+  font-family: 'Workbench D2Coding', var(--font-family);
+  font-size: 11px;
+  line-height: 1.4;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  pointer-events: none;
+}
+
+.workbench-tooltip[hidden] {
+  display: none;
+}
+
+/*
+ * File Filter popup (user request, 2026-09-23 — D-12), opened beside the
+ * Activity Bar's filter button. Same ground, border and shadow as the menu
+ * dropdown; placed through the CSSOM by extension-filter-panel.ts.
+ */
+.file-filter-panel {
+  position: fixed;
+  z-index: 1100;
+  width: 220px;
+  padding: 7px 10px 10px;
+  background-color: var(--menu-bg);
+  color: var(--sidebar-fg);
+  border: 1px solid var(--border-color);
+  border-radius: 3px;
+  box-shadow: 0 5px 15px rgba(0, 0, 0, 0.35);
+  font-size: 13px;
+}
+
+.file-filter-title {
+  font-weight: 600;
+  margin-bottom: 5px;
+}
+
+.file-filter-section {
+  margin-top: 7px;
+}
+
+.file-filter-section-title {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  opacity: 0.7;
+  margin-bottom: 3px;
+}
+
+.file-filter-list {
+  max-height: 150px;
+  overflow-y: auto;
+  margin: 3px 0 5px 10px;
+}
+
+.file-filter-check {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  height: 22px;
+  cursor: pointer;
+}
+
+.file-filter-check.disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+/* The native checkbox paints a white box whatever the theme (user request,
+   2026-09-24) — drawn here from theme tokens instead, with the codicon check
+   glyph the menu uses for its own check marks. */
+.file-filter-check input {
+  appearance: none;
+  -webkit-appearance: none;
+  flex: 0 0 auto;
+  width: 14px;
+  height: 14px;
+  margin: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background-color: var(--bg-color);
+  border: 1px solid var(--focus-ring);
+  border-radius: 3px;
+  color: var(--sidebar-fg);
+  cursor: inherit;
+}
+
+.file-filter-check input:checked::before {
+  font: normal normal normal 13px/1 codicon;
+  content: '\eab2'; /* codicon-check */
+}
+
+.file-filter-check input:focus-visible {
+  outline: 1px solid var(--focus-ring);
+  outline-offset: 1px;
+}
+
+.file-filter-empty {
+  opacity: 0.6;
+  font-style: italic;
+  line-height: 22px;
+}
+
+.file-filter-input {
+  width: 100%;
+  box-sizing: border-box;
+  height: 22px;
+  padding: 0 5px;
+  background-color: var(--bg-color);
+  color: inherit;
+  border: 1px solid var(--border-color);
+  border-radius: 2px;
+  font-family: inherit;
+  font-size: inherit;
+  outline: none;
+}
+
+.file-filter-input:focus {
+  border-color: var(--focus-ring);
+}
+
+.file-filter-input:disabled {
+  opacity: 0.45;
+}
+
+.file-filter-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 5px;
+  margin-top: 10px;
+}
+
+.file-filter-btn {
+  background-color: var(--button-bg, var(--menu-hover-bg));
+  color: inherit;
+  border: 1px solid var(--border-color);
+  padding: 3px 15px;
+  cursor: pointer;
+  font-size: 13px;
+}
+
+.file-filter-btn:hover:not(:disabled) {
+  background-color: var(--menu-hover-bg);
+  color: var(--menu-hover-fg);
+}
+
+.file-filter-btn:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
 .workbench-menu-dropdown {
   position: absolute;
   top: var(--titlebar-height);
@@ -1224,25 +2333,44 @@ body.is-resizing-sidebar {
   opacity: 0.6;
 }
 
-.menu-item-row.disabled:hover {
+.menu-item-row.disabled:hover,
+.menu-item-row.disabled.kbd-focused {
   background-color: transparent;
   color: inherit;
 }
 
 .menu-item-secondary {
-  display: inline-flex;
+  flex: 0 0 auto;
+  width: 18px;
+  height: 18px;
+  display: flex;
   align-items: center;
-  margin-left: 10px;
-  padding: 0 2px;
-  background: none;
+  justify-content: center;
+  background: transparent;
   border: none;
   color: inherit;
   cursor: pointer;
+  border-radius: 3px;
+  font-size: 13px;
+  padding: 0;
+  margin-left: 10px;
+  opacity: 0;
+  outline: none;
+}
+
+.menu-item-secondary .codicon.codicon-close {
+  font-size: 13px;
+}
+
+.menu-item-row:hover > .menu-item-secondary,
+.menu-item-row.kbd-focused > .menu-item-secondary,
+.menu-item-secondary:focus {
   opacity: 0.8;
 }
 
 .menu-item-secondary:hover {
   opacity: 1;
+  background-color: var(--button-hover-bg);
 }
 
 .menu-item-check .codicon {
@@ -1284,7 +2412,7 @@ body.is-resizing-sidebar {
 
 .menu-separator {
   height: 1px;
-  background-color: var(--border-color);
+  background-color: var(--menu-separator-color);
   margin: 5px 0;
 }
 
@@ -1309,7 +2437,9 @@ body.is-resizing-sidebar {
   white-space: nowrap;
 }
 
-.context-menu-item-row:hover,
+/* One marker only: hovering a row moves `.focused` to it (contextmenu.ts), so
+   no separate :hover rule — with one, resting the pointer on a row while
+   arrowing elsewhere lit two rows at once (user report, 2026-09-24). */
 .context-menu-item-row.focused {
   background-color: var(--menu-hover-bg);
   color: var(--menu-hover-fg);
@@ -1582,20 +2712,25 @@ body.is-resizing-sidebar {
  */
 .dv-tab.workbench-preview-tab .dv-default-tab-content {
   font-style: italic;
-}
-
-/*
- * The dirty dot (●) is plain text prepended to the panel title — dockview's
- * default tab only accepts a title string, no separate DOM node per
- * character (node_modules/dockview-core DefaultTab.render() sets
- * textContent). ::first-letter is the only way to style just that leading
- * character apart from the rest, so it stays upright even when the title
- * around it is italic (a dirty preview tab) — user request, 2026-09-15.
- * Scoped to .workbench-dirty-tab (editor.ts applyDirtyClass) so a clean
- * tab's own first title letter is never touched.
- */
-.dv-tab.workbench-dirty-tab .dv-default-tab-content::first-letter {
-  font-style: normal;
+  /* `overflow: hidden` above clips at this box's LAYOUT width, which the
+     browser computes from the title's upright (non-italic) glyph advance
+     widths — font-style: italic only slants glyphs at paint time, so it is
+     never factored into that width. The last glyph's ink can therefore
+     extend past this box's right edge and get hard-clipped (root-caused
+     2026-09-17: confirmed empirically that .dv-default-tab-content's own
+     scrollWidth === clientWidth even while the rendered "d" in "CLAUDE.md"
+     was visibly cut off — this is invisible to any overflow/ellipsis
+     check). The 2026-09-15 fix (widening the gap to the close button)
+     only ever helped "Untitled" by incidentally growing .dv-tab's own
+     width: max-content sum by a pixel or two — not a real fix, since it
+     never touched THIS box's own clip boundary, which is why "CLAUDE.md"
+     still clipped. This padding reserves the actual overshoot (tan of the
+     font's italic angle × its height, roughly 2-3px at this 13px size,
+     independent of which string is showing) directly on the box that does
+     the clipping, so it covers every title, not just the ones that
+     happened to get lucky. Scoped to preview (italic) tabs only — a
+     non-italic tab's glyphs have no slant overshoot to cover. */
+  padding-right: 3px;
 }
 
 .dv-tab .dv-default-tab-action {
@@ -1609,21 +2744,42 @@ body.is-resizing-sidebar {
   color: var(--focus-ring);
   font: inherit;
   cursor: pointer;
-  /* Trimmed from 2px so the icon's own box hugs it tighter (user request,
-     2026-09-15). */
-  padding: 1px;
+  padding: 0;
   border-radius: 3px;
+  /* Same footprint as the Folder Tabs rail's own close button,
+     .foldertabs-tab-close (user request, 2026-09-17). */
+  width: 18px;
+  height: 18px;
+}
+
+.dv-tab .dv-default-tab-action:hover {
+  background-color: var(--button-hover-bg);
 }
 
 /* Hand copy of dockview's .dv-svg rule, which the CSP blocks
-   (.claude/rules/dockview-css.md): without it the close "X" path falls back
-   to the SVG default black fill and vanishes on the dark theme. */
+   (.claude/rules/dockview-css.md): without it any OTHER .dv-svg dockview
+   renders elsewhere (not just the tab close button below) falls back to the
+   SVG default black fill and vanishes on the dark theme. */
 .dv-svg {
   display: inline-block;
   fill: currentcolor;
   line-height: 1;
   stroke: currentcolor;
   stroke-width: 0;
+}
+
+/* dockview renders its own close glyph as an inline SVG here — replaced
+   with the same codicon-close glyph the Folder Tabs rail's close button
+   uses (.foldertabs-tab-close), via ::before, so both areas' × icons
+   actually match (user request, 2026-09-17). The vendor SVG is hidden
+   rather than removed — it is dockview's own DOM, not ours to delete. */
+.dv-tab .dv-default-tab-action .dv-svg {
+  display: none;
+}
+
+.dv-tab .dv-default-tab-action::before {
+  font: normal normal normal 13px/1 codicon;
+  content: '\ea76'; /* codicon-close */
 }
 
 .dv-tab.dv-active-tab .dv-default-tab-action {
@@ -1636,6 +2792,76 @@ body.is-resizing-sidebar {
 
 .dv-tab.dv-inactive-tab:hover .dv-default-tab-action {
   visibility: visible;
+}
+
+/*
+ * Dirty indicator (FR-L1) — VS Code-style (user request, 2026-09-17): no
+ * icon or character is ever added before the filename. Instead the tab's
+ * own close (×) button doubles as the indicator: a filled dot at rest,
+ * swapped back to the real × the moment the pointer is over that button, so
+ * it is always clickable to close. Forced visible here (overriding
+ * .dv-inactive-tab's hover-only default above) because an inactive dirty
+ * tab's dot has to be seen without hovering — only the SWAP to × still
+ * needs a hover.
+ */
+.dv-tab.workbench-dirty-tab .dv-default-tab-action {
+  visibility: visible;
+}
+
+.dv-tab.workbench-dirty-tab .dv-default-tab-action::before {
+  content: '';
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background-color: currentColor;
+}
+
+.dv-tab.workbench-dirty-tab .dv-default-tab-action:hover::before {
+  font: normal normal normal 13px/1 codicon;
+  content: '\ea76'; /* codicon-close */
+  width: auto;
+  height: auto;
+  border-radius: 0;
+  background-color: transparent;
+}
+
+/*
+ * Tab icon (user request, 2026-09-23) — the same icon markup the Explorer
+ * tree draws for a row (`renderIconMarkup()`), placed before the title by
+ * editor.ts's applyTabDecoration(). The tab's own 5px gap spaces it from
+ * the title, so the tree row's margin is dropped here.
+ */
+.dv-tab .workbench-tab-icon {
+  display: flex;
+  align-items: center;
+  flex: 0 0 auto;
+}
+
+.dv-tab .workbench-tab-icon .tree-icon {
+  margin-right: 0;
+}
+
+/*
+ * Close-button marker (user request, 2026-09-23) — a Viewer tab's lock sits
+ * where the × is, the same way the dirty ● does above: shown at rest on
+ * active and inactive tabs alike, swapped for the real × while the pointer
+ * is over the button. A dirty tab's ● wins over the marker.
+ */
+.dv-tab.workbench-rest-icon-tab .dv-default-tab-action {
+  visibility: visible;
+}
+
+.dv-tab.workbench-rest-icon-tab:not(.workbench-dirty-tab) .dv-default-tab-action:not(:hover)::before {
+  content: none;
+}
+
+.dv-tab .dv-default-tab-action .workbench-tab-rest-icon.codicon {
+  font-size: 13px;
+}
+
+.dv-tab.workbench-dirty-tab .workbench-tab-rest-icon,
+.dv-tab .dv-default-tab-action:hover .workbench-tab-rest-icon {
+  display: none;
 }
 
 .dv-groupview.dv-active-group > .dv-tabs-and-actions-container .dv-tabs-container > .dv-tab.dv-active-tab {
@@ -1658,43 +2884,26 @@ body.is-resizing-sidebar {
   color: var(--dv-inactivegroup-hiddenpanel-tab-color);
 }
 
-/* Fills the gap between the 22px active tab and the bottom of the 30px strip
-   with the tab's own colour, so the tab runs straight into the editor below
-   (user request, 2026-09-14). */
+/* Inactive tab hover shows active tab highlight color and hides right border (user request, 2026-09-25) */
+.dv-tabs-container > .dv-tab.dv-inactive-tab:hover {
+  background-color: var(--tab-active-bg);
+  color: var(--tab-active-fg);
+  border-right-color: transparent;
+}
+
+.dv-tab.dv-active-tab {
+  border-right-color: transparent;
+}
+
 .dv-tab.dv-active-tab::after {
-  content: "";
-  position: absolute;
-  left: 0;
-  right: 0;
-  top: 100%;
-  height: calc((var(--area-size) - 22px) / 2);
-  background-color: inherit;
-  pointer-events: none;
+  display: none;
 }
 
 /*
- * Every group keeps showing its active tab (the rules above); only the group
- * that holds keyboard focus adds a ring to it (v0.2 FR-F10). Keyed off
- * :focus-within, so there is at most one — only one element can hold focus.
+ * Active tab has no focus outline border (user request, 2026-09-25).
  */
 .dv-groupview:focus-within > .dv-tabs-and-actions-container .dv-tabs-container > .dv-tab.dv-active-tab {
-  /* Same ring as the tree cursor: a soft gray that still reads >= 3:1 on the
-     active tab in every theme, which the accent does not. */
-  outline: 1px solid var(--focus-ring);
-  outline-offset: -1px;
-  /*
-   * Every pane but the leftmost has a dockview group-boundary separator
-   * (.dv-view:not(:first-child)::before, z-index 5) and a resize sash
-   * (.dv-sash, z-index 99) sitting exactly on its left edge — the same x
-   * position as this ring's left segment. Neither is part of a stacking
-   * context its .dv-view/.dv-groupview ancestors establish (position with
-   * z-index:auto doesn't create one), so they paint above this ring's
-   * default z-index:auto and cut off its left side in every pane except the
-   * one against the explorer (user report, 2026-09-15). Beating the sash's
-   * 99 (the higher of the two) is enough for the separator too; matching
-   * --dv-overlay-z-index (100) rather than tying the sash at 99 avoids
-   * relying on DOM paint order to break a tie.
-   */
+  outline: none;
   z-index: 100;
 }
 
@@ -1791,6 +3000,15 @@ body.is-resizing-sidebar {
   height: 100%;
 }
 
+/* Rounded ends on monaco's own scrollbar slider, matching the Explorer's
+   .tree-list::-webkit-scrollbar-thumb (user request, 2026-09-17) — monaco
+   draws its slider as a plain DOM div with square corners by default; the
+   thickness already matches via texteditor.ts's verticalScrollbarSize/
+   horizontalScrollbarSize: 5. */
+.text-editor-view .slider {
+  border-radius: 10px;
+}
+
 /* 9. Statusbar error state (FR-G2 ~ FR-G4) */
 .statusbar-message-error {
   color: var(--statusbar-error-fg, #f48771);
@@ -1841,21 +3059,171 @@ body.is-resizing-sidebar {
   color: var(--menu-hover-fg);
 }
 
-/* 10b. Help > 정보 overlay (FR-Q5, D-23, WK-037) */
+/* 10b. Help > About overlay (FR-Q5, D-23, WK-037, VS Code format) */
 .workbench-about-dialog {
-  max-width: 420px;
+  max-width: 680px;
+  width: min(680px, calc(100vw - 32px));
+  max-height: calc(100vh - 32px);
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+}
+
+.about-dialog-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 10px;
+  padding-bottom: 7px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.about-dialog-icon {
+  font-size: 24px;
+  color: var(--focus-ring);
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .about-dialog-title {
-  font-size: 15px;
+  font-size: 18px;
   font-weight: 600;
-  margin-bottom: 15px;
+  line-height: 1.2;
 }
 
-.about-dialog-attribution p {
+.about-dialog-subtitle {
+  font-size: 11px;
+  color: var(--sidebar-fg);
+  opacity: 0.75;
+}
+
+.about-dialog-meta {
+  display: grid;
+  grid-template-columns: 80px minmax(0, 1fr) 80px minmax(0, 1fr);
+  row-gap: 3px;
+  column-gap: 10px;
   font-size: 13px;
-  margin: 0 0 10px;
+  margin-bottom: 10px;
+  padding: 7px 10px;
+  background-color: rgba(128, 128, 128, 0.08);
+  border: 1px solid var(--border-color);
+  border-radius: 3px;
+  user-select: text;
+}
+
+.about-meta-key {
+  font-weight: 600;
+  color: var(--sidebar-fg);
+  opacity: 0.85;
+}
+
+.about-meta-val {
+  word-break: break-all;
+  font-family: monospace;
+  font-size: 11px;
+}
+
+.about-dialog-attribution {
+  margin-bottom: 10px;
+  display: flex;
+  flex-direction: column;
+}
+
+.about-licenses-heading {
+  font-size: 13px;
+  font-weight: 600;
+  margin-bottom: 5px;
+}
+
+.about-licenses-card {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  column-gap: 14px;
+  border: 1px solid var(--border-color);
+  background-color: rgba(128, 128, 128, 0.05);
+  border-radius: 3px;
+  padding: 5px 10px;
+  margin-bottom: 5px;
+}
+
+.about-license-entry {
+  font-size: 11px;
+  line-height: 1.3;
+  padding: 5px 0;
+  border-bottom: 1px solid rgba(128, 128, 128, 0.15);
+}
+
+.about-license-entry:nth-last-child(-n+2) {
+  border-bottom: none;
+}
+
+.about-license-name {
+  font-weight: 600;
+}
+
+.about-license-desc {
+  color: var(--sidebar-fg);
+  opacity: 0.85;
+}
+
+.about-dialog-attribution p,
+.about-licenses-note {
+  font-size: 11px;
+  color: var(--sidebar-fg);
+  opacity: 0.75;
+  margin: 0;
   line-height: 1.5;
+}
+
+.about-dialog-copy-btn {
+  background-color: var(--button-bg, var(--menu-hover-bg));
+  color: inherit;
+  border: 1px solid var(--border-color);
+  padding: 5px 15px;
+  cursor: pointer;
+  font-size: 13px;
+  border-radius: 2px;
+}
+
+.about-dialog-copy-btn:hover {
+  background-color: var(--menu-hover-bg);
+  color: var(--menu-hover-fg);
+}
+
+@media (max-height: 500px) {
+  .workbench-about-dialog {
+    padding: 10px;
+  }
+
+  .about-dialog-header {
+    margin-bottom: 3px;
+    padding-bottom: 3px;
+  }
+
+  .about-dialog-meta {
+    row-gap: 1px;
+    margin-bottom: 3px;
+    padding: 3px 7px;
+  }
+
+  .about-dialog-attribution {
+    margin-bottom: 3px;
+  }
+
+  .about-licenses-heading,
+  .about-licenses-card {
+    margin-bottom: 2px;
+  }
+
+  .about-licenses-card {
+    padding: 2px 7px;
+  }
+
+  .about-license-entry {
+    line-height: 1.2;
+    padding: 3px 0;
+  }
 }
 
 .dv-drop-target-container {
@@ -1910,4 +3278,3 @@ body.is-resizing-sidebar {
 .dv-dragged {
   transform: translate3d(0, 0, 0);
 }
-

@@ -1,3 +1,4 @@
+import codecs
 import os
 import sys
 import json
@@ -7,6 +8,8 @@ import time
 import threading
 import tempfile
 import shutil
+import socket
+from winpty import PtyProcess
 
 # Windows consoles often default stdout/stderr to a legacy codepage (e.g.
 # cp949) that cannot encode arbitrary Unicode punctuation appearing in test
@@ -29,6 +32,14 @@ is_v02_phase4_test = "--v02-phase4-test" in sys.argv
 is_v02_phase5_test = "--v02-phase5-test" in sys.argv
 is_v02_phase6_test = "--v02-phase6-test" in sys.argv
 is_v02_phase7_test = "--v02-phase7-test" in sys.argv
+is_v03_phase1_test = "--v03-phase1-test" in sys.argv
+is_v03_phase2_test = "--v03-phase2-test" in sys.argv
+is_v03_phase3_test = "--v03-phase3-test" in sys.argv
+is_v04_phase4_single_test = "--v04-phase4-single-test" in sys.argv
+is_v04_phase4_launch1_test = "--v04-phase4-launch1-test" in sys.argv
+is_v04_phase4_launch2_test = "--v04-phase4-launch2-test" in sys.argv
+is_v05_phase5_test = "--v05-phase5-test" in sys.argv
+is_v06_phase6_test = "--v06-phase6-test" in sys.argv
 loaded_called = False
 
 INSPECTION_EXPRESSION = """
@@ -37,6 +48,7 @@ JSON.stringify({
   title: document.title,
   statusbarText: document.getElementById('statusbar-message') ? document.getElementById('statusbar-message').textContent.trim() : (document.getElementById('statusbar') ? document.getElementById('statusbar').textContent.trim() : null),
   domAssets: Array.from(document.querySelectorAll('script[src], link[href]')).map(function(el) { return el.getAttribute('src') || el.getAttribute('href'); }),
+  bundledFontFaces: Array.from(document.fonts).filter(function(face) { return face.family === 'Workbench D2Coding'; }).map(function(face) { return { weight: face.weight, status: face.status }; }),
   styleSheetsCount: document.styleSheets.length,
   styleSheetRulesCount: document.styleSheets.length > 0 && document.styleSheets[0].cssRules ? document.styleSheets[0].cssRules.length : 0,
   computedBg: window.getComputedStyle ? window.getComputedStyle(document.body).backgroundColor : null
@@ -49,17 +61,11 @@ def hash_file(file_path: str) -> str:
         return hashlib.sha256(f.read()).hexdigest()
 
 
-def compute_digest_map(dist_dir: str, dom_assets: list) -> dict:
+def compute_digest_map(dist_dir: str) -> dict:
     digest_map = {}
-    index_path = os.path.join(dist_dir, "index.html")
-    digest_map["index.html"] = hash_file(index_path)
-
-    for raw in dom_assets:
-        if not raw:
-            continue
-        clean = raw.lstrip("./").lstrip("/")
-        asset_path = os.path.join(dist_dir, clean)
-        if os.path.exists(asset_path):
+    for root, _, files in os.walk(dist_dir):
+        for name in files:
+            asset_path = os.path.join(root, name)
             rel_key = os.path.relpath(asset_path, dist_dir).replace("\\", "/")
             digest_map[rel_key] = hash_file(asset_path)
 
@@ -93,7 +99,7 @@ def request_confirmed_close(window):
                 (async () => {
                     try {
                         const ok = window.__workbenchApp
-                            ? await window.__workbenchApp.editor.confirmQuit()
+                            ? await window.__workbenchApp.confirmQuit()
                             : true;
                         window.__closeConfirmResult = ok ? 'yes' : 'no';
                     } catch (e) {
@@ -108,6 +114,8 @@ def request_confirmed_close(window):
                     window.evaluate_js("window.__closeConfirmResult = null;")
                     if res == "yes":
                         window._wb_close_confirmed = True
+                        if hasattr(window, '_js_api') and hasattr(window._js_api, 'cleanup_terminals'):
+                            window._js_api.cleanup_terminals()
                         window.destroy()
                     return
             sys.stderr.write("[pywebview] Close confirmation timed out; window stays open.\n")
@@ -122,6 +130,9 @@ def request_confirmed_close(window):
 class WindowApi:
     def __init__(self):
         self._window = None
+        self._terminals = {}
+        self._terminal_counter = 0
+        self._terminal_lock = threading.Lock()
 
     def set_window(self, window):
         self._window = window
@@ -174,6 +185,199 @@ class WindowApi:
                 return result[0]
         return None
 
+    def open_file_dialog(self):
+        if self._window:
+            result = self._window.create_file_dialog(webview.OPEN_DIALOG)
+            if result and len(result) > 0:
+                return result[0]
+        return None
+
+    def read_text_file(self, file_path):
+        with open(file_path, 'rb') as stream:
+            data = stream.read()
+        if b'\0' in data:
+            raise RuntimeError('Binary files cannot be opened as text')
+        return data.decode('utf-8-sig')
+
+    def write_text_file(self, file_path, contents):
+        with open(file_path, 'w', encoding='utf-8') as stream:
+            stream.write(contents)
+        return True
+
+    # Explorer create / rename (D-14): same meaning as the Electron host's
+    # fs-ops.cjs — never overwrite, an existing target is an error.
+    def create_file(self, file_path):
+        # 'x' fails with FileExistsError instead of truncating.
+        with open(file_path, 'x', encoding='utf-8'):
+            pass
+        return True
+
+    def create_folder(self, dir_path):
+        os.mkdir(dir_path)
+        return True
+
+    def delete_path(self, target_path):
+        # A symlink/junction is removed as the link itself, never followed
+        # into its target (matches the Electron host's fs.rm, which also
+        # never recurses through a link) — os.path.isdir() alone would
+        # follow a directory symlink and shutil.rmtree() its target's
+        # contents instead (v0.3, user request 2026-09-25).
+        if os.path.islink(target_path):
+            os.remove(target_path)
+        elif os.path.isdir(target_path):
+            shutil.rmtree(target_path)
+        else:
+            os.remove(target_path)
+        return True
+
+    def rename_path(self, old_path, new_path):
+        # os.rename already refuses an existing target on Windows; the check
+        # keeps the message the same as Electron's and lets a case-only
+        # rename (a.txt -> A.txt) through.
+        case_only = os.path.normcase(os.path.abspath(old_path)) == os.path.normcase(os.path.abspath(new_path))
+        if not case_only and os.path.exists(new_path):
+            raise FileExistsError(f"'{os.path.basename(new_path)}' already exists")
+        os.rename(old_path, new_path)
+        return True
+
+    # Text-or-binary check before a file opens in an editor tab (D-15): same
+    # rule as the Electron host's fs-ops.cjs probeTextFile.
+    def probe_text_file(self, file_path):
+        with open(file_path, 'rb') as stream:
+            head = stream.read(64 * 1024)
+        if b'\0' in head:
+            return 'binary'
+        body = head[3:] if head.startswith(b'\xef\xbb\xbf') else head
+        for encoding, label in (('utf-8', 'utf-8'), ('cp949', 'cp949')):
+            try:
+                # final=False lets a character cut at the 64KB boundary through.
+                codecs.getincrementaldecoder(encoding)('strict').decode(body, final=False)
+                return label
+            except UnicodeDecodeError:
+                continue
+        return 'binary'
+
+    def read_legacy_text_file(self, file_path):
+        with open(file_path, 'rb') as stream:
+            data = stream.read()
+        if b'\0' in data:
+            raise RuntimeError('Binary files cannot be opened as text')
+        return data.decode('cp949')
+
+    def terminal_start(self, kind, cwd):
+        if kind not in ('cmd', 'powershell'):
+            raise RuntimeError('Unsupported shell')
+        if not os.path.isdir(cwd):
+            raise RuntimeError('Terminal working directory is not a folder')
+        executable = 'cmd.exe' if kind == 'cmd' else 'powershell.exe'
+        proc = PtyProcess.spawn(executable, cwd=cwd, dimensions=(24, 80))
+        with self._terminal_lock:
+            self._terminal_counter += 1
+            terminal_id = 'terminal-' + str(self._terminal_counter)
+            state = {
+                'process': proc, 'output': '', 'pending_push': '',
+                'streaming': False, 'exited': False, 'closed': False,
+                'push_event': threading.Event(),
+            }
+            self._terminals[terminal_id] = state
+
+        def push_pending():
+            # Wait without a timer while idle; coalesce only an active burst.
+            while True:
+                state['push_event'].wait()
+                time.sleep(0.016)
+                with self._terminal_lock:
+                    state['push_event'].clear()
+                    if state['closed']:
+                        return
+                    data = state['pending_push']
+                    state['pending_push'] = ''
+                    exited = state['exited']
+                if self._window and data:
+                    try:
+                        js = f"window.__wbTerminalPush && window.__wbTerminalPush({json.dumps(terminal_id)}, {json.dumps(data)});"
+                        self._window.evaluate_js(js)
+                    except Exception:
+                        pass
+                if exited:
+                    if self._window:
+                        try:
+                            js = f"window.__wbTerminalExit && window.__wbTerminalExit({json.dumps(terminal_id)});"
+                            self._window.evaluate_js(js)
+                        except Exception:
+                            pass
+                    return
+
+        def collect():
+            try:
+                while proc.isalive():
+                    chunk = proc.read(8192)
+                    if chunk:
+                        with self._terminal_lock:
+                            if state['closed']:
+                                return
+                            if state['streaming']:
+                                state['pending_push'] = (state['pending_push'] + chunk)[-1_000_000:]
+                                state['push_event'].set()
+                            else:
+                                state['output'] = (state['output'] + chunk)[-1_000_000:]
+            except Exception:
+                pass
+            with self._terminal_lock:
+                state['exited'] = True
+                state['push_event'].set()
+
+        threading.Thread(target=push_pending, daemon=True).start()
+        threading.Thread(target=collect, daemon=True).start()
+        return terminal_id
+
+    def cleanup_terminals(self):
+        with self._terminal_lock:
+            states = list(self._terminals.values())
+            self._terminals.clear()
+            for state in states:
+                state['closed'] = True
+                state['push_event'].set()
+        for state in states:
+            try:
+                state['process'].close()
+            except Exception:
+                pass
+
+    def terminal_read(self, terminal_id):
+        with self._terminal_lock:
+            state = self._terminals.get(terminal_id)
+            if state is None:
+                return {'output': '', 'exited': True}
+            output = state['output']
+            state['output'] = ''
+            state['streaming'] = True
+            return {'output': output, 'exited': state['exited']}
+
+    def terminal_write(self, terminal_id, data):
+        with self._terminal_lock:
+            state = self._terminals.get(terminal_id)
+        if state is not None:
+            state['process'].write(data)
+
+    def terminal_resize(self, terminal_id, cols, rows):
+        with self._terminal_lock:
+            state = self._terminals.get(terminal_id)
+        if state is not None:
+            state['process'].setwinsize(max(2, int(rows)), max(2, int(cols)))
+
+    def terminal_close(self, terminal_id):
+        with self._terminal_lock:
+            state = self._terminals.pop(terminal_id, None)
+            if state is not None:
+                state['closed'] = True
+                state['push_event'].set()
+        if state is not None:
+            try:
+                state['process'].close()
+            except Exception:
+                pass
+
     def read_dir(self, dir_path):
         if not os.path.exists(dir_path) or not os.path.isdir(dir_path):
             raise RuntimeError(f"Directory not found or not accessible: {dir_path}")
@@ -181,14 +385,71 @@ class WindowApi:
             entries = []
             for name in os.listdir(dir_path):
                 full_path = os.path.join(dir_path, name)
+                is_container = os.path.isdir(full_path)
+                # size/mtimeMs (v0.3 WK-118) — same "best effort, do not fail
+                # the whole directory over one bad entry" stance as the
+                # Electron side's stat() try/except.
+                size = None
+                mtime_ms = 0
+                try:
+                    st = os.stat(full_path)
+                    if not is_container:
+                        size = st.st_size
+                    mtime_ms = st.st_mtime * 1000
+                except OSError:
+                    pass
                 entries.append({
                     "name": name,
                     "path": full_path,
-                    "isContainer": os.path.isdir(full_path),
+                    "isContainer": is_container,
+                    "size": size,
+                    "mtimeMs": mtime_ms,
                 })
             return entries
         except Exception as e:
             raise RuntimeError(f"Failed to read directory {dir_path}: {e}")
+
+    def list_drives(self):
+        """Every accessible drive root, with its volume label (v0.3
+        WK-111) — a drive letter that exists but has no media (an empty
+        CD-ROM drive) or is otherwise unreachable is skipped:
+        os.path.exists() on its root simply returns False, same as any
+        other dead path, so this never returns a drive the app would
+        immediately show as an error tab. The label comes from the
+        standard win32 GetVolumeInformationW API (via ctypes, no new
+        dependency) rather than shelling out to a locale-dependent command
+        — its own error path (a non-zero return) just means "no label",
+        not a failure worth surfacing."""
+        if os.name != "nt":
+            return []
+        import string
+        import ctypes
+        drives = []
+        for letter in string.ascii_uppercase:
+            root = f"{letter}:\\"
+            if not os.path.exists(root):
+                continue
+            label = ""
+            try:
+                buf = ctypes.create_unicode_buffer(261)
+                ok = ctypes.windll.kernel32.GetVolumeInformationW(
+                    ctypes.c_wchar_p(root), buf, ctypes.sizeof(buf), None, None, None, None, 0
+                )
+                if ok:
+                    label = buf.value
+            except Exception:
+                label = ""
+            drives.append({"path": root, "label": label})
+        return drives
+
+    def get_drive_total_bytes(self, target_path):
+        """Total byte capacity of the drive containing `target_path`
+        (v0.3 WK-125) — `shutil.disk_usage` already resolves any path to
+        its containing volume, no drive-root normalization needed here."""
+        try:
+            return shutil.disk_usage(target_path).total
+        except Exception:
+            return 0
 
 
 WINDOW_WIDTH = 1280
@@ -270,7 +531,7 @@ def main():
                 current_url = window.get_current_url()
                 inspection_json = window.evaluate_js(INSPECTION_EXPRESSION)
                 inspection = json.loads(inspection_json)
-                digest_map = compute_digest_map(dist_dir, inspection.get("domAssets") or [])
+                digest_map = compute_digest_map(dist_dir)
 
                 sys.stdout.write(f"[pywebview] Local Path: {dist_index}\n")
                 sys.stdout.write(f"[pywebview] Loaded URL: {current_url}\n")
@@ -719,6 +980,466 @@ def main():
             t.start()
             return
 
+        if is_v03_phase1_test:
+            def run_v03_phase1():
+                # Two real folders on disk: FOLDERS-rail numbering (D-3) and
+                # Open Recent (WK-087) both need a second, distinct path.
+                test_tmp_dir = tempfile.mkdtemp(prefix="wb-v03p1-fixture-")
+                test_tmp_dir2 = tempfile.mkdtemp(prefix="wb-v03p1-fixture2-")
+                try:
+                    with open(os.path.join(test_tmp_dir, "alpha.txt"), "w", encoding="utf-8") as f:
+                        f.write("alpha")
+                    os.makedirs(os.path.join(test_tmp_dir, "sub"), exist_ok=True)
+                    with open(os.path.join(test_tmp_dir, "sub", "inner.txt"), "w", encoding="utf-8") as f:
+                        f.write("inner")
+                    with open(os.path.join(test_tmp_dir2, "alpha.txt"), "w", encoding="utf-8") as f:
+                        f.write("alpha2")
+
+                    def stubbed_open_folder_dialog():
+                        return window.evaluate_js("window.__nextDialogPath ?? null")
+                    api.open_folder_dialog = stubbed_open_folder_dialog
+
+                    time.sleep(0.3)
+                    suite_path = os.path.join(root_dir, "scripts", "v03-phase1-suite.js")
+                    with open(suite_path, "r", encoding="utf-8") as f:
+                        suite_code = f.read()
+                    window.evaluate_js("window.__testTmpDir = " + json.dumps(test_tmp_dir) + ";")
+                    window.evaluate_js("window.__testTmpDir2 = " + json.dumps(test_tmp_dir2) + ";")
+                    window.evaluate_js(suite_code)
+                    window.evaluate_js("""
+                        (async () => {
+                            try {
+                                const res = await window.__runV03Phase1Suite();
+                                window.__v03Phase1Results = JSON.stringify(res);
+                            } catch (e) {
+                                window.__v03Phase1Results = JSON.stringify({ success: false, results: [{ id: 'RUNNER_ERR', pass: false, msg: String(e) }] });
+                            }
+                        })();
+                    """)
+                    for _ in range(200):
+                        time.sleep(0.1)
+                        res = window.evaluate_js("window.__v03Phase1Results")
+                        if res:
+                            sys.stdout.write(f"[pywebview] v0.3 Phase 1 Results: {res}\n")
+                            sys.stdout.flush()
+                            window.destroy()
+                            shutil.rmtree(test_tmp_dir, ignore_errors=True)
+                            shutil.rmtree(test_tmp_dir2, ignore_errors=True)
+                            os._exit(0)
+                            return
+                    sys.stderr.write("[pywebview] Error: v0.3 Phase 1 test timed out waiting for results\n")
+                    sys.stderr.flush()
+                    window.destroy()
+                    shutil.rmtree(test_tmp_dir, ignore_errors=True)
+                    shutil.rmtree(test_tmp_dir2, ignore_errors=True)
+                    os._exit(1)
+                except Exception as e:
+                    sys.stderr.write(f"[pywebview] Error executing v0.3 Phase 1 test: {e}\n")
+                    sys.stderr.flush()
+                    window.destroy()
+                    shutil.rmtree(test_tmp_dir, ignore_errors=True)
+                    shutil.rmtree(test_tmp_dir2, ignore_errors=True)
+                    os._exit(1)
+
+            t = threading.Thread(target=run_v03_phase1, daemon=True)
+            t.start()
+            return
+
+        if is_v03_phase2_test:
+            def run_v03_phase2():
+                # 3 real, distinct folders: close/reorder need at least 3 to
+                # prove "the one below" vs "the one above" unambiguously.
+                dir1 = tempfile.mkdtemp(prefix="wb-v03p2-fixture-")
+                dir2 = tempfile.mkdtemp(prefix="wb-v03p2-fixture2-")
+                dir3 = tempfile.mkdtemp(prefix="wb-v03p2-fixture3-")
+                try:
+                    for d in (dir1, dir2, dir3):
+                        with open(os.path.join(d, "alpha.txt"), "w", encoding="utf-8") as f:
+                            f.write("alpha")
+
+                    time.sleep(0.3)
+                    suite_path = os.path.join(root_dir, "scripts", "v03-phase2-suite.js")
+                    with open(suite_path, "r", encoding="utf-8") as f:
+                        suite_code = f.read()
+                    window.evaluate_js("window.__testTmpDir = " + json.dumps(dir1) + ";")
+                    window.evaluate_js("window.__testTmpDir2 = " + json.dumps(dir2) + ";")
+                    window.evaluate_js("window.__testTmpDir3 = " + json.dumps(dir3) + ";")
+                    window.evaluate_js(suite_code)
+                    window.evaluate_js("""
+                        (async () => {
+                            try {
+                                const res = await window.__runV03Phase2Suite();
+                                window.__v03Phase2Results = JSON.stringify(res);
+                            } catch (e) {
+                                window.__v03Phase2Results = JSON.stringify({ success: false, results: [{ id: 'RUNNER_ERR', pass: false, msg: String(e) }] });
+                            }
+                        })();
+                    """)
+                    for _ in range(300):
+                        time.sleep(0.1)
+                        res = window.evaluate_js("window.__v03Phase2Results")
+                        if res:
+                            sys.stdout.write(f"[pywebview] v0.3 Phase 2 Results: {res}\n")
+                            sys.stdout.flush()
+                            window.destroy()
+                            for d in (dir1, dir2, dir3):
+                                shutil.rmtree(d, ignore_errors=True)
+                            os._exit(0)
+                            return
+                    sys.stderr.write("[pywebview] Error: v0.3 Phase 2 test timed out waiting for results\n")
+                    sys.stderr.flush()
+                    window.destroy()
+                    for d in (dir1, dir2, dir3):
+                        shutil.rmtree(d, ignore_errors=True)
+                    os._exit(1)
+                except Exception as e:
+                    sys.stderr.write(f"[pywebview] Error executing v0.3 Phase 2 test: {e}\n")
+                    sys.stderr.flush()
+                    window.destroy()
+                    for d in (dir1, dir2, dir3):
+                        shutil.rmtree(d, ignore_errors=True)
+                    os._exit(1)
+
+            t = threading.Thread(target=run_v03_phase2, daemon=True)
+            t.start()
+            return
+
+        if is_v03_phase3_test:
+            def run_v03_phase3():
+                dir1 = tempfile.mkdtemp(prefix="wb-v03p3-fixture-")
+                try:
+                    with open(os.path.join(dir1, "alpha.txt"), "w", encoding="utf-8") as f:
+                        f.write("alpha")
+
+                    time.sleep(0.3)
+                    suite_path = os.path.join(root_dir, "scripts", "v03-phase3-suite.js")
+                    with open(suite_path, "r", encoding="utf-8") as f:
+                        suite_code = f.read()
+                    window.evaluate_js("window.__testTmpDir = " + json.dumps(dir1) + ";")
+                    window.evaluate_js(suite_code)
+                    window.evaluate_js("""
+                        (async () => {
+                            try {
+                                const res = await window.__runV03Phase3Suite();
+                                window.__v03Phase3Results = JSON.stringify(res);
+                            } catch (e) {
+                                window.__v03Phase3Results = JSON.stringify({ success: false, results: [{ id: 'RUNNER_ERR', pass: false, msg: String(e) }] });
+                            }
+                        })();
+                    """)
+                    for _ in range(300):
+                        time.sleep(0.1)
+                        res = window.evaluate_js("window.__v03Phase3Results")
+                        if res:
+                            sys.stdout.write(f"[pywebview] v0.3 Phase 3 Results: {res}\n")
+                            sys.stdout.flush()
+                            window.destroy()
+                            shutil.rmtree(dir1, ignore_errors=True)
+                            os._exit(0)
+                            return
+                    sys.stderr.write("[pywebview] Error: v0.3 Phase 3 test timed out waiting for results\n")
+                    sys.stderr.flush()
+                    window.destroy()
+                    shutil.rmtree(dir1, ignore_errors=True)
+                    os._exit(1)
+                except Exception as e:
+                    sys.stderr.write(f"[pywebview] Error executing v0.3 Phase 3 test: {e}\n")
+                    sys.stderr.flush()
+                    window.destroy()
+                    shutil.rmtree(dir1, ignore_errors=True)
+                    os._exit(1)
+
+            t = threading.Thread(target=run_v03_phase3, daemon=True)
+            t.start()
+            return
+
+        if is_v04_phase4_single_test:
+            def run_v04_phase4_single():
+                def make_fixture(prefix):
+                    # Enough root-level files to actually overflow the
+                    # Explorer's visible height — a tiny fixture made
+                    # scrollTop always clamp to 0 (A4 R1 Major finding).
+                    d = tempfile.mkdtemp(prefix=prefix)
+                    os.makedirs(os.path.join(d, "sub"), exist_ok=True)
+                    with open(os.path.join(d, "sub", "inner.txt"), "w", encoding="utf-8") as f:
+                        f.write("inner")
+                    for i in range(60):
+                        with open(os.path.join(d, f"file-{i:02d}.txt"), "w", encoding="utf-8") as f:
+                            f.write(str(i))
+                    return d
+
+                dir1 = make_fixture("wb-v04p4-fixture-")
+                dir2 = make_fixture("wb-v04p4-fixture2-")
+                try:
+                    def stubbed_open_folder_dialog():
+                        return window.evaluate_js("window.__nextDialogPath ?? null")
+                    api.open_folder_dialog = stubbed_open_folder_dialog
+
+                    time.sleep(0.3)
+                    suite_path = os.path.join(root_dir, "scripts", "v04-phase4-suite.js")
+                    with open(suite_path, "r", encoding="utf-8") as f:
+                        suite_code = f.read()
+                    window.evaluate_js("window.__testTmpDir = " + json.dumps(dir1) + ";")
+                    window.evaluate_js("window.__testTmpDir2 = " + json.dumps(dir2) + ";")
+                    window.evaluate_js(suite_code)
+                    window.evaluate_js("""
+                        (async () => {
+                            try {
+                                const res = await window.__runV04Phase4SingleSession();
+                                window.__v04Phase4Results = JSON.stringify(res);
+                            } catch (e) {
+                                window.__v04Phase4Results = JSON.stringify({ success: false, results: [{ id: 'RUNNER_ERR', pass: false, msg: String(e) }] });
+                            }
+                        })();
+                    """)
+                    for _ in range(300):
+                        time.sleep(0.1)
+                        res = window.evaluate_js("window.__v04Phase4Results")
+                        if res:
+                            sys.stdout.write(f"[pywebview] v0.3 Phase 4 single-session Results: {res}\n")
+                            sys.stdout.flush()
+                            window.destroy()
+                            shutil.rmtree(dir1, ignore_errors=True)
+                            shutil.rmtree(dir2, ignore_errors=True)
+                            os._exit(0)
+                            return
+                    sys.stderr.write("[pywebview] Error: v0.3 Phase 4 single-session test timed out waiting for results\n")
+                    sys.stderr.flush()
+                    window.destroy()
+                    shutil.rmtree(dir1, ignore_errors=True)
+                    shutil.rmtree(dir2, ignore_errors=True)
+                    os._exit(1)
+                except Exception as e:
+                    sys.stderr.write(f"[pywebview] Error executing v0.3 Phase 4 single-session test: {e}\n")
+                    sys.stderr.flush()
+                    window.destroy()
+                    shutil.rmtree(dir1, ignore_errors=True)
+                    shutil.rmtree(dir2, ignore_errors=True)
+                    os._exit(1)
+
+            t = threading.Thread(target=run_v04_phase4_single, daemon=True)
+            t.start()
+            return
+
+        if is_v04_phase4_launch1_test:
+            def run_v04_phase4_launch1():
+                dir_a = os.environ.get("WB_P4_DIR_A")
+                dir_b = os.environ.get("WB_P4_DIR_B")
+                dir_c = os.environ.get("WB_P4_DIR_C")
+                try:
+                    def stubbed_open_folder_dialog():
+                        return window.evaluate_js("window.__nextDialogPath ?? null")
+                    api.open_folder_dialog = stubbed_open_folder_dialog
+
+                    time.sleep(0.3)
+                    suite_path = os.path.join(root_dir, "scripts", "v04-phase4-suite.js")
+                    with open(suite_path, "r", encoding="utf-8") as f:
+                        suite_code = f.read()
+                    window.evaluate_js(suite_code)
+                    window.evaluate_js(f"""
+                        (async () => {{
+                            try {{
+                                const res = await window.__runV04Phase4Launch1Setup({json.dumps(dir_a)}, {json.dumps(dir_b)}, {json.dumps(dir_c)});
+                                window.__v04Phase4Results = JSON.stringify(res);
+                            }} catch (e) {{
+                                window.__v04Phase4Results = JSON.stringify({{ success: false, results: [{{ id: 'RUNNER_ERR', pass: false, msg: String(e) }}] }});
+                            }}
+                        }})();
+                    """)
+                    for _ in range(300):
+                        time.sleep(0.1)
+                        res = window.evaluate_js("window.__v04Phase4Results")
+                        if res:
+                            sys.stdout.write(f"[pywebview] v0.3 Phase 4 launch1 Results: {res}\n")
+                            sys.stdout.flush()
+                            # localStorage's write to WebView2's on-disk LevelDB
+                            # is asynchronous — an immediate os._exit() right
+                            # after window.destroy() can race it and lose the
+                            # last write, which launch2 would then see as "no
+                            # tabs restored" even though persistFolderTabs()
+                            # genuinely ran (v0.3 Phase 4 restart-pair testing).
+                            time.sleep(0.5)
+                            window.destroy()
+                            os._exit(0)
+                            return
+                    sys.stderr.write("[pywebview] Error: v0.3 Phase 4 launch1 test timed out waiting for results\n")
+                    sys.stderr.flush()
+                    window.destroy()
+                    os._exit(1)
+                except Exception as e:
+                    sys.stderr.write(f"[pywebview] Error executing v0.3 Phase 4 launch1 test: {e}\n")
+                    sys.stderr.flush()
+                    window.destroy()
+                    os._exit(1)
+
+            t = threading.Thread(target=run_v04_phase4_launch1, daemon=True)
+            t.start()
+            return
+
+        if is_v04_phase4_launch2_test:
+            def run_v04_phase4_launch2():
+                dir_a = os.environ.get("WB_P4_DIR_A")
+                dir_b = os.environ.get("WB_P4_DIR_B")
+                dir_c = os.environ.get("WB_P4_DIR_C")
+                try:
+                    time.sleep(0.3)
+                    suite_path = os.path.join(root_dir, "scripts", "v04-phase4-suite.js")
+                    with open(suite_path, "r", encoding="utf-8") as f:
+                        suite_code = f.read()
+                    window.evaluate_js(suite_code)
+                    window.evaluate_js(f"""
+                        (async () => {{
+                            try {{
+                                const res = await window.__runV04Phase4Launch2Verify({json.dumps(dir_a)}, {json.dumps(dir_b)}, {json.dumps(dir_c)});
+                                window.__v04Phase4Results = JSON.stringify(res);
+                            }} catch (e) {{
+                                window.__v04Phase4Results = JSON.stringify({{ success: false, results: [{{ id: 'RUNNER_ERR', pass: false, msg: String(e) }}] }});
+                            }}
+                        }})();
+                    """)
+                    for _ in range(300):
+                        time.sleep(0.1)
+                        res = window.evaluate_js("window.__v04Phase4Results")
+                        if res:
+                            sys.stdout.write(f"[pywebview] v0.3 Phase 4 launch2 Results: {res}\n")
+                            sys.stdout.flush()
+                            window.destroy()
+                            os._exit(0)
+                            return
+                    sys.stderr.write("[pywebview] Error: v0.3 Phase 4 launch2 test timed out waiting for results\n")
+                    sys.stderr.flush()
+                    window.destroy()
+                    os._exit(1)
+                except Exception as e:
+                    sys.stderr.write(f"[pywebview] Error executing v0.3 Phase 4 launch2 test: {e}\n")
+                    sys.stderr.flush()
+                    window.destroy()
+                    os._exit(1)
+
+            t = threading.Thread(target=run_v04_phase4_launch2, daemon=True)
+            t.start()
+            return
+
+        if is_v05_phase5_test:
+            def run_v05_phase5():
+                dir1 = tempfile.mkdtemp(prefix="wb-v05p5-fixture-")
+                dir2 = tempfile.mkdtemp(prefix="wb-v05p5-fixture2-")
+                # A path guaranteed not to exist: create then remove it.
+                dead_dir = tempfile.mkdtemp(prefix="wb-v05p5-dead-")
+                shutil.rmtree(dead_dir, ignore_errors=True)
+                try:
+                    with open(os.path.join(dir1, "alpha.txt"), "w", encoding="utf-8") as f:
+                        f.write("alpha")
+                    with open(os.path.join(dir2, "alpha.txt"), "w", encoding="utf-8") as f:
+                        f.write("alpha")
+
+                    def stubbed_open_folder_dialog():
+                        return window.evaluate_js("window.__nextDialogPath ?? null")
+                    api.open_folder_dialog = stubbed_open_folder_dialog
+
+                    time.sleep(0.3)
+                    suite_path = os.path.join(root_dir, "scripts", "v05-phase5-suite.js")
+                    with open(suite_path, "r", encoding="utf-8") as f:
+                        suite_code = f.read()
+                    window.evaluate_js("window.__testTmpDir = " + json.dumps(dir1) + ";")
+                    window.evaluate_js("window.__testTmpDir2 = " + json.dumps(dir2) + ";")
+                    window.evaluate_js("window.__testDeadDir = " + json.dumps(dead_dir) + ";")
+                    window.evaluate_js(suite_code)
+                    window.evaluate_js("""
+                        (async () => {
+                            try {
+                                const res = await window.__runV05Phase5Suite();
+                                window.__v05Phase5Results = JSON.stringify(res);
+                            } catch (e) {
+                                window.__v05Phase5Results = JSON.stringify({ success: false, results: [{ id: 'RUNNER_ERR', pass: false, msg: String(e) }] });
+                            }
+                        })();
+                    """)
+                    for _ in range(300):
+                        time.sleep(0.1)
+                        res = window.evaluate_js("window.__v05Phase5Results")
+                        if res:
+                            sys.stdout.write(f"[pywebview] v0.3 Phase 5 Results: {res}\n")
+                            sys.stdout.flush()
+                            window.destroy()
+                            shutil.rmtree(dir1, ignore_errors=True)
+                            shutil.rmtree(dir2, ignore_errors=True)
+                            os._exit(0)
+                            return
+                    sys.stderr.write("[pywebview] Error: v0.3 Phase 5 test timed out waiting for results\n")
+                    sys.stderr.flush()
+                    window.destroy()
+                    shutil.rmtree(dir1, ignore_errors=True)
+                    shutil.rmtree(dir2, ignore_errors=True)
+                    os._exit(1)
+                except Exception as e:
+                    sys.stderr.write(f"[pywebview] Error executing v0.3 Phase 5 test: {e}\n")
+                    sys.stderr.flush()
+                    window.destroy()
+                    shutil.rmtree(dir1, ignore_errors=True)
+                    shutil.rmtree(dir2, ignore_errors=True)
+                    os._exit(1)
+
+            t = threading.Thread(target=run_v05_phase5, daemon=True)
+            t.start()
+            return
+
+        if is_v06_phase6_test:
+            def run_v06_phase6():
+                dir1 = tempfile.mkdtemp(prefix="wb-v06p6-fixture-")
+                dir2 = tempfile.mkdtemp(prefix="wb-v06p6-fixture2-")
+                try:
+                    with open(os.path.join(dir1, "alpha.txt"), "w", encoding="utf-8") as f:
+                        f.write("alpha")
+                    with open(os.path.join(dir2, "alpha.txt"), "w", encoding="utf-8") as f:
+                        f.write("alpha")
+
+                    time.sleep(0.3)
+                    suite_path = os.path.join(root_dir, "scripts", "v06-phase6-suite.js")
+                    with open(suite_path, "r", encoding="utf-8") as f:
+                        suite_code = f.read()
+                    window.evaluate_js("window.__testTmpDir = " + json.dumps(dir1) + ";")
+                    window.evaluate_js("window.__testTmpDir2 = " + json.dumps(dir2) + ";")
+                    window.evaluate_js(suite_code)
+                    window.evaluate_js("""
+                        (async () => {
+                            try {
+                                const res = await window.__runV06Phase6Suite();
+                                window.__v06Phase6Results = JSON.stringify(res);
+                            } catch (e) {
+                                window.__v06Phase6Results = JSON.stringify({ success: false, results: [{ id: 'RUNNER_ERR', pass: false, msg: String(e) }] });
+                            }
+                        })();
+                    """)
+                    for _ in range(300):
+                        time.sleep(0.1)
+                        res = window.evaluate_js("window.__v06Phase6Results")
+                        if res:
+                            sys.stdout.write(f"[pywebview] v0.3 Phase 6 Results: {res}\n")
+                            sys.stdout.flush()
+                            window.destroy()
+                            shutil.rmtree(dir1, ignore_errors=True)
+                            shutil.rmtree(dir2, ignore_errors=True)
+                            os._exit(0)
+                            return
+                    sys.stderr.write("[pywebview] Error: v0.3 Phase 6 test timed out waiting for results\n")
+                    sys.stderr.flush()
+                    window.destroy()
+                    shutil.rmtree(dir1, ignore_errors=True)
+                    shutil.rmtree(dir2, ignore_errors=True)
+                    os._exit(1)
+                except Exception as e:
+                    sys.stderr.write(f"[pywebview] Error executing v0.3 Phase 6 test: {e}\n")
+                    sys.stderr.flush()
+                    window.destroy()
+                    shutil.rmtree(dir1, ignore_errors=True)
+                    shutil.rmtree(dir2, ignore_errors=True)
+                    os._exit(1)
+
+            t = threading.Thread(target=run_v06_phase6, daemon=True)
+            t.start()
+            return
+
         if is_phase4_test:
             def run_phase4():
                 try:
@@ -980,12 +1701,83 @@ def main():
     # survives a restart and Explorer/Recent Folders always come back empty.
     # An explicit storage_path makes pywebview use a persistent profile too,
     # matching Electron's behavior (FR-K1).
-    storage_path = os.path.join(
-        os.environ.get("LOCALAPPDATA") or tempfile.gettempdir(),
-        "workbench-kit",
-        "pywebview",
+    # v0.3 Phase 4 restart tests (WK-100/101) need an ISOLATED profile shared
+    # across exactly two process launches, not the real shared one above —
+    # otherwise a test run would pollute (or be polluted by) whatever the
+    # real app or another test left in %LOCALAPPDATA%\workbench-kit\pywebview.
+    # Every test-suite launch (any `--...-test` flag) gets a throwaway profile
+    # too: the suites used to share the real one, so a File Filter or Word Wrap
+    # choice made in the running app leaked into them — an "Include: md"
+    # filter hid the .txt fixtures and failed whole suites (2026-09-24).
+    is_any_test_launch = is_smoke_test or any(arg.startswith("--") and arg.endswith("-test") for arg in sys.argv[1:])
+    storage_path = os.environ.get("WB_STORAGE_PATH_OVERRIDE") or (
+        tempfile.mkdtemp(prefix="wb-smoke-py-" if is_smoke_test else "wb-test-py-")
+        if is_any_test_launch
+        else os.path.join(
+            os.environ.get("LOCALAPPDATA") or tempfile.gettempdir(),
+            "workbench-kit",
+            "pywebview",
+        )
     )
-    webview.start(storage_path=storage_path)
+    # v0.3 Phase 4 (WK-101) found TWO bugs that together made the comment
+    # above's "matching Electron's behavior" claim false, undetected until
+    # now because nothing had actually driven a real two-process restart
+    # through pywebview before:
+    #
+    # 1. `private_mode` defaults to True, and per pywebview's own docs
+    #    "In private mode, cookies and local storage are not preserved" —
+    #    passing `storage_path` alone does NOT override that. localStorage
+    #    was silently wiped every single launch regardless of storage_path.
+    # 2. A local file `url` is served through pywebview's own bundled HTTP
+    #    server on a RANDOM free port every launch (confirmed via
+    #    window.location.href during restart testing), so even with
+    #    private_mode fixed, localStorage's origin
+    #    (http://127.0.0.1:<port>) — and therefore every persisted key —
+    #    would still differ between launches. A fixed http_port pins that
+    #    origin.
+    http_port = int(os.environ.get("WB_HTTP_PORT_OVERRIDE") or 47823)
+    # A fixed port can already be taken (another app, or a second workbench-kit
+    # instance) — a pre-flight bind check degrades to a random port instead of
+    # failing to start at all (A4 R2 Major finding). The tradeoff: this one
+    # session won't restore its folder tabs on the NEXT restart, but it still
+    # starts and works normally otherwise.
+    port_is_free = True
+    probe = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    try:
+        probe.bind(("127.0.0.1", http_port))
+    except OSError:
+        port_is_free = False
+    finally:
+        probe.close()
+
+    # A persistent profile also keeps WebView2's HTTP cache, and that cache
+    # was serving a PREVIOUS build's index.html and bundle after a rebuild
+    # (user report, 2026-09-24: Electron showed the change, pywebview did not;
+    # a smoke run on the real profile loaded ./assets/index-*.js names no
+    # longer in dist/). pywebview's asset route does set no-cache headers,
+    # but bottle.static_file() returns a fresh response that drops them, so
+    # the page falls back to heuristic caching. The HTTP cache is disposable
+    # — localStorage (folder tabs, file filter, modes) lives in a separate
+    # folder and is untouched — so empty it before every start.
+    http_cache_dir = os.path.join(storage_path, "EBWebView", "Default", "Cache")
+    if os.path.isdir(http_cache_dir):
+        shutil.rmtree(http_cache_dir, ignore_errors=True)
+
+    def start_with_cleanup(**kwargs):
+        try:
+            webview.start(**kwargs)
+        finally:
+            api.cleanup_terminals()
+
+    if port_is_free:
+        start_with_cleanup(storage_path=storage_path, private_mode=False, http_port=http_port)
+    else:
+        sys.stderr.write(
+            f"[pywebview] Warning: port {http_port} is already in use — falling back to a "
+            "random port. localStorage will not persist across restarts this session (WK-101).\n"
+        )
+        sys.stderr.flush()
+        start_with_cleanup(storage_path=storage_path, private_mode=False)
 
 
 if __name__ == "__main__":

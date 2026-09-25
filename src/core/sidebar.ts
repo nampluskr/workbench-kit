@@ -14,12 +14,15 @@ export interface NewItemRequest {
 
 export class ExplorerTitlebarController {
   private appActionsEl: HTMLElement;
+  private searchBtn: HTMLButtonElement;
   private newFileBtn: HTMLButtonElement;
   private newFolderBtn: HTMLButtonElement;
   private refreshBtn: HTMLButtonElement;
   private collapseAllBtn: HTMLButtonElement;
   private treeController: TreeController;
   private appActions: ViewAction[] = [];
+  /** Fires whenever Refresh runs (button click), so an app-layer view outside the tree can also refresh (v0.3 WK-117). */
+  private refreshCallbacks: Array<() => void> = [];
   /**
    * What "New File" / "New Folder" do once the user has typed a name. The
    * shell opens the inline input row and hands the name over — it never
@@ -29,6 +32,7 @@ export class ExplorerTitlebarController {
 
   constructor(
     appActionsEl: HTMLElement,
+    searchBtn: HTMLButtonElement,
     newFileBtn: HTMLButtonElement,
     newFolderBtn: HTMLButtonElement,
     refreshBtn: HTMLButtonElement,
@@ -36,6 +40,7 @@ export class ExplorerTitlebarController {
     treeController: TreeController
   ) {
     this.appActionsEl = appActionsEl;
+    this.searchBtn = searchBtn;
     this.newFileBtn = newFileBtn;
     this.newFolderBtn = newFolderBtn;
     this.refreshBtn = refreshBtn;
@@ -45,15 +50,40 @@ export class ExplorerTitlebarController {
   }
 
   private bindEvents(): void {
+    // Same find widget Ctrl+F already opens in the tree (FR-A13, FR-A19) —
+    // this button is just a discoverable, clickable entry point for it
+    // (user request, 2026-09-25). A second click toggles it closed again
+    // (user request, 2026-09-25) — Escape already closed it via the find
+    // input's own keydown handler (tree.ts); this just gives the button
+    // itself the same open/close symmetry.
+    this.searchBtn?.addEventListener('click', () => {
+      if (this.treeController.getIsFindOpen()) {
+        this.treeController.closeFindWidget();
+      } else {
+        this.treeController.openFindWidget();
+      }
+    });
     this.newFileBtn?.addEventListener('click', () => this.promptNew('leaf'));
     this.newFolderBtn?.addEventListener('click', () => this.promptNew('container'));
-    this.refreshBtn?.addEventListener('click', () => this.treeController.refresh());
+    this.refreshBtn?.addEventListener('click', () => this.refresh());
     this.collapseAllBtn?.addEventListener('click', () => this.treeController.collapseAll());
   }
 
   /** Registers what actually creates the item (the app's job, FR-X4). */
   public setNewItemHandler(fn: (req: NewItemRequest & { name: string; parentId?: string }) => void): void {
     this.newItemHandler = fn;
+  }
+
+  /** Same action the Refresh button's click runs — also reachable via its native-button keyboard path (Tab + Enter/Space, reserved-keys.md §5). */
+  public refresh(): void {
+    this.treeController.refresh();
+    this.refreshCallbacks.forEach((cb) => cb());
+  }
+
+  /** Registers an app-layer view outside the tree that should also refresh (v0.3 WK-117). */
+  public onRefresh(cb: () => void): () => void {
+    this.refreshCallbacks.push(cb);
+    return () => { this.refreshCallbacks = this.refreshCallbacks.filter((c) => c !== cb); };
   }
 
   private promptNew(type: 'leaf' | 'container'): void {

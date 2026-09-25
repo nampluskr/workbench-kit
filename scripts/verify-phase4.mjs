@@ -80,13 +80,13 @@ assert(!menuTs.includes('칸 닫기') && !menuTs.includes('칸 삭제'), 'Menu c
 // v0.1 FR-J2/FR-J3's View item became File > Close Editor Group (SPEC 0.1, v0.2 FR-M10).
 assert(menuTs.includes('file:close-editor-group') && menuTs.includes('Close Editor Group') && !menuTs.includes('view:close-active-tabs'), 'File menu contains "Close Editor Group" and View no longer has the v0.1 item (FR-J2, FR-J3 → v0.2 FR-M10)');
 assert(!activityBarTs.includes('활성 칸 탭 모두 닫기'), 'Activity bar contains zero "활성 칸 탭 모두 닫기" items (FR-J3)');
-assert(!editorTs.includes('close-all-tabs') && !editorTs.includes('tab-action-close-all'), 'Tab header actions contain zero "활성 칸 탭 모두 닫기" buttons (FR-J3)');
+assert(!editorTs.includes('close-all-tabs'), 'Tab header actions contain zero legacy "close-all-tabs" buttons (FR-J3)');
 
 // FR-N6b: File menu Close Tab
 assert(menuTs.includes('file:close-tab') && menuTs.includes('Ctrl+W'), 'File menu contains "탭 닫기" with shortcut Ctrl+W (FR-N6b)');
 
 // Tab Header Actions: +, Split Right, Split Down (FR-C1, FR-D1, FR-D2)
-assert(editorTs.includes('tab-action-new') && editorTs.includes('codicon-plus'), 'Tab header actions has New Tab (+) action (FR-C1)');
+assert(editorTs.includes('tab-action-new') && (editorTs.includes('codicon-diff-added') || editorTs.includes('codicon-plus')), 'Tab header actions has New Tab action (FR-C1)');
 assert(editorTs.includes('tab-action-split-right') && editorTs.includes('codicon-split-horizontal'), 'Tab header actions has Split Right action (FR-D1)');
 assert(editorTs.includes('tab-action-split-down') && editorTs.includes('codicon-split-vertical'), 'Tab header actions has Split Down action (FR-D2)');
 

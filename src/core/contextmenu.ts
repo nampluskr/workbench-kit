@@ -1,7 +1,9 @@
 export interface ContextMenuItem {
   id: string;
   label: string;
-  action: () => void;
+  /** `separator` rows draw a divider and are skipped by focus/keyboard nav and click (v0.3 WK-115). */
+  type?: 'normal' | 'separator';
+  action?: () => void;
 }
 
 /**
@@ -59,12 +61,13 @@ export class ContextMenuController {
    */
   public show(x: number, y: number, items: ContextMenuItem[]): void {
     this.hide();
-    if (!this.enabled || items.length === 0) {
+    const firstSelectable = items.findIndex((it) => it.type !== 'separator');
+    if (!this.enabled || firstSelectable === -1) {
       return;
     }
 
     this.currentItems = items;
-    this.focusedIndex = 0;
+    this.focusedIndex = firstSelectable;
 
     const menuEl = document.createElement('div');
     menuEl.className = 'workbench-context-menu';
@@ -72,15 +75,26 @@ export class ContextMenuController {
     menuEl.style.top = `${y}px`;
 
     items.forEach((item, index) => {
+      if (item.type === 'separator') {
+        const sep = document.createElement('div');
+        sep.className = 'menu-separator';
+        menuEl.appendChild(sep);
+        return;
+      }
       const row = document.createElement('div');
-      row.className = 'context-menu-item-row' + (index === 0 ? ' focused' : '');
+      row.className = 'context-menu-item-row' + (index === this.focusedIndex ? ' focused' : '');
       row.dataset.itemId = item.id;
       row.textContent = item.label;
       row.addEventListener('click', (e) => {
         e.stopPropagation();
-        item.action();
+        item.action?.();
         this.hide();
       });
+      // The pointer moves the one focus marker with it, as in the hamburger
+      // menu — otherwise the first row's opening highlight stayed put while
+      // another row was hovered, two rows looking selected at once (user
+      // report, 2026-09-24).
+      row.addEventListener('mouseenter', () => this.setFocus(index));
       menuEl.appendChild(row);
     });
 
@@ -111,34 +125,63 @@ export class ContextMenuController {
 
     if (e.key === 'Escape') {
       e.preventDefault();
+      e.stopPropagation();
       this.hide();
       return;
     }
     if (e.key === 'ArrowDown') {
       e.preventDefault();
+      e.stopPropagation();
       this.moveFocus(1);
       return;
     }
     if (e.key === 'ArrowUp') {
       e.preventDefault();
+      e.stopPropagation();
       this.moveFocus(-1);
       return;
     }
     if (e.key === 'Enter') {
       e.preventDefault();
+      // Right-click selecting (and focusing) its row before the menu opens
+      // (v0.3 WK-120) means the tree/rail sitting underneath can now
+      // legitimately have DOM focus while this menu is open — without
+      // stopping propagation, the SAME ArrowDown/Enter this handler just
+      // consumed would keep bubbling into that focused row's own keyboard
+      // handling too (e.g. Enter opening a file), which used to be
+      // unreachable only because nothing under the menu was ever focused.
+      e.stopPropagation();
       const item = this.currentItems[this.focusedIndex];
       if (item) {
-        item.action();
+        item.action?.();
         this.hide();
       }
     }
   }
 
+  private getRowEl(index: number): Element | null {
+    const item = this.currentItems[index];
+    if (!item || !this.menuEl) return null;
+    return this.menuEl.querySelector(`.context-menu-item-row[data-item-id="${item.id}"]`);
+  }
+
+  /** Separator rows have no row of their own here, so they are skipped, not landed on (v0.3 WK-115). */
   private moveFocus(delta: number): void {
     if (!this.menuEl || this.currentItems.length === 0) return;
-    const rows = Array.from(this.menuEl.querySelectorAll('.context-menu-item-row'));
-    rows[this.focusedIndex]?.classList.remove('focused');
-    this.focusedIndex = (this.focusedIndex + delta + this.currentItems.length) % this.currentItems.length;
-    rows[this.focusedIndex]?.classList.add('focused');
+    const selectableIndices = this.currentItems
+      .map((it, i) => (it.type === 'separator' ? -1 : i))
+      .filter((i) => i !== -1);
+    if (selectableIndices.length === 0) return;
+    const currentPos = selectableIndices.indexOf(this.focusedIndex);
+    const nextPos = (currentPos + delta + selectableIndices.length) % selectableIndices.length;
+    this.setFocus(selectableIndices[nextPos]);
+  }
+
+  /** Moves the single focus marker to `index` — shared by the arrow keys and the pointer. */
+  private setFocus(index: number): void {
+    if (index === this.focusedIndex) return;
+    this.getRowEl(this.focusedIndex)?.classList.remove('focused');
+    this.focusedIndex = index;
+    this.getRowEl(this.focusedIndex)?.classList.add('focused');
   }
 }

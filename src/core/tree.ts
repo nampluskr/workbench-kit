@@ -20,7 +20,21 @@ export interface PromptNewItemOptions {
   type: PromptItemType;
   parentId?: string;
   icon?: IconDescriptor;
+  /** Text the input starts with — an app re-opening the row after a failed create keeps what was typed (D-14). */
+  initialValue?: string;
   onCommit: (result: { name: string; type: PromptItemType; parentId?: string }) => void;
+}
+
+/**
+ * Inline rename of an existing row (D-14). The shell only swaps the label for
+ * an input and hands the typed name over; renaming anything is the app's job
+ * (v0.1 D-30).
+ */
+export interface PromptRenameOptions {
+  /** End of the initial selection — the app passes where a name's stem ends; the shell knows no extensions (D-4). */
+  selectionEnd?: number;
+  /** Called once with the new text, only when it is non-empty and differs from the label. */
+  onCommit: (newName: string) => void;
 }
 
 export interface VisibleTreeItem {
@@ -38,7 +52,7 @@ export interface VisibleTreeItem {
  * which the CSP does allow. That is what makes the colour actually follow the
  * theme on screen (v0.2 FR-X10, FR-X14).
  */
-function renderIconMarkup(iconDesc: IconDescriptor): string {
+export function renderIconMarkup(iconDesc: IconDescriptor): string {
   const fg = iconDesc.color ? ` data-fg="${escapeHtml(iconDesc.color)}"` : '';
   if (iconDesc.kind === 'codicon') {
     return `<span class="tree-icon"><i class="codicon ${iconDesc.cssClass || 'codicon-file'}"${fg}></i></span>`;
@@ -58,7 +72,7 @@ function renderIconMarkup(iconDesc: IconDescriptor): string {
   return '';
 }
 
-function escapeHtml(text: string | null | undefined): string {
+export function escapeHtml(text: string | null | undefined): string {
   if (!text) {
     return '';
   }
@@ -91,6 +105,7 @@ export class TreeController {
 
   // Inline input widget state (FR-A23, WK-047)
   private promptState: PromptNewItemOptions | null = null;
+  private renameState: ({ nodeId: string } & PromptRenameOptions) | null = null;
   private refreshOpId = 0;
 
   // Event callbacks
@@ -100,6 +115,7 @@ export class TreeController {
   private onEnterOpenCallbacks: ((node: TreeNode) => void)[] = [];
   private onOpenToSideCallbacks: ((node: TreeNode) => void)[] = [];
   private onRootChangeCallbacks: ((root: TreeNode | null) => void)[] = [];
+  private onDeleteRequestedCallbacks: ((nodes: TreeNode[]) => void)[] = [];
 
   constructor(container: HTMLElement, iconThemeManager: IconThemeManager) {
     this.container = container;
@@ -140,6 +156,7 @@ export class TreeController {
     this.findMatches = [];
     this.findMatchIndex = -1;
     this.promptState = null;
+    this.renameState = null;
 
     if (node) {
       // By default root is expanded so immediate children are shown
@@ -184,6 +201,66 @@ export class TreeController {
 
   public isSelected(id: string): boolean {
     return this.selectedIds.has(id);
+  }
+
+  /** The scrollable list element's current scroll offset (v0.3 D-5). */
+  public getScrollTop(): number {
+    const listEl = this.container.querySelector('.tree-list') as HTMLElement | null;
+    return listEl ? listEl.scrollTop : 0;
+  }
+
+  public setScrollTop(value: number): void {
+    const listEl = this.container.querySelector('.tree-list') as HTMLElement | null;
+    if (listEl) listEl.scrollTop = value;
+  }
+
+  /**
+   * Re-expands a saved set of folder ids top-down (v0.3 D-5, WK-098/099).
+   * Shallowest paths first, since a deeper id is only reachable through
+   * `getNodeById` once its ancestor's children have actually been loaded —
+   * `setExpanded` already lazy-loads a node's own children via
+   * `ensureChildrenLoaded`, so awaiting each level in turn is what makes the
+   * next one findable at all.
+   */
+  public async restoreExpanded(ids: readonly string[]): Promise<void> {
+    const opId = this.refreshOpId;
+    // setRoot() defaults to "root expanded" (so a fresh Explorer shows
+    // something). A saved state that does NOT include the root must
+    // COLLAPSE it, not just leave the default on top — additive-only
+    // restoration silently kept a collapsed root expanded forever (A4 R1
+    // Critical finding).
+    if (this.root && !ids.includes(this.root.id) && this.expandedIds.has(this.root.id)) {
+      this.expandedIds.delete(this.root.id);
+      this.expansionRevision++;
+      this.reconcileFocusAndSelectionAfterCollapse(this.root.id);
+      this.render();
+    }
+    const depthOf = (id: string) => id.split(/[/\\]/).filter(Boolean).length;
+    const sorted = [...ids].sort((a, b) => depthOf(a) - depthOf(b));
+    for (const id of sorted) {
+      if (this.refreshOpId !== opId || !this.root) return;
+      if (this.getNodeById(id)) {
+        await this.setExpanded(id, true);
+      }
+    }
+  }
+
+  /**
+   * Restores selection/focus onto nodes that exist NOW — a saved id whose
+   * file was deleted or renamed since is silently dropped rather than
+   * crashing the restore (v0.3 D-5). Call after `restoreExpanded` so the
+   * saved nodes are actually reachable.
+   */
+  public restoreSelection(selectedIds: readonly string[], focusedId: string | null): void {
+    if (!this.root) return;
+    const valid = selectedIds.filter((id) => this.getNodeById(id));
+    this.selectedIds = new Set(valid.length > 0 ? valid : [this.root.id]);
+    const focusCandidate = focusedId && this.getNodeById(focusedId) ? focusedId : valid[0] ?? this.root.id;
+    this.focusedId = focusCandidate;
+    this.anchorId = focusCandidate;
+    this.selectionRevision++;
+    this.render();
+    this.emitSelect();
   }
 
   public onSelect(cb: (nodes: TreeNode[]) => void): () => void {
@@ -237,6 +314,21 @@ export class TreeController {
     this.onRootChangeCallbacks.push(cb);
     return () => {
       this.onRootChangeCallbacks = this.onRootChangeCallbacks.filter((c) => c !== cb);
+    };
+  }
+
+  /**
+   * Fires on Delete with a non-empty selection (v0.3, user request
+   * 2026-09-25). The tree never decides whether delete is allowed or
+   * touches the filesystem itself — it only knows there is a selection to
+   * hand off (D-30, D-22, .claude/rules/common-core.md). The app-layer
+   * callback is solely responsible for checking any "delete enabled"
+   * policy and for the confirm/I-O/refresh flow.
+   */
+  public onDeleteRequested(cb: (nodes: TreeNode[]) => void): () => void {
+    this.onDeleteRequestedCallbacks.push(cb);
+    return () => {
+      this.onDeleteRequestedCallbacks = this.onDeleteRequestedCallbacks.filter((c) => c !== cb);
     };
   }
 
@@ -367,14 +459,55 @@ export class TreeController {
       this.expandedIds.add(this.root.id);
     }
 
+    this.renameState = null;
     this.promptState = options;
     this.render();
 
     // Auto-focus input
-    const inputEl = this.container.querySelector('.tree-input-field') as HTMLInputElement | null;
+    const inputEl = this.container.querySelector('.tree-input-field:not(.tree-rename-field)') as HTMLInputElement | null;
     if (inputEl) {
       inputEl.focus();
       inputEl.select();
+    }
+  }
+
+  /**
+   * Opens the inline rename input on a row (D-14). Not on the root: it is the
+   * folder the tree was opened on, not an entry inside it. Returns whether
+   * the input opened.
+   */
+  public promptRename(nodeId: string, options: PromptRenameOptions): boolean {
+    const node = this.getNodeById(nodeId);
+    if (!this.root || !node || node.id === this.root.id) return false;
+    this.promptState = null;
+    this.renameState = { nodeId, ...options };
+    this.focusedId = nodeId;
+    this.render();
+    const input = this.container.querySelector('.tree-rename-field') as HTMLInputElement | null;
+    if (!input) {
+      this.renameState = null;
+      return false;
+    }
+    input.focus();
+    const end = Math.max(0, Math.min(options.selectionEnd ?? input.value.length, input.value.length));
+    input.setSelectionRange(0, end);
+    return true;
+  }
+
+  public isRenaming(): boolean {
+    return this.renameState !== null;
+  }
+
+  /** Closes the rename input. `refocus` is false when focus already moved elsewhere (blur). */
+  private finishRename(value: string | null, refocus: boolean): void {
+    const state = this.renameState;
+    if (!state) return;
+    this.renameState = null;
+    const node = this.getNodeById(state.nodeId);
+    this.render();
+    if (refocus) this.focusTree();
+    if (value !== null && value.length > 0 && node && value !== node.label) {
+      state.onCommit(value);
     }
   }
 
@@ -693,6 +826,10 @@ export class TreeController {
     this.onOpenToSideCallbacks.forEach((cb) => cb(node));
   }
 
+  private emitDeleteRequested(nodes: TreeNode[]): void {
+    this.onDeleteRequestedCallbacks.forEach((cb) => cb(nodes));
+  }
+
   private scrollItemIntoView(nodeId: string): void {
     const rowEls = this.container.querySelectorAll('.tree-row');
     for (let i = 0; i < rowEls.length; i++) {
@@ -710,8 +847,8 @@ export class TreeController {
   private handleKeyDown(e: KeyboardEvent): void {
     if (!this.root) return;
 
-    // F3 or Ctrl+Alt+F: Find in tree (FR-A13, FR-A19)
-    if (e.key === 'F3' || (e.ctrlKey && e.altKey && (e.key === 'f' || e.key === 'F'))) {
+    // Ctrl+F or Ctrl+Alt+F: Find in tree (FR-A13, FR-A19).
+    if (e.ctrlKey && !e.shiftKey && !e.metaKey && (e.key === 'f' || e.key === 'F')) {
       e.preventDefault();
       e.stopPropagation();
       this.openFindWidget();
@@ -731,6 +868,22 @@ export class TreeController {
       e.preventDefault();
       e.stopPropagation();
       this.clearSelection();
+      return;
+    }
+
+    // Delete: hand off every selected item to the app layer (v0.3, user
+    // request 2026-09-25; D-30, D-22). The tree does not check whether
+    // delete is enabled and never touches the filesystem — that policy and
+    // the confirm/I-O flow are entirely the app callback's responsibility.
+    if (e.key === 'Delete' && !e.ctrlKey && !e.shiftKey && !e.altKey) {
+      e.preventDefault();
+      e.stopPropagation();
+      const ids = this.getSelectedIds();
+      if (ids.length === 0) return;
+      const nodes = ids
+        .map((id) => this.getNodeById(id))
+        .filter((n): n is TreeNode => n !== null);
+      if (nodes.length > 0) this.emitDeleteRequested(nodes);
       return;
     }
 
@@ -1147,6 +1300,14 @@ export class TreeController {
       );
 
       const iconHtml = renderIconMarkup(iconDesc);
+      // Display-only bracket wrap for a container row (v0.3 WK-120, user
+      // request) — icon resolution above stays on the raw `item.node.label`
+      // so a theme's special-named-folder icon lookup (e.g. "node_modules")
+      // still matches.
+      const displayLabel = item.node.isContainer ? `[${item.node.label}]` : item.node.label;
+      const labelHtml = this.renameState?.nodeId === item.node.id
+        ? `<input type="text" class="tree-input-field tree-rename-field" value="${escapeHtml(item.node.label)}" />`
+        : `<span class="tree-label">${escapeHtml(displayLabel)}</span>`;
 
       html += `
         <div class="tree-row ${isSelected ? 'selected' : ''} ${isFocused ? 'focused' : ''}"
@@ -1157,7 +1318,7 @@ export class TreeController {
           ${indentUnitsHtml}
           ${twistieHtml}
           ${iconHtml}
-          <span class="tree-label">${escapeHtml(item.node.label)}</span>
+          ${labelHtml}
         </div>
       `;
 
@@ -1186,7 +1347,7 @@ export class TreeController {
             ${promptIndentUnitsHtml}
             <span class="tree-twistie tree-twistie-spacer"></span>
             ${promptIconHtml}
-            <input type="text" class="tree-input-field" placeholder="Name" />
+            <input type="text" class="tree-input-field" placeholder="Name" value="${escapeHtml(this.promptState.initialValue ?? '')}" />
           </div>
         `;
       }
@@ -1254,7 +1415,8 @@ export class TreeController {
 
   private renderTreeListOnly(): void {
     const listContainer = this.container.querySelector('.tree-list');
-    if (!listContainer) {
+    // The rows-only path draws no rename input; keep an open one alive.
+    if (!listContainer || this.renameState) {
       this.render();
       return;
     }
@@ -1290,6 +1452,8 @@ export class TreeController {
       );
 
       const iconHtml = renderIconMarkup(iconDesc);
+      // Same display-only bracket wrap as the other render path above (v0.3 WK-120).
+      const displayLabel = item.node.isContainer ? `[${item.node.label}]` : item.node.label;
 
       rowsHtml += `
         <div class="tree-row ${isSelected ? 'selected' : ''} ${isFocused ? 'focused' : ''}"
@@ -1300,7 +1464,7 @@ export class TreeController {
           ${indentUnitsHtml}
           ${twistieHtml}
           ${iconHtml}
-          <span class="tree-label">${escapeHtml(item.node.label)}</span>
+          <span class="tree-label">${escapeHtml(displayLabel)}</span>
         </div>
       `;
     }
@@ -1356,8 +1520,28 @@ export class TreeController {
       this.updateFindCountUI();
     }
 
+    // Inline rename input (D-14): Enter or leaving the field commits, Escape
+    // cancels; its keys and clicks stay inside the field.
+    const renameInput = this.container.querySelector('.tree-rename-field') as HTMLInputElement | null;
+    if (renameInput && this.renameState) {
+      renameInput.addEventListener('keydown', (e) => {
+        e.stopPropagation();
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          this.finishRename(renameInput.value, true);
+        } else if (e.key === 'Escape') {
+          e.preventDefault();
+          this.finishRename(null, true);
+        }
+      });
+      renameInput.addEventListener('blur', () => this.finishRename(renameInput.value, false));
+      for (const type of ['mousedown', 'click', 'dblclick'] as const) {
+        renameInput.addEventListener(type, (e) => e.stopPropagation());
+      }
+    }
+
     // Inline input widget events (FR-A23, WK-047)
-    const promptInput = this.container.querySelector('.tree-input-field') as HTMLInputElement | null;
+    const promptInput = this.container.querySelector('.tree-input-field:not(.tree-rename-field)') as HTMLInputElement | null;
     if (promptInput && this.promptState) {
       promptInput.addEventListener('keydown', (e) => {
         e.stopPropagation();
