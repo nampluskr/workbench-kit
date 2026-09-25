@@ -45,7 +45,16 @@ for (const token of forbiddenTokens) {
 // --------------------------------------------------------------------------
 console.log('\n--- 2. Verifying Core Purity Across src/core/ (NFR-1, FR-Q3, INTENT 3) ---');
 const coreDir = path.join(rootDir, 'src/core');
-const coreFiles = fs.readdirSync(coreDir).filter((f) => f.endsWith('.ts'));
+function listCoreTypeScript(dir, prefix = '') {
+  return fs.readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
+    const relative = path.join(prefix, entry.name);
+    if (entry.isDirectory()) return listCoreTypeScript(path.join(dir, entry.name), relative);
+    return entry.name.endsWith('.ts') ? [relative] : [];
+  });
+}
+const markdownPrefix = `markdown${path.sep}`;
+const coreFiles = listCoreTypeScript(coreDir).filter((f) => !f.startsWith(markdownPrefix));
+assert(fs.existsSync(path.join(coreDir, 'markdown', 'index.ts')), 'Only src/core/markdown/ is excluded from legacy core purity assertions');
 
 for (const file of coreFiles) {
   const content = fs.readFileSync(path.join(coreDir, file), 'utf8');

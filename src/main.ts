@@ -32,6 +32,7 @@ import { ExtensionFilterPanel } from './presets/extension-filter-panel';
 import { ExplorerFileOps } from './presets/explorer-file-ops';
 import { checkTextFile, type TextEncodingId } from './presets/file-types';
 import { getDeleteEnabled, setDeleteEnabled, onDeleteEnabledChanged } from './presets/delete-enabled';
+import { registerMarkdownRenderer, MARKDOWN_KIND, RENDERED_MODE } from './core/markdown';
 
 /** Injected at build time by vite.config.ts (v0.2 FR-C7, FR-C8). */
 declare const __WB_VERSION__: string;
@@ -191,6 +192,7 @@ export class WorkbenchApp {
     // Resource kind registration slot + minimal example presets (FR-I1, FR-I2, FR-I3, WK-025, WK-026)
     this.kindRegistry = new ResourceKindRegistry();
     registerFilePreset(this.kindRegistry, { iconTheme: this.iconTheme });
+    registerMarkdownRenderer(this.kindRegistry, this.iconTheme);
     registerFolderPreset(this.kindRegistry, { iconTheme: this.iconTheme });
     registerTerminalPreset(this.kindRegistry);
     this.editor.setComponentFactory(this.kindRegistry.createComponentFactory(this.editor));
@@ -1747,6 +1749,15 @@ export class WorkbenchApp {
       await this.openIfText(selected, fileName, (enc) =>
         this.openResource(selected, fileName, FILE_KIND, this.fileModeFor(enc), 'pinned', false, enc));
     }
+  }
+
+  /** Opens the rendered markdown mode directly before the toggle is installed. */
+  public async openRenderedMarkdown(filePath: string): Promise<void> {
+    const fileName = filePath.split(/[/\\]/).pop() || filePath;
+    if (!/\.md$/i.test(fileName)) return;
+    await this.openIfText(filePath, fileName, () => {
+      this.openResource(filePath, fileName, MARKDOWN_KIND, RENDERED_MODE, 'pinned');
+    });
   }
 
   /**
