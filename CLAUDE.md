@@ -14,9 +14,9 @@ project-workflow v0.2 기준으로 초기화됨 (2026-09-08)
 - 요구가 바뀌면 `SPEC.md`부터 고친다. 코드나 backlog로 우회하지 않는다
 - 되돌릴 수 없는 작업(배포·삭제·외부 상태 변경)은 먼저 묻는다
 
-- 껍데기는 리소스 종류를 모른다. 파일·폴더·터미널·확장자를 아는 코드를 공통 코어에 넣지 않는다 (INTENT 3 · D-4 · NFR-1)
+- 공통부(`src/core`)에는 베이스 앱의 필수·공통 기능만 리소스 종류를 알 수 있다(마크다운 렌더링 등, `.claude/rules/common-core.md`의 허용 목록). 그 밖에 파일·폴더·터미널·확장자를 아는 코드는 공통부에 넣지 않는다 (INTENT 3, 2026-09-25 수정 · D-4 · NFR-1)
 - 두 갈래(Electron · pywebview)는 **산출물 한 벌**을 읽는다. 갈래별로 갈라진 빌드 설정을 만들지 않는다 (D-25 · NFR-2)
-- 칸·탭·보기 수명은 dockview, 편집 화면은 monaco, 아이콘은 codicons·seti·vscode-icons를 쓴다. 직접 구현하지 않는다 (NFR-4)
+- 칸·탭·보기 수명은 dockview, 편집 화면은 monaco, 아이콘은 codicons·seti·vscode-icons를 쓴다. 직접 구현하지 않는다 (NFR-4). 예외는 사람이 승인한 것만: v0.4 D-1의 마크다운 토글 SVG 두 개
 - 새 기능 Phase와 리팩토링은 `docs/ADVERSARIAL-REVIEW.md`의 **반대 벤더 검증**을 거친다. 반대 벤더 CLI를 못 쓰면 기본 모델로 폴백하지 말고 멈추고 보고한다
 - 필수 통과 Phase는 현재 버전 `PLAN.md`의 적대적 검증 절이 정한다(v0.2: 1 · 4 · 7). 미해결 Critical이 있으면 다음 Phase로 넘어가지 않는다
 - Phase 하나(구현 + 반대 벤더 검증 통과)가 끝날 때마다 그 Phase 변경분을 즉시 커밋한다. 버전 마감 커밋(`VERSIONING.md` 4절)과는 별개다 (사용자 지시, 2026-09-09)
