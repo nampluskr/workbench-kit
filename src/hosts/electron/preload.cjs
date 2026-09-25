@@ -17,6 +17,8 @@ contextBridge.exposeInMainWorld('workbenchHost', {
   deletePath: (targetPath) => ipcRenderer.invoke('fs:delete-path', targetPath),
   probeTextFile: (filePath) => ipcRenderer.invoke('fs:probe-text-file', filePath),
   readLegacyTextFile: (filePath) => ipcRenderer.invoke('fs:read-legacy-text-file', filePath),
+  readLocalImage: (sourcePath, relativePath) => ipcRenderer.invoke('fs:read-local-image', sourcePath, relativePath),
+  openExternalUrl: (url) => ipcRenderer.invoke('app:open-external-url', url),
   terminalStart: (kind, cwd) => ipcRenderer.invoke('terminal:start', kind, cwd),
   terminalRead: (id) => ipcRenderer.invoke('terminal:read', id),
   terminalWrite: (id, data) => ipcRenderer.invoke('terminal:write', id, data),

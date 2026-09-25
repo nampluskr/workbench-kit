@@ -1,5 +1,7 @@
 import codecs
+import base64
 import os
+import re
 import sys
 import json
 import hashlib
@@ -9,6 +11,8 @@ import threading
 import tempfile
 import shutil
 import socket
+import webbrowser
+from urllib.parse import urlsplit
 from winpty import PtyProcess
 
 # Windows consoles often default stdout/stderr to a legacy codepage (e.g.
@@ -125,6 +129,25 @@ def request_confirmed_close(window):
             sys.stderr.flush()
 
     threading.Thread(target=check_and_maybe_close, daemon=True).start()
+
+
+def install_app_navigation_guard(window):
+    state = {'url': None}
+
+    def keep_app_page(sender, args):
+        if str(args.Uri).split('#', 1)[0] != state['url']:
+            args.Cancel = True
+
+    def bind():
+        if state['url'] is not None:
+            return
+        state['url'] = str(window.get_current_url()).split('#', 1)[0]
+        native = getattr(window, 'native', None)
+        control = getattr(native, 'webview', None)
+        if control is not None:
+            control.NavigationStarting += keep_app_page
+
+    window.events.loaded += bind
 
 
 class WindowApi:
@@ -263,6 +286,33 @@ class WindowApi:
         if b'\0' in data:
             raise RuntimeError('Binary files cannot be opened as text')
         return data.decode('cp949')
+
+    def read_local_image(self, source_path, relative_path):
+        if (not isinstance(source_path, str) or not isinstance(relative_path, str) or
+                not relative_path or os.path.isabs(relative_path) or
+                relative_path.startswith(('\\\\', '//')) or
+                re.match(r'^[a-z][a-z\d+.-]*:', relative_path, re.I)):
+            raise ValueError('Invalid image path')
+        base_dir = os.path.realpath(os.path.dirname(source_path))
+        target = os.path.realpath(os.path.join(base_dir, relative_path))
+        if os.path.commonpath((base_dir, target)) != base_dir or target == base_dir:
+            raise ValueError('Image path escapes the document folder')
+        mime = {'.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg',
+                '.gif': 'image/gif', '.webp': 'image/webp', '.bmp': 'image/bmp',
+                '.avif': 'image/avif'}.get(os.path.splitext(target)[1].lower())
+        if not mime or not os.path.isfile(target) or os.path.getsize(target) > 16 * 1024 * 1024:
+            raise ValueError('Invalid image type or size')
+        with open(target, 'rb') as stream:
+            return {'mime': mime, 'base64': base64.b64encode(stream.read()).decode('ascii')}
+
+    def open_external_url(self, value):
+        if (not isinstance(value, str) or not value.lower().startswith(('http://', 'https://')) or
+                re.search(r'[\\\x00-\x20\x7f]', value)):
+            return False
+        parsed = urlsplit(value)
+        if parsed.scheme.lower() not in ('http', 'https') or not parsed.hostname or parsed.username or parsed.password:
+            return False
+        return webbrowser.open(value)
 
     def terminal_start(self, kind, cwd):
         if kind not in ('cmd', 'powershell'):
@@ -499,6 +549,8 @@ def main():
                     pass
 
     window.events.shown += on_shown
+
+    install_app_navigation_guard(window)
 
     def on_closing():
         # events.closing runs synchronously on the calling (GUI) thread and

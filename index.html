@@ -9,7 +9,7 @@
          it. style-src-elem still falls back to style-src 'self', so injected
          <style> elements (monaco's and dockview's theme CSS) stay blocked and
          the hand-copied rules in src/style.css remain the source of truth. -->
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; style-src-attr 'unsafe-inline'; font-src 'self' data:; object-src 'none'; base-uri 'self';" />
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; style-src-attr 'unsafe-inline'; font-src 'self' data:; img-src 'self' blob:; object-src 'none'; base-uri 'self';" />
     <title>workbench-kit</title>
     <link rel="stylesheet" href="./src/style.css" />
   </head>

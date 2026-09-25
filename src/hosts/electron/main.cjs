@@ -1,8 +1,9 @@
-const { app, BrowserWindow, ipcMain, dialog } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, shell } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const os = require('os');
 const crypto = require('crypto');
+const { pathToFileURL } = require('url');
 const { execFile } = require('child_process');
 const pty = require('node-pty');
 const fsOps = require('./fs-ops.cjs');
@@ -79,6 +80,36 @@ ipcMain.handle('fs:rename-path', (_e, oldPath, newPath) => fsOps.renamePath(oldP
 ipcMain.handle('fs:delete-path', (_e, targetPath) => fsOps.deletePath(targetPath));
 ipcMain.handle('fs:probe-text-file', (_e, filePath) => fsOps.probeTextFile(filePath));
 ipcMain.handle('fs:read-legacy-text-file', (_e, filePath) => fsOps.readLegacyTextFile(filePath));
+
+ipcMain.handle('fs:read-local-image', async (_e, sourcePath, relativePath) => {
+  if (typeof sourcePath !== 'string' || typeof relativePath !== 'string' ||
+      !relativePath || path.isAbsolute(relativePath) || /^[a-z][a-z\d+.-]*:/i.test(relativePath) ||
+      relativePath.startsWith('\\\\') || relativePath.startsWith('//')) throw new Error('Invalid image path');
+  const baseDir = await fs.promises.realpath(path.dirname(sourcePath));
+  const target = await fs.promises.realpath(path.resolve(baseDir, relativePath));
+  const relative = path.relative(baseDir, target);
+  if (!relative || relative === '..' || relative.startsWith(`..${path.sep}`) || path.isAbsolute(relative)) {
+    throw new Error('Image path escapes the document folder');
+  }
+  const mime = { '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg',
+    '.gif': 'image/gif', '.webp': 'image/webp', '.bmp': 'image/bmp', '.avif': 'image/avif' }[path.extname(target).toLowerCase()];
+  if (!mime) throw new Error('Unsupported image type');
+  const stats = await fs.promises.stat(target);
+  if (!stats.isFile() || stats.size > 16 * 1024 * 1024) throw new Error('Invalid image size');
+  const bytes = await fs.promises.readFile(target);
+  return { mime, base64: bytes.toString('base64') };
+});
+
+ipcMain.handle('app:open-external-url', async (event, value) => {
+  if (typeof value !== 'string' || !/^https?:\/\//i.test(value) || /[\\\x00-\x20\x7f]/.test(value)) return false;
+  const url = new URL(value);
+  if (!['http:', 'https:'].includes(url.protocol) || !url.hostname || url.username || url.password) return false;
+  const caller = event.senderFrame?.url || '';
+  const distUrl = pathToFileURL(fs.realpathSync(path.resolve(__dirname, '../../../dist/index.html'))).href;
+  if (caller.split('#')[0] !== distUrl) return false;
+  await shell.openExternal(url.href);
+  return true;
+});
 
 const terminals = new Map();
 let terminalCounter = 0;
@@ -284,6 +315,11 @@ function createWindow() {
   const distDir = path.join(rootDir, 'dist');
   const distIndexPath = path.join(distDir, 'index.html');
   const realDistIndexPath = fs.existsSync(distIndexPath) ? fs.realpathSync(distIndexPath) : distIndexPath;
+  const allowedUrl = pathToFileURL(realDistIndexPath).href;
+  win.webContents.on('will-navigate', (event, url) => {
+    if (url.split('#')[0] !== allowedUrl) event.preventDefault();
+  });
+  win.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
 
   win.webContents.on('did-finish-load', async () => {
     if (isSmokeTest) {

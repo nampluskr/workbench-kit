@@ -21,6 +21,10 @@ export interface HostDriveEntry {
 export type TextProbe = 'utf-8' | 'cp949' | 'binary';
 
 export interface HostFileSystemBridge {
+  readLocalImage?: (sourcePath: string, relativePath: string) => Promise<{ mime: string; base64: string }>;
+  read_local_image?: (sourcePath: string, relativePath: string) => Promise<{ mime: string; base64: string }>;
+  openExternalUrl?: (url: string) => Promise<boolean>;
+  open_external_url?: (url: string) => Promise<boolean>;
   openFolderDialog?: () => Promise<string | null>;
   openFileDialog?: () => Promise<string | null>;
   readDir?: (dirPath: string) => Promise<HostDirectoryEntry[]>;
@@ -112,9 +116,33 @@ export async function readTextFile(path: string): Promise<string> {
 
 export async function writeTextFile(path: string, contents: string): Promise<boolean> {
   const host = getHostFsBridge();
-  if (host?.writeTextFile) return host.writeTextFile(path, contents);
-  if (host?.write_text_file) return host.write_text_file(path, contents);
-  throw new Error('File saving is unavailable in this host');
+  const written = host?.writeTextFile ? await host.writeTextFile(path, contents)
+    : host?.write_text_file ? await host.write_text_file(path, contents)
+    : false;
+  if (written) textFileWrittenListeners.forEach((listener) => listener(path));
+  return written;
+}
+
+const textFileWrittenListeners = new Set<(path: string) => void>();
+
+export function onTextFileWritten(listener: (path: string) => void): () => void {
+  textFileWrittenListeners.add(listener);
+  return () => textFileWrittenListeners.delete(listener);
+}
+
+export async function readLocalImage(sourcePath: string, relativePath: string): Promise<{ mime: string; base64: string }> {
+  const host = getHostFsBridge();
+  if (host?.readLocalImage) return host.readLocalImage(sourcePath, relativePath);
+  if (host?.read_local_image) return host.read_local_image(sourcePath, relativePath);
+  throw new Error('Local images are unavailable in this host');
+}
+
+export async function openExternalUrl(url: string): Promise<boolean> {
+  if (!/^https?:\/\//i.test(url)) return false;
+  const host = getHostFsBridge();
+  if (host?.openExternalUrl) return host.openExternalUrl(url);
+  if (host?.open_external_url) return host.open_external_url(url);
+  return false;
 }
 
 export async function createFile(path: string): Promise<boolean> {

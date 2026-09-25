@@ -14,7 +14,7 @@ import { SetiResolver, VscodeIconsResolver, SimpleResolver } from './icons';
 import { TreeController, TreeNode } from './core/tree';
 import { FolderTabsController, FolderTab, driveIconInnerMarkup } from './core/foldertabs';
 import { ExplorerTitlebarController } from './core/sidebar';
-import { FileSystemTreeProvider, promptOpenFolderDialog, promptOpenFileDialog, listDrives } from './providers/filesystem';
+import { FileSystemTreeProvider, promptOpenFolderDialog, promptOpenFileDialog, listDrives, onTextFileWritten } from './providers/filesystem';
 import { EditorController, EditorOpenMode, snapshotHasDirtyPanels } from './core/editor';
 import type { SerializedDockview, DockviewGroupPanel, IDockviewPanel } from 'dockview-core';
 import { ContextMenuController, ContextMenuItem } from './core/contextmenu';
@@ -204,7 +204,20 @@ export class WorkbenchApp {
     // Resource kind registration slot + minimal example presets (FR-I1, FR-I2, FR-I3, WK-025, WK-026)
     this.kindRegistry = new ResourceKindRegistry();
     registerFilePreset(this.kindRegistry, { iconTheme: this.iconTheme });
-    registerMarkdownRenderer(this.kindRegistry, this.iconTheme);
+    registerMarkdownRenderer(this.kindRegistry, this.iconTheme, (path) => {
+      const label = path.replace(/\\/g, '/').split('/').pop() || path;
+      void this.openIfText(path, label, (encoding) =>
+        this.openFromEntry({ id: path, label, isContainer: false }, 'pinned', encoding));
+    });
+    onTextFileWritten((path) => {
+      const savedPath = path.replace(/\\/g, '/').toLowerCase();
+      for (const panel of this.editor.getPanels()) {
+        if (panel.params?.kind === MARKDOWN_KIND &&
+          String(panel.params?.targetId || '').replace(/\\/g, '/').toLowerCase() === savedPath) {
+          this.kindRegistry.refreshPanel(panel.id);
+        }
+      }
+    });
     registerFolderPreset(this.kindRegistry, { iconTheme: this.iconTheme });
     registerTerminalPreset(this.kindRegistry);
     this.editor.setComponentFactory(this.kindRegistry.createComponentFactory(this.editor));

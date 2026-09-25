@@ -49,7 +49,7 @@ def main():
                   css: [...document.styleSheets].some(s => s.href && s.href.includes('/assets/') && [...s.cssRules].some(r => r.cssText.includes('.katex'))) && getComputedStyle(formulas[0]).fontFamily.includes('KaTeX'),
                   highlight: Boolean(keyword && code.textContent.includes('const safe')),
                   colors: Object.values(colors).every(Boolean),
-                  safe: !rendered.querySelector('script, img, video, audio, svg, [onclick], [onerror], .evil, [href^="javascript:"]') && !rendered.querySelector('span[style*="fixed"]') && window.__attack === undefined
+                  safe: !rendered.querySelector('script, img[src], video, audio, svg, [onclick], [onerror], .evil, [href^="javascript:"]') && !rendered.querySelector('span[style*="fixed"]') && window.__attack === undefined
                 };
               })().catch(error => { window.__v04Phase3Result = {error: String(error)}; });
             """.replace("SAMPLE_PATH", json.dumps(sample))
