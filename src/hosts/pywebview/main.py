@@ -132,6 +132,9 @@ def request_confirmed_close(window):
 
 
 def install_app_navigation_guard(window):
+    # pywebview's popup handler otherwise sends arbitrary schemes to ShellExecute.
+    # Keep popup attempts in this WebView, where NavigationStarting rejects them.
+    webview.settings['OPEN_EXTERNAL_LINKS_IN_BROWSER'] = False
     state = {'url': None}
 
     def keep_app_page(sender, args):
@@ -142,10 +145,16 @@ def install_app_navigation_guard(window):
         if state['url'] is not None:
             return
         state['url'] = str(window.get_current_url()).split('#', 1)[0]
-        native = getattr(window, 'native', None)
-        control = getattr(native, 'webview', None)
-        if control is not None:
+        try:
+            native = getattr(window, 'native', None)
+            control = getattr(native, 'webview', None)
+            if control is None or not hasattr(control, 'NavigationStarting'):
+                raise RuntimeError('WebView2 navigation guard is unavailable')
             control.NavigationStarting += keep_app_page
+        except Exception as error:
+            sys.stderr.write(f'[pywebview] Navigation guard failed: {error}\n')
+            sys.stderr.flush()
+            window.destroy()
 
     window.events.loaded += bind
 

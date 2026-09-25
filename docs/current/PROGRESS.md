@@ -25,6 +25,6 @@
   - 무엇을 했나: CSP에 `img-src 'self' blob:`을 추가하고, 두 호스트에 폴더 경계를 검사하는 이미지 읽기와 `http(s)` 외부 열기 브릿지를 연결했다. 상대 파일 링크·앵커와 저장 후 열린 rendered 탭 갱신을 구현했다. 앱 페이지 밖 탐색을 호스트에서 차단했다.
   - 결과: 상대 PNG는 `blob:`으로 보이고 원격 이미지는 로드되지 않는다. 상대 `.md` 링크는 토글 규칙을 따르며, 외부 링크와 문서 앵커가 동작한다. editor 저장 전에는 rendered가 그대로이고 저장 후 갱신된다.
   - 검증: Electron·pywebview 화면 검사, 실제 Electron 호스트 브릿지 검사, Python 3.11.8·pywebview 6.2.1 pywebview 검사 통과. `typecheck`, `build`, `verify:dist`, `verify:phase3`, `verify:open-modes`, `verify:text-open` 통과. 리뷰는 `docs/reviews/A33.md`.
-  - 특이사항: `npm test`는 이전부터 알려진 v0.1 Phase 4 단언 7건 실패로 중단된다. Claude CLI 2회차는 HTTP 429 한도로 거절됐으며 1회차 유효 검토의 Critical은 없었다.
+  - 특이사항: `npm test`는 이전부터 알려진 v0.1 Phase 4 단언 7건 실패로 중단된다. Claude CLI 2회차는 HTTP 429였으나 3회차 검토에서 Electron 보완 확인과 pywebview 조건부 Major 두 건을 받았다. pywebview 보완 후 실제 WebView2 팝업·탐색 차단과 가드 연결 실패 시 종료를 검증했다. 미해결 Critical은 없다.
 
 ## 2. 계획 외 개선

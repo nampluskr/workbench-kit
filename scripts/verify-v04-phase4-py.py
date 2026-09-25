@@ -6,6 +6,7 @@ import sys
 import tempfile
 import threading
 import time
+import webbrowser
 
 import webview
 
@@ -24,6 +25,30 @@ def main():
     with open(sample, "w", encoding="utf-8") as file:
         file.write("# Top\n\n[local](./linked.md) [external](https://example.com/path) [anchor](#bottom) [bad](file:///C:/Windows/win.ini)\n\n![local](./pixel.png) ![remote](https://example.com/x.png) ![escape](../outside.png)\n\n" + "paragraph\n\n" * 80 + "# Bottom")
     api = WindowApi()
+    class FakeEvent:
+        def __iadd__(self, callback):
+            self.callback = callback
+            return self
+
+    class FakeWindow:
+        def __init__(self):
+            self.events = type("Events", (), {"loaded": FakeEvent()})()
+            self.native = None
+            self.destroyed = False
+
+        def get_current_url(self):
+            return "http://127.0.0.1:47823/index.html"
+
+        def destroy(self):
+            self.destroyed = True
+
+    fake = FakeWindow()
+    install_app_navigation_guard(fake)
+    fake.events.loaded.callback()
+    fail_closed = fake.destroyed
+    popup_calls = []
+    original_browser_open = webbrowser.open
+    webbrowser.open = lambda url: popup_calls.append(url) or False
     url_guard = all(api.open_external_url(url) is False for url in (
         "file:///C:/Windows/win.ini", "javascript:alert(1)", "https://example.com\\@attacker.test"))
     calls = []
@@ -92,6 +117,13 @@ def main():
             window.evaluate_js("location.href = 'https://example.com/escape'")
             time.sleep(0.4)
             result["navigationGuard"] = window.get_current_url() == original_url
+            window.evaluate_js("window.open('file:///C:/Windows/win.ini', '_blank')")
+            window.evaluate_js("window.open('https://example.com/popup', '_blank')")
+            time.sleep(0.4)
+            page_url = window.evaluate_js("location.href")
+            result["popupGuard"] = page_url == original_url and not popup_calls
+            if not result["popupGuard"]:
+                result["popupDetails"] = {"original": original_url, "current": window.get_current_url(), "page": page_url, "calls": list(popup_calls)}
         except Exception as error:
             result = {"error": str(error)}
         finally:
@@ -109,12 +141,13 @@ def main():
     window.events.loaded += on_loaded
     try:
         webview.start(storage_path=os.path.join(fixture, "profile"), private_mode=True)
-        result.update({"external": calls == ["https://example.com/path"], "bridgeGuard": all(direct.values()), "urlGuard": url_guard})
+        result.update({"external": calls == ["https://example.com/path"], "bridgeGuard": all(direct.values()), "urlGuard": url_guard, "guardFailClosed": fail_closed})
         if not result["external"]:
             result["externalCalls"] = calls
         print(json.dumps(result, ensure_ascii=False))
         return 0 if result and all(value is True for value in result.values()) else 1
     finally:
+        webbrowser.open = original_browser_open
         resolved = os.path.abspath(fixture)
         if resolved.startswith(os.path.abspath(tempfile.gettempdir()) + os.sep) and os.path.basename(resolved).startswith("wb-v04-p4-py-"):
             shutil.rmtree(resolved, ignore_errors=True)
