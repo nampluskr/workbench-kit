@@ -10,4 +10,10 @@
   - 검증: Electron·pywebview 전용 검사에서 제목·목록·실측 테이블·툴팁·정화·스크립트 미실행 통과. `npm run typecheck`, `npm run build`, `verify:phase3`, `verify:dist`, `verify:text-open` 통과. `verify:open-modes`는 첫 실행에서 터미널 타이밍 2건 실패 후 재실행 통과. 세션 내 리뷰 및 반대 벤더 3회 검토는 `docs/reviews/A30.md`에 기록.
   - 특이사항: `npm test`는 기존 v0.1 Phase 4 계열 7건에서 중단됐다. Phase 1 변경의 직접 회귀는 확인되지 않았다.
 
+- **Phase 2 — 토글과 열기 규칙** (2026-09-25)
+  - 무엇을 했나: 마크다운 렌더링 전역 토글과 SVG 두 상태를 Activity Bar의 File Filter 아래에 추가했다. `.md`의 탐색기 클릭·Enter·F3·F4와 열린 탭 모드 전환을 연결했다.
+  - 결과: 처음에는 꺼짐, 재시작 후 상태 복원, 기본 Editor 모드보다 토글 우선, 비 `.md` 파일 독립, 기존 열린 탭 유지. 편집 중 같은 파일을 다시 선택하거나 F3/F4를 사용해도 원문과 dirty 상태가 유지된다.
+  - 검증: Electron·pywebview 전용 검사에서 두 아이콘의 세 테마 실측 색, 위치·라벨, 클릭·Enter·F3·F4, 토글 꺼짐, 기본 모드, 비 `.md`, 편집 중 탭, 재시작을 확인. `typecheck`, `build`, `verify:dist`, `verify:phase3`, `verify:open-modes`, `verify:text-open` 통과. 세션 내 리뷰 및 반대 벤더 3회 결과는 `docs/reviews/A31.md`에 기록.
+  - 특이사항: 마지막 반대 벤더 회차 뒤 수정한 같은 파일 재클릭 경로는 3회 한도 때문에 벤더 재검증 없이 두 호스트 재현 검사로 확인했다. 미해결 Critical은 없다.
+
 ## 2. 계획 외 개선

@@ -32,7 +32,11 @@ import { ExtensionFilterPanel } from './presets/extension-filter-panel';
 import { ExplorerFileOps } from './presets/explorer-file-ops';
 import { checkTextFile, type TextEncodingId } from './presets/file-types';
 import { getDeleteEnabled, setDeleteEnabled, onDeleteEnabledChanged } from './presets/delete-enabled';
-import { registerMarkdownRenderer, MARKDOWN_KIND, RENDERED_MODE } from './core/markdown';
+import {
+  registerMarkdownRenderer, MARKDOWN_KIND, RENDERED_MODE, isMarkdownFile,
+  getMarkdownRenderingEnabled, setMarkdownRenderingEnabled, onMarkdownRenderingChanged,
+  createMarkdownToggleIcon,
+} from './core/markdown';
 
 /** Injected at build time by vite.config.ts (v0.2 FR-C7, FR-C8). */
 declare const __WB_VERSION__: string;
@@ -141,7 +145,7 @@ export class WorkbenchApp {
   private defaultFileMode: 'editor' | 'viewer' = 'viewer';
   private defaultFolderMode: 'file-list' | 'cmd' | 'terminal' = 'file-list';
   /** See `openFromEntry` — coalesces requests while a dirty-preview confirm is on screen. */
-  private pendingOpenEntry: { entry: OpenableEntry; mode: EditorOpenMode } | null = null;
+  private pendingOpenEntry: { entry: OpenableEntry; mode: EditorOpenMode; encoding?: TextEncodingId } | null = null;
 
   constructor(container: HTMLElement) {
     this.layout = createWorkbenchLayout(container);
@@ -156,6 +160,14 @@ export class WorkbenchApp {
       this.layout.activityBarTop,
       this.layout.activityBarBottom
     );
+    this.activityBar.setTopItems([
+      ...this.activityBar.getTopItems(),
+      { id: 'activity:markdown-rendering', label: 'Markdown Rendering', iconSvg: createMarkdownToggleIcon(getMarkdownRenderingEnabled()) },
+    ]);
+    this.activityBar.setAction('activity:markdown-rendering', () =>
+      setMarkdownRenderingEnabled(!getMarkdownRenderingEnabled()));
+    onMarkdownRenderingChanged(() => this.activityBar.setItemSvg(
+      'activity:markdown-rendering', createMarkdownToggleIcon(getMarkdownRenderingEnabled())));
     this.viewState = new ViewStateManager(this.layout);
     this.theme = new ThemeManager('dark');
     this.iconTheme = new IconThemeManager('seti', this.theme.getTheme());
@@ -211,7 +223,7 @@ export class WorkbenchApp {
     try {
       if (typeof localStorage !== 'undefined') {
         const fm = localStorage.getItem('workbench:default-file-mode');
-        if (fm === 'viewer') this.defaultFileMode = fm;
+        if (fm === 'viewer' || fm === 'editor') this.defaultFileMode = fm;
         const dm = localStorage.getItem('workbench:default-folder-mode');
         if (dm === 'file-list' || dm === 'cmd' || dm === 'terminal') this.defaultFolderMode = dm;
       }
@@ -223,9 +235,11 @@ export class WorkbenchApp {
       const panel = this.editor.getActivePanel();
       if (!panel) return;
       const kind = panel.params?.kind;
-      if (kind === FILE_KIND) {
+      if (kind === FILE_KIND || kind === MARKDOWN_KIND) {
         const currentMode = panel.params?.mode || this.defaultFileMode;
-        const nextMode = currentMode === 'editor' ? 'viewer' : 'editor';
+        const nextMode = currentMode === 'editor'
+          ? getMarkdownRenderingEnabled() && isMarkdownFile(String(panel.params?.targetId || '')) ? RENDERED_MODE : 'viewer'
+          : 'editor';
         this.setActivePanelMode(nextMode);
       }
     });
@@ -234,7 +248,7 @@ export class WorkbenchApp {
     this.layout.editorContainer.addEventListener('keydown', (e) => {
       if ((e.key !== 'F3' && e.key !== 'F4') || e.ctrlKey || e.altKey || e.shiftKey || e.metaKey) return;
       const panel = this.editor.getActivePanel();
-      if (panel?.params?.kind !== FILE_KIND) return;
+      if (panel?.params?.kind !== FILE_KIND && panel?.params?.kind !== MARKDOWN_KIND) return;
       const target = e.target as HTMLElement | null;
       const fileContent = this.editor.getContentRenderer(panel.id)?.element;
       const activeTab = target?.closest?.('.dv-tab[data-tab-panel-id]');
@@ -246,7 +260,9 @@ export class WorkbenchApp {
       }
       e.preventDefault();
       e.stopPropagation();
-      this.setActivePanelMode(e.key === 'F3' ? 'viewer' : 'editor');
+      this.setActivePanelMode(e.key === 'F3' && getMarkdownRenderingEnabled() &&
+        isMarkdownFile(String(panel.params?.targetId || '')) ? RENDERED_MODE :
+        e.key === 'F3' ? 'viewer' : 'editor');
     }, true);
     this.editor.onActivePanelChange((panel) => {
       this.updateStatusbarMode();
@@ -511,6 +527,12 @@ export class WorkbenchApp {
       e.preventDefault();
       if (e.key === 'F2') {
         this.explorerFileOps.beginRename(nodeId);
+        return;
+      }
+      if (e.key === 'F3' && getMarkdownRenderingEnabled() && isMarkdownFile(nodeId)) {
+        const node = this.tree.getNodeById(nodeId);
+        if (node && !node.isContainer) void this.openIfText(nodeId, node.label, (enc) =>
+          this.openFromEntry(node, 'pinned', enc));
         return;
       }
       const actionId = e.key === 'F3' ? 'open:viewer' : 'open:editor';
@@ -891,7 +913,7 @@ export class WorkbenchApp {
       // Only file/folder-kind panels correspond to real filesystem paths;
       // checking any other kind would hammer the host bridge for targets
       // that were never meant to resolve to a path (e.g. test/demo kinds).
-      if (!targetId || (kind !== FILE_KIND && kind !== FOLDER_KIND)) return;
+      if (!targetId || (kind !== FILE_KIND && kind !== MARKDOWN_KIND && kind !== FOLDER_KIND)) return;
 
       // Editor tab selection also drives the statusbar path (user request,
       // 2026-09-15) — same label the tree's onSelect above already writes,
@@ -1755,8 +1777,8 @@ export class WorkbenchApp {
   public async openRenderedMarkdown(filePath: string): Promise<void> {
     const fileName = filePath.split(/[/\\]/).pop() || filePath;
     if (!/\.md$/i.test(fileName)) return;
-    await this.openIfText(filePath, fileName, () => {
-      this.openResource(filePath, fileName, MARKDOWN_KIND, RENDERED_MODE, 'pinned');
+    await this.openIfText(filePath, fileName, (encoding) => {
+      this.openResource(filePath, fileName, MARKDOWN_KIND, RENDERED_MODE, 'pinned', false, encoding);
     });
   }
 
@@ -1782,9 +1804,16 @@ export class WorkbenchApp {
     return encoding === 'cp949' ? 'viewer' : requested;
   }
 
+  private fileOpenKindAndMode(path: string, encoding?: TextEncodingId): { kind: string; mode: string } {
+    return getMarkdownRenderingEnabled() && isMarkdownFile(path)
+      ? { kind: MARKDOWN_KIND, mode: RENDERED_MODE }
+      : { kind: FILE_KIND, mode: this.fileModeFor(encoding) };
+  }
+
   /** Ctrl+Enter from the tree (FR-A14), after the text check. */
   private openFileToSide(node: OpenableEntry, encoding: TextEncodingId): void {
-    const meta = { kind: FILE_KIND, mode: this.fileModeFor(encoding), ...(encoding === 'cp949' ? { encoding } : {}) };
+    const selection = this.fileOpenKindAndMode(node.id, encoding);
+    const meta = { kind: selection.kind, mode: selection.mode, ...(encoding === 'cp949' ? { encoding } : {}) };
     const activeGroup = this.editor.getActiveGroup();
     const besideGroup = activeGroup ? this.editor.findBesideGroup(activeGroup) : undefined;
     // No existing beside group means openBeside() will split a fresh
@@ -1836,34 +1865,49 @@ export class WorkbenchApp {
    * itself still must not branch on file/folder by name (INTENT 3, D-4).
    */
   private openFromEntry(entry: OpenableEntry, mode: EditorOpenMode, encoding?: TextEncodingId): void {
-    const openNow = (target: OpenableEntry, how: EditorOpenMode) =>
-      this.openResource(target.id, target.label, target.isContainer ? FOLDER_KIND : FILE_KIND,
-        target.isContainer ? 'file-list' : this.fileModeFor(encoding), how, false, encoding);
+    const openNow = (target: OpenableEntry, how: EditorOpenMode, targetEncoding?: TextEncodingId) => {
+      const selection = target.isContainer
+        ? { kind: FOLDER_KIND, mode: 'file-list' }
+        : this.fileOpenKindAndMode(target.id, targetEncoding);
+      return this.openResource(target.id, target.label, selection.kind, selection.mode, how, false, targetEncoding);
+    };
 
     if (this.pendingOpenEntry) {
       const keepPinned = this.pendingOpenEntry.entry.id === entry.id && this.pendingOpenEntry.mode === 'pinned';
-      this.pendingOpenEntry = { entry, mode: keepPinned ? 'pinned' : mode };
+      this.pendingOpenEntry = { entry, mode: keepPinned ? 'pinned' : mode, encoding };
       return;
     }
 
+    if (!entry.isContainer) {
+      const dirtySameFile = this.editor.getActiveGroup()?.panels.find((panel) =>
+        panel.params?.targetId === entry.id && panel.params?.isDirty === true &&
+        (panel.params?.kind === FILE_KIND || panel.params?.kind === MARKDOWN_KIND));
+      if (dirtySameFile) {
+        dirtySameFile.api.setActive();
+        if (mode === 'pinned') this.editor.pinPanel(dirtySameFile);
+        this.setActivePanelMode(this.fileOpenKindAndMode(entry.id, encoding).mode);
+        return;
+      }
+    }
+
     const activeGroupForCheck = this.editor.getActiveGroup();
-    const requestedMode = entry.isContainer ? 'file-list' : this.fileModeFor(encoding);
+    const requestedMode = entry.isContainer ? 'file-list' : this.fileOpenKindAndMode(entry.id, encoding).mode;
     const alreadyOpen = Boolean(activeGroupForCheck?.panels.some((p) =>
       p.params?.targetId === entry.id && p.params?.mode === requestedMode));
     const doomed = mode === 'preview' && !alreadyOpen ? this.editor.getPreviewPanel() : undefined;
     if (doomed?.params?.isDirty) {
-      this.pendingOpenEntry = { entry, mode };
+      this.pendingOpenEntry = { entry, mode, encoding };
       void (async () => {
         const proceed = await this.editor.confirmReplaceIfDirty(doomed);
         const request = this.pendingOpenEntry;
         this.pendingOpenEntry = null;
         if (!proceed || !request) return;
-        const landed = openNow(request.entry, 'preview');
+        const landed = openNow(request.entry, 'preview', request.encoding);
         if (request.mode === 'pinned') this.editor.pinPanel(landed);
       })();
       return;
     }
-    openNow(entry, mode);
+    openNow(entry, mode, encoding);
   }
 
   /**
@@ -1926,12 +1970,21 @@ export class WorkbenchApp {
     const panel = this.editor.getActivePanel();
     if (!panel) return;
     const kind = panel.params?.kind;
-    if (kind === FILE_KIND && mode === 'editor' && isLegacyEncoded(panel.params ?? {})) {
+    if ((kind === FILE_KIND || kind === MARKDOWN_KIND) && mode === 'editor' && isLegacyEncoded(panel.params ?? {})) {
       // Saving writes UTF-8, which would re-encode a CP949 file (D-15).
       this.statusMessages.showError('CP949 file — read-only');
       return;
     }
-    if (kind === FILE_KIND && (mode === 'editor' || mode === 'viewer')) {
+    if (kind === MARKDOWN_KIND && mode === RENDERED_MODE) return;
+    if ((kind === FILE_KIND || kind === MARKDOWN_KIND) &&
+      ((mode === RENDERED_MODE && isMarkdownFile(String(panel.params?.targetId || ''))) || mode === 'editor' || mode === 'viewer')) {
+      const nextKind = mode === RENDERED_MODE ? MARKDOWN_KIND : FILE_KIND;
+      if (nextKind !== kind) {
+        panel.update({ params: { ...panel.params, kind: nextKind, mode } });
+        this.editor.refreshTabDecorations();
+        this.updateStatusbarMode();
+        return;
+      }
       this.kindRegistry.setPanelMode(panel.id, mode);
       panel.update({ params: { mode } });
       this.updateStatusbarMode();
@@ -1948,9 +2001,9 @@ export class WorkbenchApp {
       return;
     }
     const kind = panel.params?.kind;
-    if (kind === FILE_KIND) {
+    if (kind === FILE_KIND || kind === MARKDOWN_KIND) {
       const mode = panel.params?.mode || this.defaultFileMode;
-      const label = getFileModeLabel(mode);
+      const label = mode === RENDERED_MODE ? 'Rendered' : getFileModeLabel(mode);
       btn.style.display = 'inline-flex';
       btn.disabled = false;
       btn.textContent = `File: ${label}`;

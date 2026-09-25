@@ -1,7 +1,8 @@
 export interface ActivityBarItem {
   id: string;
   label: string;
-  iconClass: string;
+  iconClass?: string;
+  iconSvg?: SVGElement;
   action?: () => void;
 }
 
@@ -97,6 +98,16 @@ export class ActivityBarController {
     if (iconEl) iconEl.className = `codicon ${iconClass}`;
   }
 
+  /** Replaces a button icon with an already-constructed SVG element. */
+  public setItemSvg(id: string, iconSvg: SVGElement): void {
+    const item = this.findItem(id);
+    if (!item) return;
+    item.iconSvg = iconSvg;
+    const btn = (this.topContainer.querySelector(`[data-item-id="${id}"]`) ||
+      this.bottomContainer.querySelector(`[data-item-id="${id}"]`)) as HTMLElement | null;
+    if (btn) btn.replaceChildren(iconSvg.cloneNode(true));
+  }
+
   /** Updates an item's label — its hover text and accessible name — in place, like `setItemIcon`. */
   public setItemLabel(id: string, label: string): void {
     const item = this.findItem(id);
@@ -129,9 +140,13 @@ export class ActivityBarController {
       btn.title = item.label;
       btn.setAttribute('aria-label', item.label);
 
-      const iconEl = document.createElement('i');
-      iconEl.className = `codicon ${item.iconClass}`;
-      btn.appendChild(iconEl);
+      if (item.iconSvg) {
+        btn.appendChild(item.iconSvg.cloneNode(true));
+      } else {
+        const iconEl = document.createElement('i');
+        iconEl.className = `codicon ${item.iconClass || ''}`;
+        btn.appendChild(iconEl);
+      }
 
       btn.addEventListener('click', (e) => {
         e.stopPropagation();
