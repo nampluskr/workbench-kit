@@ -4,6 +4,7 @@ import katex from 'katex';
 import markdownItKatex from '@vscode/markdown-it-katex';
 import hljs from 'highlight.js';
 import 'katex/dist/katex.min.css';
+import { copyToClipboard } from '../about';
 import type { ResourceKindRegistry } from '../../registry/kind-registry';
 import type { IconThemeManager } from '../icontheme';
 import { readLegacyTextFile, readTextFile, writeTextFile, readLocalImage, openExternalUrl } from '../../providers/filesystem';
@@ -58,7 +59,7 @@ type MathEntry = { source: string; displayMode: boolean };
 type ImageEntry = { source: string; alt: string };
 type MathEnvironment = { math: MathEntry[]; images: ImageEntry[]; nonce: string };
 
-const parser = new MarkdownIt({ html: true, linkify: false, typographer: false });
+const parser = new MarkdownIt({ html: true, linkify: true, typographer: false });
 parser.use((markdownItKatex as unknown as { default: typeof markdownItKatex }).default, { throwOnError: false });
 for (const rule of ['math_inline', 'math_inline_block', 'math_inline_bare_block', 'math_block']) {
   parser.renderer.rules[rule] = (tokens, index, _options, environment) => {
@@ -82,6 +83,18 @@ parser.renderer.rules.image = (tokens, index, _options, environment) => {
   const id = env.images.push({ source: String(token.attrGet('src') || ''), alt: token.content }) - 1;
   return `<span data-md-image="${env.nonce}-${id}"></span>`;
 };
+for (const rule of ['th_open', 'td_open']) {
+  parser.renderer.rules[rule] = (tokens, index, options, _environment, self) => {
+    const token = tokens[index];
+    const alignment = String(token.attrGet('style') || '').match(/^text-align:(left|center|right)$/)?.[1];
+    if (alignment) {
+      token.attrSet('class', `markdown-align-${alignment}`);
+      const styleIndex = token.attrIndex('style');
+      if (styleIndex >= 0) token.attrs?.splice(styleIndex, 1);
+    }
+    return self.renderToken(tokens, index, options);
+  };
+}
 
 const forbiddenElements = [
   'form', 'button', 'input', 'select', 'option', 'textarea', 'map', 'area', 'style',
@@ -98,6 +111,35 @@ function renderMarkdownParts(source: string): { html: string; images: ImageEntry
   });
   const container = document.createElement('div');
   container.innerHTML = cleaned;
+  for (const item of container.querySelectorAll('li')) {
+    const content = item.firstElementChild?.tagName === 'P' ? item.firstElementChild : item;
+    const first = content.firstChild;
+    if (first?.nodeType !== 3) continue;
+    const match = first.textContent?.match(/^\s*\[([ xX])\](?:\s|$)/);
+    if (!match) continue;
+    first.textContent = first.textContent!.slice(match[0].length);
+    const checkbox = document.createElement('input');
+    checkbox.type = 'checkbox';
+    checkbox.defaultChecked = match[1].toLowerCase() === 'x';
+    checkbox.disabled = true;
+    content.prepend(checkbox, document.createTextNode(' '));
+    item.classList.add('markdown-task-item');
+  }
+  for (const quote of container.querySelectorAll('blockquote')) {
+    const first = quote.firstElementChild;
+    const marker = first?.tagName === 'P' ? first.firstChild : null;
+    if (marker?.nodeType !== 3) continue;
+    const match = marker.textContent?.match(/^\[!(NOTE|TIP|IMPORTANT|WARNING|CAUTION)\]\s*/i);
+    if (!match) continue;
+    marker.textContent = marker.textContent!.slice(match[0].length);
+    const kind = match[1].toLowerCase();
+    quote.classList.add('markdown-alert', `markdown-alert-${kind}`);
+    const title = document.createElement('p');
+    title.className = 'markdown-alert-title';
+    title.textContent = kind[0].toUpperCase() + kind.slice(1);
+    quote.prepend(title);
+    if (!first!.textContent?.trim()) first!.remove();
+  }
   for (const placeholder of container.querySelectorAll('[data-md-math]')) {
     const value = placeholder.getAttribute('data-md-math');
     if (!value?.startsWith(`${env.nonce}-`)) continue;
@@ -108,7 +150,7 @@ function renderMarkdownParts(source: string): { html: string; images: ImageEntry
       displayMode: entry.displayMode, output: 'html', trust: false, throwOnError: false,
     });
     const safeMath = DOMPurify.sanitize(html, {
-      FORBID_TAGS: forbiddenElements,
+      FORBID_TAGS: forbiddenElements.filter((tag) => tag !== 'svg'),
       SANITIZE_NAMED_PROPS: true,
     });
     const template = document.createElement('template');
@@ -128,7 +170,7 @@ function renderMarkdownParts(source: string): { html: string; images: ImageEntry
   }
   const seen = new Map<string, number>();
   for (const heading of container.querySelectorAll('h1, h2, h3, h4, h5, h6')) {
-    const slug = (heading.textContent || '').trim().toLowerCase().replace(/[^\p{L}\p{N}\s-]/gu, '').replace(/\s+/g, '-');
+    const slug = (heading.textContent || '').trim().toLowerCase().replace(/[^\p{L}\p{M}\p{N}_\s-]/gu, '').replace(/\s+/g, '-');
     const count = seen.get(slug) || 0;
     seen.set(slug, count + 1);
     heading.id = `md-${slug}${count ? `-${count}` : ''}`;
@@ -141,9 +183,11 @@ export function renderMarkdown(source: string): string {
 }
 
 function resolveRelativeLink(sourcePath: string, href: string): string | null {
+  const pathPart = href.split('#', 1)[0];
+  if (!pathPart || pathPart.includes('?')) return null;
   let decoded: string;
-  try { decoded = decodeURIComponent(href); } catch { return null; }
-  if (!decoded || decoded.startsWith('/') || decoded.startsWith('\\') || /^[a-z][a-z\d+.-]*:/i.test(decoded) || decoded.includes('?') || decoded.includes('#')) return null;
+  try { decoded = decodeURIComponent(pathPart); } catch { return null; }
+  if (!decoded || decoded.startsWith('/') || decoded.startsWith('\\') || /^[a-z][a-z\d+.-]*:/i.test(decoded)) return null;
   const source = sourcePath.replace(/\\/g, '/');
   const parts = source.slice(0, source.lastIndexOf('/')).split('/');
   for (const part of decoded.replace(/\\/g, '/').split('/')) {
@@ -173,11 +217,13 @@ export function registerMarkdownRenderer(
   registry.register(MARKDOWN_KIND, (targetId, { params, updateParams }) => {
     const element = document.createElement('div');
     element.className = 'markdown-rendered';
+    element.tabIndex = 0;
     element.setAttribute('data-rendered-path', targetId);
     let disposed = false;
     let refreshGeneration = 0;
     let dirtyListener: ((dirty: boolean) => void) | null = null;
     let imageUrls: string[] = [];
+    const copyTimers = new Map<HTMLButtonElement, ReturnType<typeof setTimeout>>();
 
     const handleNavigation = (event: Event) => {
       const link = (event.target as Element | null)?.closest?.('a');
@@ -216,7 +262,52 @@ export function registerMarkdownRenderer(
           const rendered = renderMarkdownParts(source);
           imageUrls.forEach((url) => URL.revokeObjectURL(url));
           imageUrls = [];
+          copyTimers.forEach(clearTimeout);
+          copyTimers.clear();
           element.innerHTML = rendered.html;
+          for (const pre of element.querySelectorAll('pre')) {
+            const code = pre.querySelector('code');
+            if (!code) continue;
+            const block = document.createElement('div');
+            block.className = 'markdown-code-block';
+            pre.replaceWith(block);
+            block.append(pre);
+            const button = document.createElement('button');
+            button.type = 'button';
+            button.className = 'markdown-code-copy';
+            const icon = document.createElement('i');
+            icon.className = 'codicon codicon-copy';
+            icon.setAttribute('aria-hidden', 'true');
+            button.append(icon);
+            button.setAttribute('aria-label', 'Copy code');
+            button.title = 'Copy code';
+            const status = document.createElement('span');
+            status.className = 'markdown-code-status';
+            status.setAttribute('role', 'status');
+            status.setAttribute('aria-live', 'polite');
+            button.addEventListener('click', () => {
+              const hadFocus = document.activeElement === button;
+              status.textContent = '';
+              void copyToClipboard(code.textContent || '').then((ok) => {
+                if (disposed || !button.isConnected) return;
+                if (hadFocus) button.focus({ preventScroll: true });
+                icon.className = `codicon ${ok ? 'codicon-check' : 'codicon-error'}`;
+                button.setAttribute('aria-label', ok ? 'Code copied' : 'Code copy failed');
+                button.title = ok ? 'Code copied' : 'Code copy failed';
+                status.textContent = ok ? 'Code copied' : 'Code copy failed';
+                const previous = copyTimers.get(button);
+                if (previous) clearTimeout(previous);
+                copyTimers.set(button, setTimeout(() => {
+                  icon.className = 'codicon codicon-copy';
+                  button.setAttribute('aria-label', 'Copy code');
+                  button.title = 'Copy code';
+                  status.textContent = '';
+                  copyTimers.delete(button);
+                }, 1600));
+              });
+            });
+            block.append(button, status);
+          }
           for (const img of element.querySelectorAll<HTMLImageElement>('img[data-md-image]')) {
             const entry = rendered.images[Number(img.dataset.mdImage)];
             if (!entry || !entry.source || /^(?:[a-z][a-z\d+.-]*:|\/|\\|#)/i.test(entry.source)) continue;
@@ -240,7 +331,12 @@ export function registerMarkdownRenderer(
 
     return {
       element,
-      dispose: () => { disposed = true; imageUrls.forEach((url) => URL.revokeObjectURL(url)); },
+      focus: () => element.focus({ preventScroll: true }),
+      dispose: () => {
+        disposed = true;
+        imageUrls.forEach((url) => URL.revokeObjectURL(url));
+        copyTimers.forEach(clearTimeout);
+      },
       refresh: () => { void refresh(); },
       onDirtyChange: (listener: (dirty: boolean) => void) => {
         dirtyListener = listener;

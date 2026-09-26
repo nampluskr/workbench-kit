@@ -57,6 +57,57 @@ function appInfoBase(): string {
   return `Workbench-Kit v${major}.${minor} (${__WB_COMMIT_DATE__})`;
 }
 
+const uiZoomSteps = [0.67, 0.75, 0.8, 0.9, 1, 1.1, 1.25, 1.5, 1.75, 2];
+let uiZoomRevision = 0;
+
+function applyUiZoomFactor(factor: number): void {
+  document.documentElement.style.zoom = '';
+  document.documentElement.style.setProperty('--ui-zoom', String(factor));
+}
+
+async function syncUiZoomFromHost(): Promise<void> {
+  const bridge = window.workbenchHost?.zoom ? window.workbenchHost : window.pywebview?.api;
+  if (!bridge?.zoom) return;
+  const revision = uiZoomRevision;
+  try {
+    const factor = await bridge.zoom(null);
+    if (revision === uiZoomRevision && typeof factor === 'number' && Number.isFinite(factor)) {
+      applyUiZoomFactor(factor);
+    }
+  } catch { /* The host may still be initializing. */ }
+}
+
+if (typeof window !== 'undefined') {
+  void syncUiZoomFromHost();
+  window.addEventListener('pywebviewready', () => void syncUiZoomFromHost(), { once: true });
+}
+
+async function changeUiZoom(direction: -1 | 0 | 1): Promise<void> {
+  const revision = ++uiZoomRevision;
+  if (window.pywebview && !window.pywebview.api?.zoom) {
+    window.addEventListener('pywebviewready', () => void changeUiZoom(direction), { once: true });
+    return;
+  }
+  const bridge = window.workbenchHost?.zoom ? window.workbenchHost : window.pywebview?.api;
+  if (bridge?.zoom) {
+    let factor: number | null = null;
+    try { factor = await bridge.zoom(direction); } catch { /* Use browser zoom below. */ }
+    if (revision !== uiZoomRevision) return;
+    if (typeof factor === 'number' && Number.isFinite(factor)) {
+      applyUiZoomFactor(factor);
+      return;
+    }
+  }
+  const current = Number(document.documentElement.style.zoom) || 1;
+  const next = direction === 0 ? 1 : direction > 0
+    ? uiZoomSteps.find((step) => step > current + 0.001)
+    : uiZoomSteps.slice().reverse().find((step) => step < current - 0.001);
+  if (next !== undefined) {
+    document.documentElement.style.zoom = String(next);
+    document.documentElement.style.setProperty('--ui-zoom', String(next));
+  }
+}
+
 /**
  * One folder tab's saved Explorer state (v0.3 D-5). Keyed by folder-tab id
  * in `WorkbenchApp.explorerStateByTab` — see there for why it lives on the
@@ -146,6 +197,8 @@ export class WorkbenchApp {
   private defaultFolderMode: 'file-list' | 'cmd' | 'terminal' = 'file-list';
   /** See `openFromEntry` — coalesces requests while a dirty-preview confirm is on screen. */
   private pendingOpenEntry: { entry: OpenableEntry; mode: EditorOpenMode; encoding?: TextEncodingId } | null = null;
+  /** The divider between the File mode button and Filter (File | Filter | Delete, user request 2026-09-25) — hidden/shown together with the button in updateStatusbarMode(), since it only shows for a File/Markdown tab. The Filter/Delete divider next to it is unconditional — both are always shown. */
+  private statusbarModeDivider: HTMLElement | null = null;
 
   constructor(container: HTMLElement) {
     this.layout = createWorkbenchLayout(container);
@@ -582,13 +635,17 @@ export class WorkbenchApp {
     this.menu.setAction('view:toggle-foldertabs', () => this.viewState.toggleFolderTabs());
     this.menu.setAction('view:toggle-word-wrap', () => setWordWrapEnabled(!getWordWrapEnabled()));
     this.menu.setAction('view:toggle-line-numbers', () => setLineNumbersVisible(!getLineNumbersVisible()));
+    this.menu.setAction('view:zoom-in', () => changeUiZoom(1));
+    this.menu.setAction('view:zoom-out', () => changeUiZoom(-1));
+    this.menu.setAction('view:zoom-reset', () => changeUiZoom(0));
     this.menu.setAction('view:zen-mode', () => this.viewState.toggleZenMode());
-    // Global Explorer-delete safety gate (v0.3, user request 2026-09-25) —
-    // a top-level row, not nested in a submenu, since it's a safety setting
-    // rather than an appearance one. Also reflected in the status bar
-    // (see the statusbar-delete-indicator wiring below); both write
-    // through the same setDeleteEnabled() so they can't disagree.
-    this.menu.setAction('view:delete-enabled', () => setDeleteEnabled(!getDeleteEnabled()));
+    // Global Explorer-delete safety gate (v0.3, user request 2026-09-25;
+    // moved from View to File, between Close and Exit, user request
+    // 2026-09-25) — a top-level row, not nested in a submenu, since it's a
+    // safety setting rather than an appearance one. Also reflected in the
+    // status bar (see the statusbar-delete-indicator wiring below); both
+    // write through the same setDeleteEnabled() so they can't disagree.
+    this.menu.setAction('file:delete-enabled', () => setDeleteEnabled(!getDeleteEnabled()));
     // Each row's check mark is read from the live state whenever the menu is
     // drawn, so a change made by key, title bar or Activity Bar shows the next
     // time the menu opens (UT-MNU-002).
@@ -604,7 +661,7 @@ export class WorkbenchApp {
     this.menu.setCheckedProvider('view:toggle-foldertabs', () => this.viewState.getState().folderTabsVisible);
     this.menu.setCheckedProvider('view:toggle-word-wrap', () => getWordWrapEnabled());
     this.menu.setCheckedProvider('view:toggle-line-numbers', () => getLineNumbersVisible());
-    this.menu.setCheckedProvider('view:delete-enabled', () => getDeleteEnabled());
+    this.menu.setCheckedProvider('file:delete-enabled', () => getDeleteEnabled());
 
     // One positive setting replaces the former pair of mode rows. Checked is
     // per-folder editor state; unchecked is one editor layout shared by roots.
@@ -633,6 +690,10 @@ export class WorkbenchApp {
       // Wraps text / document files at the tab width (user request, 2026-09-24).
       { id: 'view:toggle-word-wrap', label: 'Word Wrap' },
       { id: 'view:toggle-line-numbers', label: 'Show Line Numbers' },
+      { id: 'view:appearance:separator-zoom', label: '', type: 'separator' },
+      { id: 'view:zoom-in', label: 'Zoom In', shortcut: 'Ctrl+Shift+=' },
+      { id: 'view:zoom-out', label: 'Zoom Out', shortcut: 'Ctrl+-' },
+      { id: 'view:zoom-reset', label: 'Reset Zoom', shortcut: 'Ctrl+Shift+0' },
       { id: 'view:appearance:separator-zen', label: '', type: 'separator' },
       { id: 'view:zen-mode', label: 'Zen Mode', shortcut: 'F11' },
     ]);
@@ -848,11 +909,15 @@ export class WorkbenchApp {
       // as-is — see the contextmenu listener below), so this only ever
       // deletes the one right-clicked item; multi-select delete is the
       // Delete key's job. Shares explorerFileOps.delete()'s single gate
-      // with the Delete key (v0.3, user request 2026-09-25).
+      // with the Delete key (v0.3, user request 2026-09-25). The row itself
+      // is greyed out and unclickable when the gate is off, rather than
+      // clicking through to explorerFileOps.delete()'s own silent no-op
+      // (user request, 2026-09-25 — same idea as a disabled Edit menu row).
       items.push({ id: 'explorer:delete-separator', label: '', type: 'separator' });
       items.push({
         id: 'explorer:delete',
         label: 'Delete',
+        disabled: !getDeleteEnabled(),
         action: () => void this.explorerFileOps.delete([node]),
       });
       return items;
@@ -954,6 +1019,29 @@ export class WorkbenchApp {
     // test item. FR-I10's view-titlebar app-action slot stays open too; a
     // real app registers through addSidebarViewAction.
 
+    // File Filter indicator (user request, 2026-09-25) — reads "Filter: On/
+    // Off", mirroring the Delete indicator below. Clicking it opens the same
+    // filter panel the Activity Bar's File Filter icon does, anchored here
+    // instead so it drops down from the status bar.
+    const filterStatusEl = document.createElement('span');
+    filterStatusEl.className = 'statusbar-app-item statusbar-filter-indicator';
+    filterStatusEl.setAttribute('role', 'button');
+    filterStatusEl.tabIndex = 0;
+    filterStatusEl.title = 'Click to open File Filter';
+    const openFilterFromStatusbar = () => fileFilterPanel.toggle(filterStatusEl);
+    filterStatusEl.addEventListener('click', openFilterFromStatusbar);
+    filterStatusEl.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        openFilterFromStatusbar();
+      }
+    });
+    const renderFilterStatus = () => {
+      filterStatusEl.textContent = isFilterActive() ? 'Filter: On' : 'Filter: Off';
+    };
+    onFilterChange(renderFilterStatus);
+    renderFilterStatus();
+
     // Explorer-delete indicator (v0.3, user request 2026-09-25) — no
     // reusable "register a status bar item" API exists, so this appends a
     // manual element into the app-item slot above, same as the
@@ -982,6 +1070,27 @@ export class WorkbenchApp {
     onDeleteEnabledChanged(renderDeleteStatus);
     renderDeleteStatus();
 
+    // Arranges the row as File | Filter | Delete, left to right (user
+    // request, 2026-09-25 — reordered same day from an initial Filter | File
+    // | Delete). The File mode button is already first in DOM order
+    // (createWorkbenchLayout); this only needs to insert Filter and both
+    // dividers ahead of the app-items slot (Delete) from the app layer,
+    // which already knows about all three concepts, rather than teaching
+    // the core the order. Only the File/Filter divider hides with the mode
+    // button in updateStatusbarMode() below, since it only appears for a
+    // File/Markdown tab — Filter and Delete are always shown, so the
+    // divider between THEM is unconditional.
+    const statusbarRight = this.layout.statusbarModeBtn.parentElement;
+    const modeDivider = document.createElement('span');
+    modeDivider.className = 'statusbar-divider';
+    const filterDeleteDivider = document.createElement('span');
+    filterDeleteDivider.className = 'statusbar-divider';
+    statusbarRight?.insertBefore(modeDivider, this.layout.statusbarAppItems);
+    statusbarRight?.insertBefore(filterStatusEl, this.layout.statusbarAppItems);
+    statusbarRight?.insertBefore(filterDeleteDivider, this.layout.statusbarAppItems);
+    this.statusbarModeDivider = modeDivider;
+    this.updateStatusbarMode();
+
     // Focus areas — F6 / Shift+F6 between the tree and each group, Ctrl+Tab
     // inside a group, and a press on the explorer's empty space (v0.2 D-10,
     // FR-F1 ~ FR-F5).
@@ -993,6 +1102,33 @@ export class WorkbenchApp {
     // keydown must not be able to swallow them, so the listener runs before the
     // event reaches the view. Non-reserved keys fall through untouched.
     if (typeof window !== 'undefined') {
+      let zoomWheelTarget: HTMLElement | null = null;
+      let zoomWheelDelta = 0;
+      window.addEventListener('wheel', (event) => {
+        if (!event.ctrlKey || event.deltaY === 0) return;
+        event.preventDefault();
+        if (event.altKey || event.metaKey) return;
+        event.stopPropagation();
+        const target = event.target instanceof Element ? event.target.closest<HTMLElement>('.markdown-rendered') : null;
+        if (!target) {
+          zoomWheelTarget = null;
+          zoomWheelDelta = 0;
+          return;
+        }
+        if (zoomWheelTarget !== target) {
+          zoomWheelTarget = target;
+          zoomWheelDelta = 0;
+        }
+        if (Math.sign(zoomWheelDelta) !== Math.sign(event.deltaY)) zoomWheelDelta = 0;
+        zoomWheelDelta += event.deltaY;
+        if (Math.abs(zoomWheelDelta) < 60) return;
+        zoomWheelDelta = 0;
+        const current = Number(target.style.getPropertyValue('--markdown-zoom')) || 1;
+        const next = event.deltaY < 0
+          ? uiZoomSteps.find((step) => step > current + 0.001)
+          : uiZoomSteps.slice().reverse().find((step) => step < current - 0.001);
+        if (next !== undefined) target.style.setProperty('--markdown-zoom', String(next));
+      }, { capture: true, passive: false });
       let pendingChord: 'ctrl-k' | null = null;
       let chordTimer: any = null;
       const resetChord = () => {
@@ -1066,6 +1202,12 @@ export class WorkbenchApp {
           run(() => this.focusEditorGroupByIndex(0));
         } else if (ctrlOnly && e.key === '2') {
           run(() => this.focusEditorGroupByIndex(1));
+        } else if (e.ctrlKey && !e.altKey && !e.metaKey && e.shiftKey && e.code === 'Digit0') {
+          run(() => changeUiZoom(0));
+        } else if (e.ctrlKey && !e.altKey && !e.metaKey && (e.key === '+' || e.key === '=' || e.code === 'NumpadAdd')) {
+          run(() => changeUiZoom(1));
+        } else if (ctrlOnly && (e.key === '-' || e.code === 'Minus' || e.code === 'NumpadSubtract')) {
+          run(() => changeUiZoom(-1));
         } else if (ctrlOnly && (e.key === 'b' || e.key === 'B')) {
           // Ctrl+B hides the visible navigation areas, then restores that
           // exact Folder Tabs / Explorer combination on the next press.
@@ -1992,24 +2134,56 @@ export class WorkbenchApp {
     if ((kind === FILE_KIND || kind === MARKDOWN_KIND) &&
       ((mode === RENDERED_MODE && isMarkdownFile(String(panel.params?.targetId || ''))) || mode === 'editor' || mode === 'viewer')) {
       const nextKind = mode === RENDERED_MODE ? MARKDOWN_KIND : FILE_KIND;
+      // A kind change replaces the tab's content element, dropping focus to
+      // <body>; F3/F4 only reach a focused file view, so the next key would be
+      // ignored. Hand focus to the new view when the switch came from the tab
+      // itself or from the status bar mode button.
+      const focused = document.activeElement;
+      const keepFocus = !focused || focused === document.body ||
+        focused === this.layout.statusbarModeBtn ||
+        Boolean(this.editor.getContentRenderer(panel.id)?.element.contains(focused));
       if (nextKind !== kind) {
         panel.update({ params: { ...panel.params, kind: nextKind, mode } });
         this.editor.refreshTabDecorations();
         this.updateStatusbarMode();
+        if (keepFocus) this.focusPanelContent(panel.id);
         return;
       }
       this.kindRegistry.setPanelMode(panel.id, mode);
       panel.update({ params: { mode } });
       this.updateStatusbarMode();
+      if (keepFocus) this.focusPanelContent(panel.id);
     }
+  }
+
+  /**
+   * Keyboard focus into a tab after a mode switch: the view's own focus when
+   * it has one, else the tab's content box, which is enough for F3/F4. File
+   * views register no focus handler on purpose — opening one from the
+   * Explorer leaves focus on the tree.
+   */
+  private focusPanelContent(panelId: string): void {
+    const content = this.editor.getContentRenderer(panelId)?.element;
+    if (!content) return;
+    this.kindRegistry.focusPanel(panelId);
+    if (content.contains(document.activeElement)) return;
+    if (!content.hasAttribute('tabindex')) content.tabIndex = -1;
+    content.focus({ preventScroll: true });
   }
 
   public updateStatusbarMode(): void {
     const btn = this.layout.statusbarModeBtn;
     if (!btn) return;
+    const setVisible = (visible: boolean) => {
+      btn.style.display = visible ? 'inline-flex' : 'none';
+      // The File/Filter divider (user request, 2026-09-25) follows the
+      // button — with no active File/Markdown tab there is nothing to its
+      // left to divide from. The Filter/Delete divider is unconditional.
+      if (this.statusbarModeDivider) this.statusbarModeDivider.style.display = visible ? '' : 'none';
+    };
     const panel = this.editor.getActivePanel();
     if (!panel) {
-      btn.style.display = 'none';
+      setVisible(false);
       btn.textContent = '';
       return;
     }
@@ -2017,12 +2191,12 @@ export class WorkbenchApp {
     if (kind === FILE_KIND || kind === MARKDOWN_KIND) {
       const mode = panel.params?.mode || this.defaultFileMode;
       const label = mode === RENDERED_MODE ? 'Rendered' : getFileModeLabel(mode);
-      btn.style.display = 'inline-flex';
+      setVisible(true);
       btn.disabled = false;
       btn.textContent = `File: ${label}`;
       btn.title = `File Mode: ${label} (click to toggle)`;
     } else {
-      btn.style.display = 'none';
+      setVisible(false);
       btn.textContent = '';
     }
   }

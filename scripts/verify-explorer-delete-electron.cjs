@@ -100,8 +100,9 @@ app.whenReady().then(async () => {
       r.disabledByDefault = true; // checked against disk below
       r.disabledShowsMessage = /Delete is disabled/.test(status());
 
-      // 2. Enable via the View menu checkbox row.
-      a.menu.triggerItem('view:delete-enabled');
+      // 2. Enable via the File menu checkbox row (moved from View, user
+      // request 2026-09-25).
+      a.menu.triggerItem('file:delete-enabled');
       await wait(100);
       r.enabledViaMenu = statusDeleteEl().textContent === 'Delete: On';
 

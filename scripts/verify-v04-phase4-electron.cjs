@@ -10,10 +10,12 @@ const fixture = fs.mkdtempSync(path.join(os.tmpdir(), 'wb-v04-p4-'));
 app.setPath('userData', path.join(fixture, 'profile'));
 const sample = path.join(fixture, 'sample.md');
 const linked = path.join(fixture, 'linked.md');
+const hashed = path.join(fixture, 'notes#v2.md');
 fs.writeFileSync(linked, '# Linked', 'utf8');
+fs.writeFileSync(hashed, '# Hashed', 'utf8');
 const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVQIHWP4z8DwHwAFgAI/ScL/nwAAAABJRU5ErkJggg==', 'base64');
 fs.writeFileSync(path.join(fixture, 'pixel.png'), png);
-fs.writeFileSync(sample, '# Top\n\n[local](./linked.md) [external](https://example.com/path) [anchor](#bottom) [bad](file:///C:/Windows/win.ini)\n\n![local](./pixel.png) ![remote](https://example.com/x.png) ![escape](../outside.png)\n\n' + 'paragraph\n\n'.repeat(80) + '# Bottom', 'utf8');
+fs.writeFileSync(sample, '# Top\n\n[local](./linked.md) [case](./LINKED.md) [encoded](./notes%23v2.md) [external](https://example.com/path) [anchor](#bottom) [bad](file:///C:/Windows/win.ini)\n\n![local](./pixel.png) ![remote](https://example.com/x.png) ![escape](../outside.png)\n\n' + 'paragraph\n\n'.repeat(80) + '# Bottom', 'utf8');
 const calls = { external: [], images: [] };
 app.on('quit', () => {
   const resolved = path.resolve(fixture);
@@ -28,7 +30,12 @@ ipcMain.handle('fs:write-text-file', async (_e, file, value) => { await fs.promi
 ipcMain.handle('fs:probe-text-file', (_e, file) => fsOps.probeTextFile(file));
 ipcMain.handle('fs:path-exists', () => true);
 ipcMain.handle('fs:list-drives', () => []);
-ipcMain.handle('fs:read-dir', () => []);
+ipcMain.handle('fs:read-dir', async (_e, dirPath) => {
+  const entries = await fs.promises.readdir(dirPath, { withFileTypes: true });
+  return entries.map((entry) => ({
+    name: entry.name, path: path.join(dirPath, entry.name), isContainer: entry.isDirectory(),
+  }));
+});
 ipcMain.handle('fs:read-local-image', async (_e, source, relative) => {
   calls.images.push([source, relative]);
   if (source !== sample || relative !== './pixel.png') throw new Error('Unsafe image request');
@@ -74,11 +81,58 @@ app.whenReady().then(async () => {
       document.querySelector('[data-item-id="activity:markdown-rendering"]')?.click();
       rendered.querySelector('a[href="./linked.md"]').click();
       await wait(350);
+      const localLink = app.editor.getActivePanel()?.params?.targetId?.toLowerCase().replaceAll('\\\\', '/') === ${JSON.stringify(linked.replaceAll('\\', '/').toLowerCase())} && app.editor.getActivePanel()?.params?.mode === 'rendered';
+      const localHasNoError = !app.statusMessages.getText().includes('target no longer exists');
+      renderedPanel.api.setActive();
+      rendered.querySelector('a[href="./LINKED.md"]').click();
+      await wait(350);
+      const caseLink = app.editor.getActivePanel()?.params?.targetId?.toLowerCase().replaceAll('\\\\', '/') === ${JSON.stringify(linked.replaceAll('\\', '/').toLowerCase())} && !app.statusMessages.getText().includes('target no longer exists');
+      renderedPanel.api.setActive();
+      rendered.querySelector('a[href="./notes%23v2.md"]').click();
+      await wait(350);
+      const encodedLink = app.editor.getActivePanel()?.params?.targetId?.toLowerCase().replaceAll('\\\\', '/') === ${JSON.stringify(hashed.replaceAll('\\', '/').toLowerCase())};
+      const noMissingTarget = localHasNoError && !app.statusMessages.getText().includes('target no longer exists');
+      const modePanel = app.editor.getActivePanel();
+      const modeRoot = app.editor.getContentRenderer(modePanel.id).element.querySelector('.markdown-rendered');
+      app.kindRegistry.focusPanel(modePanel.id);
+      const renderedFocused = modeRoot.contains(document.activeElement);
+      document.activeElement.dispatchEvent(new KeyboardEvent('keydown', { key: 'F4', bubbles: true, cancelable: true }));
+      const f4Editor = modePanel.params.mode === 'editor' && document.getElementById('statusbar-mode-btn').textContent === 'File: Editor';
+      await wait(150);
+      // No manual refocus from here on: each switch must leave focus where
+      // the next F3/F4 is heard (the rendered view lost it after F3).
+      const pressOnFocused = async (key) => {
+        document.activeElement.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true }));
+        await wait(150);
+      };
+      await pressOnFocused('F3');
+      const f3Rendered = modePanel.params.mode === 'rendered' && document.getElementById('statusbar-mode-btn').textContent === 'File: Rendered';
+      await pressOnFocused('F4');
+      const f4AfterF3 = modePanel.params.mode === 'editor';
+      await pressOnFocused('F3');
+      const f3AfterF4 = modePanel.params.mode === 'rendered';
+      const modeButton = document.getElementById('statusbar-mode-btn');
+      modeButton.focus();
+      modeButton.click();
+      await wait(150);
+      const statusToEditor = modePanel.params.mode === 'editor';
+      await pressOnFocused('F3');
+      const f3AfterStatus = modePanel.params.mode === 'rendered';
+      modeButton.focus();
+      modeButton.click();
+      await wait(150);
+      modeButton.focus();
+      modeButton.click();
+      await wait(150);
+      await pressOnFocused('F4');
+      const f4AfterStatus = modePanel.params.mode === 'editor';
       return {
         csp: document.querySelector('meta[http-equiv="Content-Security-Policy"]').content.includes("img-src 'self' blob:"),
         image: imageOk, remoteBlocked: blocked, anchor,
         external: true, beforeSave, saved, afterSave,
-        localLink: app.editor.getActivePanel()?.params?.targetId?.toLowerCase().replaceAll('\\\\', '/') === ${JSON.stringify(linked.replaceAll('\\', '/').toLowerCase())} && app.editor.getActivePanel()?.params?.mode === 'rendered',
+        localLink, caseLink,
+        encodedLink, noMissingTarget, renderedFocused, f4Editor, f3Rendered,
+        f4AfterF3, f3AfterF4, statusToEditor, f3AfterStatus, f4AfterStatus,
       };
     })()`);
     result.external = calls.external.length === 1 && calls.external[0] === 'https://example.com/path';

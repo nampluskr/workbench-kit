@@ -371,7 +371,11 @@ export class FileSystemTreeProvider implements ITreeDataProvider {
       const entries = host.readDir
         ? ((await host.readDir(parentPath)) as HostDirectoryEntry[])
         : ((await host.read_dir!(parentPath)) as HostDirectoryEntry[]);
-      return entries.some((e) => e.path === normalized || e.path === targetPath);
+      const targetName = normalized.slice(lastSepIndex + 1);
+      const windowsPath = /^[a-zA-Z]:[/\\]/.test(normalized) || /^[/\\]{2}/.test(normalized);
+      const targetKey = windowsPath ? targetName.toLowerCase() : targetName;
+      return entries.some((entry) =>
+        (windowsPath ? entry.name.toLowerCase() : entry.name) === targetKey);
     } catch {
       return false;
     }

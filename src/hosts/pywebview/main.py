@@ -192,6 +192,31 @@ class WindowApi:
         if self._window:
             request_confirmed_close(self._window)
 
+    def zoom(self, direction):
+        if not self._window or direction not in (-1, 0, 1, None):
+            return None
+        native = getattr(self._window, 'native', None)
+        control = getattr(native, 'webview', None)
+        if control is None:
+            return None
+        from System import Double, Func
+
+        def apply():
+            steps = (0.67, 0.75, 0.8, 0.9, 1.0, 1.1, 1.25, 1.5, 1.75, 2.0)
+            current = float(control.ZoomFactor)
+            if direction is None:
+                return current
+            if direction == 0:
+                next_zoom = 1.0
+            elif direction > 0:
+                next_zoom = next((step for step in steps if step > current + 0.001), current)
+            else:
+                next_zoom = next((step for step in reversed(steps) if step < current - 0.001), current)
+            control.ZoomFactor = next_zoom
+            return next_zoom
+
+        return native.Invoke(Func[Double](apply)) if native.InvokeRequired else apply()
+
     def get_window_bounds(self):
         if not self._window:
             return None
@@ -524,7 +549,17 @@ except Exception:
 def main():
     global loaded_called
 
-    root_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+    # A PyInstaller-frozen executable has no real src/hosts/pywebview/main.py
+    # on disk — __file__ resolves inside the temp extraction dir, four levels
+    # up from which is meaningless. sys._MEIPASS is that extraction dir
+    # itself, and the .spec file lays dist/ directly under it to match
+    # (user request, 2026-09-25 — exe packaging). Source-tree execution
+    # (`python -m src.hosts.pywebview.main`) is untouched: sys.frozen is
+    # only ever set inside a PyInstaller bundle.
+    if getattr(sys, "frozen", False):
+        root_dir = sys._MEIPASS  # type: ignore[attr-defined]
+    else:
+        root_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
     dist_dir = os.path.abspath(os.path.join(root_dir, "dist"))
     dist_index = os.path.abspath(os.path.join(dist_dir, "index.html"))
 

@@ -10,6 +10,11 @@ out/
 coverage/
 .nyc_output/
 
+# --- exe packaging output (electron-builder / PyInstaller) ---
+dist-exe/
+dist-py/
+build-py/
+
 .env
 .env.*
 !.env.example

@@ -239,7 +239,12 @@ class KindDispatchRenderer implements IContentRenderer {
     this.unsubscribeDirty?.();
     this.unsubscribeDirty = null;
     if (this.panelId) {
+      // A kind change must not leave the old view's handlers behind: the new
+      // view may not register a replacement, and the old one is disposed.
       this.registry.unregisterSaveable(this.panelId);
+      this.registry.unregisterModeHandler(this.panelId);
+      this.registry.unregisterFocusHandler(this.panelId);
+      this.registry.unregisterRefreshHandler(this.panelId);
       this.registry.deleteInnerForTest(this.panelId);
     }
     this.inner?.dispose?.();

@@ -4,6 +4,7 @@ contextBridge.exposeInMainWorld('workbenchHost', {
   minimize: () => ipcRenderer.send('window:minimize'),
   maximize: () => ipcRenderer.send('window:maximize'),
   close: () => ipcRenderer.send('window:close'),
+  zoom: (direction) => ipcRenderer.invoke('window:zoom', direction),
   getWindowBounds: () => ipcRenderer.invoke('window:get-bounds'),
   setWindowBounds: (x, y, width, height) => ipcRenderer.send('window:set-bounds', x, y, width, height),
   openFolderDialog: () => ipcRenderer.invoke('dialog:open-folder'),

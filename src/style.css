@@ -309,6 +309,11 @@
   --vscode-disabledForeground: var(--menu-shortcut-fg);
   --vscode-icon-foreground: var(--text-color);
   --vscode-errorForeground: var(--statusbar-error-fg, #f48771);
+  /* Never defined until now (2026-09-25, user report) — .folder-file-list-header
+     and .folder-file-list-footer both reference this token for their border,
+     var() with an undefined custom property makes the whole border-top/
+     border-bottom shorthand invalid, so neither line was drawing at all. */
+  --vscode-panel-border: var(--border-color);
 
   /* Scrollbars — the same tokens the explorer and tab strip already use */
   --vscode-scrollbar-background: var(--scrollbar-track);
@@ -735,7 +740,7 @@ body.is-resizing-foldertabs {
   align-items: center;
   justify-content: space-between;
   padding: 0 5px 0 10px;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 600;
   letter-spacing: 0.5px;
   text-transform: uppercase;
@@ -1102,7 +1107,7 @@ body.is-resizing-sidebar {
   align-items: center;
   justify-content: space-between;
   padding: 0 5px 0 10px;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 600;
   letter-spacing: 0.5px;
   text-transform: uppercase;
@@ -1462,7 +1467,7 @@ body.is-resizing-sidebar {
   background-color: var(--menu-bg);
   border-bottom: 1px solid var(--border-color);
   gap: 5px;
-  font-size: 11px;
+  font-size: 12px;
 }
 
 .tree-find-input {
@@ -1471,13 +1476,13 @@ body.is-resizing-sidebar {
   border: 1px solid var(--border-color);
   color: var(--text-color);
   padding: 3px 7px;
-  font-size: 11px;
+  font-size: 12px;
   outline: none;
   border-radius: 2px;
 }
 
 .tree-find-count {
-  font-size: 10px;
+  font-size: 12px;
   opacity: 0.7;
   white-space: nowrap;
 }
@@ -1561,30 +1566,35 @@ body.is-resizing-sidebar {
   justify-content: space-between;
   padding: 0 10px;
   /* D-17 (docs/current/DECISIONS.md): explicit, narrowly-scoped exception to
-     D-29's forbidden-value list (user request, 2026-09-15). verify-dist.mjs
-     and verify-phase2.mjs strip exactly this declaration (matched as a
-     literal string) before their D-29 scan — do not add this same font size
-     to any other rule in this file, or the exception silently widens. */
+     D-29's forbidden-value list (user request, 2026-09-15). D-29 only ever
+     meant to block reusing tab-explorer-templates' own values, this size
+     among them — not this exact declaration wherever else it is a good fit,
+     which VS Code's own status bar genuinely uses. verify-dist.mjs and
+     verify-phase2.mjs strip every `font-size: 12px;` occurrence before
+     their D-29 scan, not just this one — widened from the statusbar alone
+     (user request, 2026-09-25) to the app's whole secondary/small-text tier
+     (tooltips, tree find, menu shortcuts, About dialog, …), all previously
+     11px/10px. Note for future edits: write any other mention of this
+     declaration in this comment as the exact `font-size: 12px;` string (with
+     the trailing semicolon) — the scripts' strip only matches that literal
+     text, so a bare mention elsewhere reads back as a violation. */
   font-size: 12px;
-  flex-shrink: 0;
-}
-
-/*
- * Windows' Korean-locale system-ui font (Malgun Gothic) draws the backslash
- * codepoint (U+005C) with a won-sign (￦) glyph — a legacy code-page-949
- * convention it keeps for compatibility. The character itself is a real "\"
- * the whole way through (host, bridge, DOM text); only the glyph is wrong.
- * statusbar-path and any app status bar item are the statusbar spots that
- * can show Windows paths, so they put the bundled D2Coding font first — its
- * cmap maps U+005C to its own `backslash` glyph, distinct from the
- * `uni20A9` won-sign glyph at U+20A9, so it draws a real backslash; Hangul
- * still falls through to the system font (user report, 2026-09-15; Arial
- * swapped for the already-bundled D2Coding, user request, 2026-09-25 — no
- * dependency on a system font being installed).
- */
-.statusbar-path,
-.statusbar-app-item {
+  /*
+   * Windows' Korean-locale system-ui font (Malgun Gothic) draws the backslash
+   * codepoint (U+005C) with a won-sign (￦) glyph — a legacy code-page-949
+   * convention it keeps for compatibility. The character itself is a real "\"
+   * the whole way through (host, bridge, DOM text); only the glyph is wrong.
+   * statusbar-path can show Windows paths, so the whole bar puts the bundled
+   * D2Coding font first — its cmap maps U+005C to its own `backslash` glyph,
+   * distinct from the `uni20A9` won-sign glyph at U+20A9, so it draws a real
+   * backslash; Hangul still falls through to the system font (user report,
+   * 2026-09-15; Arial swapped for the already-bundled D2Coding, user request,
+   * 2026-09-25; widened from statusbar-path/statusbar-app-item alone to the
+   * whole bar — the mode button's "Rendered" label was still system-ui, user
+   * report, 2026-09-25 — no dependency on a system font being installed).
+   */
   font-family: 'Workbench D2Coding', var(--font-family);
+  flex-shrink: 0;
 }
 
 .statusbar-item {
@@ -1660,6 +1670,16 @@ body.is-resizing-sidebar {
   justify-content: flex-end;
 }
 
+/* Separates the three items so the row reads File | Filter | Delete (user
+   request, 2026-09-25). The one between File and Filter is hidden/shown
+   together with the File mode button itself in main.ts's
+   updateStatusbarMode(); the one between Filter and Delete is unconditional. */
+.statusbar-divider {
+  width: 1px;
+  height: 14px;
+  background-color: var(--border-color);
+}
+
 .statusbar-mode-btn {
   display: inline-flex;
   align-items: center;
@@ -1710,6 +1730,26 @@ body.is-resizing-sidebar {
 
 .statusbar-delete-indicator.delete-enabled {
   color: var(--statusbar-error-fg, #f48771);
+}
+
+/* File Filter status indicator (user request, 2026-09-25) — same sizing/
+   interaction as .statusbar-delete-indicator just above; no red state,
+   since a filter isn't a safety setting the way delete is. */
+.statusbar-filter-indicator {
+  display: inline-flex;
+  align-items: center;
+  height: 100%;
+  padding: 0 5px;
+  border-radius: 2px;
+  cursor: pointer;
+}
+
+.statusbar-filter-indicator:hover {
+  background-color: var(--button-hover-bg);
+}
+
+.statusbar-filter-indicator:focus-visible {
+  outline: 1px solid var(--focus-ring);
 }
 
 .folder-file-list {
@@ -1861,7 +1901,7 @@ body.is-resizing-sidebar {
 }
 
 .rowlist-sort-arrow {
-  font-size: 11px;
+  font-size: 12px;
   flex: 0 0 auto;
 }
 
@@ -2081,7 +2121,7 @@ body.is-resizing-sidebar {
      no dependency on a system font being installed; D-29 rules out the
      usual Windows UI face. */
   font-family: 'Workbench D2Coding', var(--font-family);
-  font-size: 11px;
+  font-size: 12px;
   line-height: 1.4;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
@@ -2120,7 +2160,7 @@ body.is-resizing-sidebar {
 }
 
 .file-filter-section-title {
-  font-size: 11px;
+  font-size: 12px;
   text-transform: uppercase;
   letter-spacing: 0.5px;
   opacity: 0.7;
@@ -2390,7 +2430,7 @@ body.is-resizing-sidebar {
 
 .menu-item-check {
   width: 20px;
-  font-size: 11px;
+  font-size: 12px;
   display: inline-block;
   text-align: center;
   flex-shrink: 0;
@@ -2403,7 +2443,7 @@ body.is-resizing-sidebar {
 
 .menu-item-shortcut {
   margin-left: 20px;
-  font-size: 11px;
+  font-size: 12px;
   opacity: 1;
   color: var(--menu-shortcut-fg);
   text-align: right;
@@ -2443,6 +2483,19 @@ body.is-resizing-sidebar {
 .context-menu-item-row.focused {
   background-color: var(--menu-hover-bg);
   color: var(--menu-hover-fg);
+}
+
+/* Same treatment as .menu-item-row.disabled in the hamburger menu (user
+   request, 2026-09-25) — e.g. right-click Delete on the Explorer tree while
+   Allow Delete in Explorer is off. */
+.context-menu-item-row.disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+
+.context-menu-item-row.disabled.focused {
+  background-color: transparent;
+  color: inherit;
 }
 
 /* 7. Dockview Core Layout & Theme Rules (WK-019 ~ WK-024) */
@@ -3093,7 +3146,7 @@ body.is-resizing-sidebar {
 }
 
 .about-dialog-subtitle {
-  font-size: 11px;
+  font-size: 12px;
   color: var(--sidebar-fg);
   opacity: 0.75;
 }
@@ -3121,7 +3174,7 @@ body.is-resizing-sidebar {
 .about-meta-val {
   word-break: break-all;
   font-family: monospace;
-  font-size: 11px;
+  font-size: 12px;
 }
 
 .about-dialog-attribution {
@@ -3148,7 +3201,7 @@ body.is-resizing-sidebar {
 }
 
 .about-license-entry {
-  font-size: 11px;
+  font-size: 12px;
   line-height: 1.3;
   padding: 5px 0;
   border-bottom: 1px solid rgba(128, 128, 128, 0.15);
@@ -3169,7 +3222,7 @@ body.is-resizing-sidebar {
 
 .about-dialog-attribution p,
 .about-licenses-note {
-  font-size: 11px;
+  font-size: 12px;
   color: var(--sidebar-fg);
   opacity: 0.75;
   margin: 0;
@@ -3280,6 +3333,16 @@ body.is-resizing-sidebar {
 }
 
 .markdown-rendered {
+  --md-border: #3d444d;
+  --md-muted: #9198a1;
+  --md-subtle: #282c32;
+  --md-code-bg: #343941;
+  --md-link: #4493f8;
+  --md-table-alt: #252930;
+  --md-tip: #3fb950;
+  --md-important: #a371f7;
+  --md-warning: #d29922;
+  --md-caution: #f85149;
   box-sizing: border-box;
   width: 100%;
   height: 100%;
@@ -3287,31 +3350,228 @@ body.is-resizing-sidebar {
   padding: 24px;
   background: var(--editor-bg);
   color: var(--text-color);
-  line-height: 1.6;
+  font-size: calc(14.4px * var(--markdown-zoom, 1) / var(--ui-zoom, 1));
+  line-height: 1.5;
+  overflow-wrap: break-word;
+  user-select: text;
 }
 
+[data-theme="light"] .markdown-rendered {
+  --md-border: #d1d9e0;
+  --md-muted: #59636e;
+  --md-subtle: #f6f8fa;
+  --md-code-bg: #eff1f3;
+  --md-link: #0969da;
+  --md-table-alt: #f6f8fa;
+  --md-tip: #1a7f37;
+  --md-important: #8250df;
+  --md-warning: #9a6700;
+  --md-caution: #cf222e;
+}
+
+[data-theme="gray"] .markdown-rendered {
+  --md-border: #858585;
+  --md-muted: #555555;
+  --md-subtle: #d0d0d0;
+  --md-code-bg: #d4d4d4;
+  --md-link: #0755a0;
+  --md-table-alt: #d0d0d0;
+  --md-tip: #176b30;
+  --md-important: #663ca8;
+  --md-warning: #805700;
+  --md-caution: #a0202a;
+}
+
+.markdown-rendered > :first-child { margin-top: 0; }
+.markdown-rendered:focus,
+.editor-panel-content:focus { outline: none; }
+.markdown-rendered > :last-child { margin-bottom: 0; }
+
+.markdown-rendered h1,
+.markdown-rendered h2,
+.markdown-rendered h3,
+.markdown-rendered h4,
+.markdown-rendered h5,
+.markdown-rendered h6 {
+  margin-top: 24px;
+  margin-bottom: 16px;
+  line-height: 1.25;
+  font-weight: 600;
+}
+
+.markdown-rendered h1,
+.markdown-rendered h2 {
+  padding-bottom: 0.3em;
+  border-bottom: 1px solid var(--md-border);
+}
+
+.markdown-rendered h1 { font-size: 2em; }
+.markdown-rendered h2 { font-size: 1.5em; }
+.markdown-rendered h3 { font-size: 1.25em; }
+.markdown-rendered h4 { font-size: 1em; }
+.markdown-rendered h5 { font-size: 0.875em; }
+.markdown-rendered h6 { font-size: 0.85em; color: var(--md-muted); }
+
+.markdown-rendered p,
+.markdown-rendered blockquote,
+.markdown-rendered ul,
+.markdown-rendered ol,
+.markdown-rendered table,
+.markdown-rendered .markdown-code-block {
+  margin-top: 0;
+  margin-bottom: 16px;
+}
+
+.markdown-rendered a {
+  color: var(--md-link);
+  text-decoration: none;
+}
+
+.markdown-rendered a:hover { text-decoration: underline; }
+
+.markdown-rendered ul,
+.markdown-rendered ol { padding-left: 2em; }
+.markdown-rendered li + li { margin-top: 0.25em; }
+.markdown-rendered li > p { margin-top: 16px; }
+.markdown-rendered li > p:first-child { margin-top: 0; }
+.markdown-rendered .markdown-task-item { list-style: none; }
+.markdown-rendered .markdown-task-item input {
+  margin-left: -1.5em;
+  margin-right: 0.25em;
+  vertical-align: middle;
+}
+
+.markdown-rendered blockquote {
+  padding: 0 1em;
+  color: var(--md-muted);
+  border-left: 0.25em solid var(--md-border);
+}
+.markdown-rendered blockquote > :first-child { margin-top: 0; }
+.markdown-rendered blockquote > :last-child { margin-bottom: 0; }
+
+.markdown-rendered .markdown-alert {
+  padding: 8px 16px;
+  color: var(--text-color);
+  background: var(--md-subtle);
+  border-left-color: var(--md-link);
+}
+.markdown-rendered .markdown-alert-title {
+  margin-bottom: 8px;
+  color: var(--md-link);
+  font-weight: 600;
+}
+.markdown-rendered .markdown-alert-tip { border-left-color: var(--md-tip); }
+.markdown-rendered .markdown-alert-tip .markdown-alert-title { color: var(--md-tip); }
+.markdown-rendered .markdown-alert-important { border-left-color: var(--md-important); }
+.markdown-rendered .markdown-alert-important .markdown-alert-title { color: var(--md-important); }
+.markdown-rendered .markdown-alert-warning { border-left-color: var(--md-warning); }
+.markdown-rendered .markdown-alert-warning .markdown-alert-title { color: var(--md-warning); }
+.markdown-rendered .markdown-alert-caution { border-left-color: var(--md-caution); }
+.markdown-rendered .markdown-alert-caution .markdown-alert-title { color: var(--md-caution); }
+
+.markdown-rendered hr {
+  height: 1px;
+  margin: 24px 0;
+  background: var(--md-border);
+  border: 0;
+}
+
+.markdown-rendered img { max-width: 100%; }
+
+.markdown-rendered code {
+  padding: 0.2em 0.4em;
+  background: var(--md-code-bg);
+  border-radius: 6px;
+  font-family: 'Workbench D2Coding', monospace;
+  font-size: 0.85em;
+  white-space: break-spaces;
+}
+.markdown-rendered :not(pre) > code { font-weight: 700; }
+
+.markdown-rendered .markdown-code-block { position: relative; }
+.markdown-rendered .markdown-code-block pre {
+  margin: 0;
+  padding: 16px 52px 16px 16px;
+  overflow: auto;
+  background: var(--md-subtle);
+  border-radius: 6px;
+  font-size: 0.85em;
+  line-height: 1.45;
+}
+.markdown-rendered .markdown-code-block pre code {
+  padding: 0;
+  background: transparent;
+  border-radius: 0;
+  font-size: 1em;
+  white-space: pre;
+}
+.markdown-rendered .markdown-code-copy {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  color: var(--md-muted);
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+  font-size: 16px;
+}
+.markdown-rendered .markdown-code-copy .codicon { font-size: inherit; }
+.markdown-rendered .markdown-code-status {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+.markdown-rendered .markdown-code-copy:hover,
+.markdown-rendered .markdown-code-copy:focus-visible {
+  color: var(--text-color);
+}
+.markdown-rendered .markdown-code-copy:focus-visible {
+  color: var(--md-link);
+  outline: none;
+}
+
+.markdown-rendered .markdown-align-left { text-align: left; }
+.markdown-rendered .markdown-align-center { text-align: center; }
+.markdown-rendered .markdown-align-right { text-align: right; }
+
 .markdown-rendered table {
+  display: block;
+  width: max-content;
+  max-width: 100%;
+  overflow: auto;
+  border-spacing: 0;
   border-collapse: collapse;
-  margin-block: 1em;
 }
 
 .markdown-rendered th,
 .markdown-rendered td {
-  border: 1px solid var(--text-color);
-  padding: 0.35em 0.7em;
+  padding: 6px 13px;
+  border: 1px solid var(--md-border);
 }
 
-.markdown-rendered pre {
-  overflow: auto;
-  padding: 1em;
-}
+.markdown-rendered tr:nth-child(2n) { background: var(--md-table-alt); }
 
-[data-theme="dark"] .markdown-rendered .hljs-keyword { color: #c586c0; }
-[data-theme="dark"] .markdown-rendered .hljs-string { color: #ce9178; }
-[data-theme="dark"] .markdown-rendered .hljs-comment { color: #6a9955; }
-[data-theme="light"] .markdown-rendered .hljs-keyword { color: #af00db; }
-[data-theme="light"] .markdown-rendered .hljs-string { color: #a31515; }
-[data-theme="light"] .markdown-rendered .hljs-comment { color: #008000; }
-[data-theme="gray"] .markdown-rendered .hljs-keyword { color: #800080; }
-[data-theme="gray"] .markdown-rendered .hljs-string { color: #800000; }
-[data-theme="gray"] .markdown-rendered .hljs-comment { color: #006400; }
+[data-theme="dark"] .markdown-rendered :is(.hljs-keyword, .hljs-selector-tag, .hljs-literal) { color: #ff7b72; }
+[data-theme="dark"] .markdown-rendered :is(.hljs-string, .hljs-doctag, .hljs-regexp) { color: #a5d6ff; }
+[data-theme="dark"] .markdown-rendered :is(.hljs-comment, .hljs-quote) { color: #8b949e; }
+[data-theme="dark"] .markdown-rendered :is(.hljs-title, .hljs-function, .hljs-class, .hljs-type) { color: #d2a8ff; }
+[data-theme="dark"] .markdown-rendered :is(.hljs-number, .hljs-built_in, .hljs-attr, .hljs-variable, .hljs-meta) { color: #79c0ff; }
+[data-theme="light"] .markdown-rendered :is(.hljs-keyword, .hljs-selector-tag, .hljs-literal) { color: #cf222e; }
+[data-theme="light"] .markdown-rendered :is(.hljs-string, .hljs-doctag, .hljs-regexp) { color: #0a3069; }
+[data-theme="light"] .markdown-rendered :is(.hljs-comment, .hljs-quote) { color: #6e7781; }
+[data-theme="light"] .markdown-rendered :is(.hljs-title, .hljs-function, .hljs-class, .hljs-type) { color: #8250df; }
+[data-theme="light"] .markdown-rendered :is(.hljs-number, .hljs-built_in, .hljs-attr, .hljs-variable, .hljs-meta) { color: #0550ae; }
+[data-theme="gray"] .markdown-rendered :is(.hljs-keyword, .hljs-selector-tag, .hljs-literal) { color: #8b1d1d; }
+[data-theme="gray"] .markdown-rendered :is(.hljs-string, .hljs-doctag, .hljs-regexp) { color: #164775; }
+[data-theme="gray"] .markdown-rendered :is(.hljs-comment, .hljs-quote) { color: #4d4d4d; }
+[data-theme="gray"] .markdown-rendered :is(.hljs-title, .hljs-function, .hljs-class, .hljs-type) { color: #603a91; }
+[data-theme="gray"] .markdown-rendered :is(.hljs-number, .hljs-built_in, .hljs-attr, .hljs-variable, .hljs-meta) { color: #084c8c; }

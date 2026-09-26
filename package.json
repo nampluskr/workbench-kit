@@ -1,9 +1,10 @@
 {
   "name": "workbench-kit",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "private": true,
   "description": "여러 데스크톱 앱이 공유하는 공통 껍데기 한 벌",
   "type": "module",
+  "main": "src/hosts/electron/main.cjs",
   "scripts": {
     "dev": "vite",
     "build": "vite build",
@@ -11,6 +12,8 @@
     "typecheck": "tsc --noEmit",
     "start:electron": "electron src/hosts/electron/main.cjs",
     "start:pywebview": "python -m src.hosts.pywebview.main",
+    "package:electron": "npm run build && electron-builder --win --publish=never",
+    "package:pywebview": "npm run build && python -m PyInstaller workbench-kit.spec --noconfirm --distpath dist-py --workpath build-py",
     "verify:dist": "node scripts/verify-dist.mjs",
     "verify:open-modes": "electron scripts/verify-open-modes-electron.cjs",
     "verify:rowlist": "electron scripts/verify-rowlist-electron.cjs",
@@ -56,6 +59,7 @@
   "devDependencies": {
     "@types/node": "^26.5.0",
     "electron": "^44.2.0",
+    "electron-builder": "^26.15.3",
     "typescript": "^7.0.2",
     "vite": "^8.2.2"
   },
@@ -73,5 +77,29 @@
     "markdown-it": "^15.0.2",
     "monaco-editor": "0.56.0",
     "node-pty": "^1.1.0"
+  },
+  "build": {
+    "appId": "com.workbenchkit.app",
+    "productName": "Workbench Kit",
+    "directories": {
+      "output": "dist-exe"
+    },
+    "npmRebuild": false,
+    "files": [
+      "dist/**/*",
+      "src/hosts/electron/**/*.cjs",
+      "package.json",
+      "node_modules/**/*"
+    ],
+    "asarUnpack": [
+      "node_modules/node-pty/**/*"
+    ],
+    "win": {
+      "target": ["nsis"]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true
+    }
   }
 }

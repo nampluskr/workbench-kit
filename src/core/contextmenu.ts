@@ -4,6 +4,8 @@ export interface ContextMenuItem {
   /** `separator` rows draw a divider and are skipped by focus/keyboard nav and click (v0.3 WK-115). */
   type?: 'normal' | 'separator';
   action?: () => void;
+  /** Greyed out and unreachable by click, Enter, or arrow-key focus — same idea as the hamburger menu's own row `disabled` (user request, 2026-09-25). */
+  disabled?: boolean;
 }
 
 /**
@@ -61,7 +63,7 @@ export class ContextMenuController {
    */
   public show(x: number, y: number, items: ContextMenuItem[]): void {
     this.hide();
-    const firstSelectable = items.findIndex((it) => it.type !== 'separator');
+    const firstSelectable = items.findIndex((it) => it.type !== 'separator' && !it.disabled);
     if (!this.enabled || firstSelectable === -1) {
       return;
     }
@@ -82,24 +84,43 @@ export class ContextMenuController {
         return;
       }
       const row = document.createElement('div');
-      row.className = 'context-menu-item-row' + (index === this.focusedIndex ? ' focused' : '');
+      row.className = 'context-menu-item-row' +
+        (index === this.focusedIndex ? ' focused' : '') +
+        (item.disabled ? ' disabled' : '');
       row.dataset.itemId = item.id;
       row.textContent = item.label;
       row.addEventListener('click', (e) => {
         e.stopPropagation();
+        if (item.disabled) return;
         item.action?.();
         this.hide();
       });
       // The pointer moves the one focus marker with it, as in the hamburger
       // menu — otherwise the first row's opening highlight stayed put while
       // another row was hovered, two rows looking selected at once (user
-      // report, 2026-09-24).
-      row.addEventListener('mouseenter', () => this.setFocus(index));
+      // report, 2026-09-24). A disabled row never takes focus (user request,
+      // 2026-09-25), same as it never takes the initial/keyboard focus below.
+      row.addEventListener('mouseenter', () => { if (!item.disabled) this.setFocus(index); });
       menuEl.appendChild(row);
     });
 
     this.rootContainer.appendChild(menuEl);
     this.menuEl = menuEl;
+
+    // Folder Tabs rail and Explorer tree rows sit near the window edges, so a
+    // right click there can place the menu past the bottom (or right) of the
+    // window (user report, 2026-09-25). Flip up/left from the click point
+    // once actual size is known, clamped so the top/left edge never goes
+    // negative on a menu taller/wider than the viewport itself.
+    const rect = menuEl.getBoundingClientRect();
+    const viewportWidth = document.documentElement.clientWidth;
+    const viewportHeight = document.documentElement.clientHeight;
+    if (rect.bottom > viewportHeight) {
+      menuEl.style.top = `${Math.max(0, viewportHeight - rect.height)}px`;
+    }
+    if (rect.right > viewportWidth) {
+      menuEl.style.left = `${Math.max(0, viewportWidth - rect.width)}px`;
+    }
 
     this.rootContainer.dispatchEvent(new CustomEvent('workbench:contextmenu-open'));
     if (typeof window !== 'undefined') {
@@ -152,7 +173,7 @@ export class ContextMenuController {
       // unreachable only because nothing under the menu was ever focused.
       e.stopPropagation();
       const item = this.currentItems[this.focusedIndex];
-      if (item) {
+      if (item && !item.disabled) {
         item.action?.();
         this.hide();
       }
@@ -165,11 +186,11 @@ export class ContextMenuController {
     return this.menuEl.querySelector(`.context-menu-item-row[data-item-id="${item.id}"]`);
   }
 
-  /** Separator rows have no row of their own here, so they are skipped, not landed on (v0.3 WK-115). */
+  /** Separator and disabled rows have no landable focus of their own (v0.3 WK-115; disabled, 2026-09-25). */
   private moveFocus(delta: number): void {
     if (!this.menuEl || this.currentItems.length === 0) return;
     const selectableIndices = this.currentItems
-      .map((it, i) => (it.type === 'separator' ? -1 : i))
+      .map((it, i) => (it.type === 'separator' || it.disabled ? -1 : i))
       .filter((i) => i !== -1);
     if (selectableIndices.length === 0) return;
     const currentPos = selectableIndices.indexOf(this.focusedIndex);

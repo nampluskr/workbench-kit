@@ -17,6 +17,7 @@ def main():
     sample = os.path.join(fixture, "sample.md")
     with open(sample, "w", encoding="utf-8") as file:
         file.write('$x^2+y^2$\n\n$$\\frac{a}{b}$$\n\n```js\nconst safe = "ok";\n<img src=x onerror="window.__attack=1">\n```\n\n$\\htmlClass{evil}{x}$ $\\href{javascript:window.__attack=3}{x}$ $\\htmlStyle{position:fixed}{x}$\n\n![remote](//attacker.example/share/a.png)\n<video src="//attacker.example/share/a.png"></video>\n<span style="position:fixed" onclick="window.__attack=2">raw</span>')
+        file.write('\n\n# GitHub style heading\n\n## foo_bar\n\n[Jump](#foo_bar)\n\n$\\sqrt{2}$ $\\overrightarrow{AB}$\n\nInline `token` and https://example.com\n\n- [x] Finished\n\n> [!NOTE]\n> A note\n\n| One | Two |\n| --- | ---: |\n| a | b |\n')
     dist_index = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "dist", "index.html"))
     api = WindowApi()
     window = webview.create_window("Phase 3", dist_index, js_api=api, width=1200, height=800)
@@ -39,18 +40,59 @@ def main():
                 const code = rendered.querySelector('pre code.hljs');
                 const keyword = code?.querySelector('.hljs-keyword');
                 const colors = {};
+                const originalTheme = window.__workbenchApp.theme.getTheme();
                 for (const theme of ['dark', 'light', 'gray']) {
-                  document.documentElement.dataset.theme = theme;
+                  window.__workbenchApp.theme.setTheme(theme);
                   colors[theme] = Boolean(keyword && getComputedStyle(keyword).color !== getComputedStyle(rendered).color);
                 }
-                window.__v04Phase3Result = {
-                  math: formulas.length >= 2 && [...formulas].every(e => e.getBoundingClientRect().width > 0),
+                window.__workbenchApp.theme.setTheme(originalTheme);
+                const copyButton = rendered.querySelector('.markdown-code-copy');
+                const copyIconReady = Boolean(copyButton?.querySelector('.codicon-copy') && copyButton.getAttribute('aria-label') === 'Copy code');
+                Object.defineProperty(navigator, 'clipboard', { configurable: true, value: {
+                  writeText: async (text) => { window.__copiedMarkdownCode = text; },
+                } });
+                copyButton?.click();
+                await new Promise(r => setTimeout(r, 20));
+                const result = {
+                  math: formulas.length >= 4 && [...formulas].every(e => e.getBoundingClientRect().width > 0) && rendered.querySelectorAll('.katex svg').length >= 2,
                   font: [...document.fonts].some(f => f.family.includes('KaTeX') && f.status === 'loaded'),
                   css: [...document.styleSheets].some(s => s.href && s.href.includes('/assets/') && [...s.cssRules].some(r => r.cssText.includes('.katex'))) && getComputedStyle(formulas[0]).fontFamily.includes('KaTeX'),
                   highlight: Boolean(keyword && code.textContent.includes('const safe')),
                   colors: Object.values(colors).every(Boolean),
-                  safe: !rendered.querySelector('script, img[src], video, audio, svg, [onclick], [onerror], .evil, [href^="javascript:"]') && !rendered.querySelector('span[style*="fixed"]') && window.__attack === undefined
+                  githubStyle: Boolean(rendered.querySelector('.markdown-task-item input:checked:disabled') &&
+                    rendered.querySelector('.markdown-alert-note .markdown-alert-title') &&
+                    rendered.querySelector('a[href="https://example.com"]') &&
+                    rendered.querySelector('#md-foo_bar') &&
+                    rendered.querySelector('th.markdown-align-right') &&
+                    getComputedStyle(rendered.querySelector('th.markdown-align-right')).textAlign === 'right' &&
+                    getComputedStyle(rendered.querySelector('table')).borderCollapse === 'collapse' &&
+                    getComputedStyle(rendered.querySelector('pre')).backgroundColor !== getComputedStyle(rendered).backgroundColor &&
+                    getComputedStyle(rendered).fontSize === '14.4px' &&
+                    getComputedStyle(rendered.querySelector('p code')).fontWeight === '700' &&
+                    getComputedStyle(code).fontWeight !== '700'),
+                  copy: Boolean(copyIconReady && copyButton?.querySelector('.codicon-check') &&
+                    copyButton.getAttribute('aria-label') === 'Code copied' &&
+                    rendered.querySelector('.markdown-code-status')?.textContent === 'Code copied' &&
+                    window.__copiedMarkdownCode === code.textContent),
+                  codeCopyStyle: Boolean(copyButton && getComputedStyle(copyButton).borderTopStyle === 'none' &&
+                    getComputedStyle(copyButton).backgroundColor === 'rgba(0, 0, 0, 0)'),
+                  safe: !rendered.querySelector('script, img[src], video, audio, [onclick], [onerror], .evil, [href^="javascript:"]') && [...rendered.querySelectorAll('svg')].every(svg => svg.closest('.katex')) && !rendered.querySelector('span[style*="fixed"]') && window.__attack === undefined
                 };
+                window.dispatchEvent(new KeyboardEvent('keydown', {
+                  key: '+', code: 'Equal', ctrlKey: true, shiftKey: true, bubbles: true, cancelable: true
+                }));
+                for (let i = 0; i < 20 && getComputedStyle(document.documentElement).getPropertyValue('--ui-zoom').trim() !== '1.1'; i++) {
+                  await new Promise(r => setTimeout(r, 50));
+                }
+                const uiZoom = Number(getComputedStyle(document.documentElement).getPropertyValue('--ui-zoom').trim());
+                const markdownBeforeWheel = parseFloat(getComputedStyle(rendered).fontSize);
+                rendered.dispatchEvent(new WheelEvent('wheel', { ctrlKey: true, deltaY: -100, bubbles: true, cancelable: true }));
+                const markdownAfterWheel = parseFloat(getComputedStyle(rendered).fontSize);
+                result.zoomIsolation = uiZoom === 1.1 &&
+                  Math.abs(markdownBeforeWheel * uiZoom - 14.4) < 0.02 &&
+                  Math.abs(markdownAfterWheel * uiZoom - 15.84) < 0.02 &&
+                  rendered.style.getPropertyValue('--markdown-zoom') === '1.1';
+                window.__v04Phase3Result = result;
               })().catch(error => { window.__v04Phase3Result = {error: String(error)}; });
             """.replace("SAMPLE_PATH", json.dumps(sample))
             window.evaluate_js(script)

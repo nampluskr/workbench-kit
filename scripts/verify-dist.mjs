@@ -253,14 +253,26 @@ console.log('[PASS] Third-party license texts and manifest are present in licens
 
 // Verify zero tab-explorer-templates tokens in src/style.css (FR-M5, C-10, D-29)
 const styleSrc = fs.readFileSync(path.join(rootDir, 'src/style.css'), 'utf8');
-// D-17 (docs/current/DECISIONS.md): .workbench-statusbar's font-size: 12px is
-// an explicitly approved, narrowly-scoped exception to D-29's forbidden-value
-// list (user request, 2026-09-15) — stripped once before the scan below, so
-// any OTHER 12px occurrence is still caught.
-const styleSrcForForbiddenScan = styleSrc.replace('font-size: 12px;', '');
+// D-17 (docs/current/DECISIONS.md): font-size: 12px is an explicitly
+// approved, narrowly-scoped exception to D-29's forbidden-value list (user
+// request, 2026-09-15) — D-29 only ever meant to block reusing
+// tab-explorer-templates' own values, not 12px itself (VS Code's own status
+// bar genuinely uses it). Originally scoped to .workbench-statusbar alone;
+// widened (user request, 2026-09-25) to every font-size: 12px occurrence —
+// the app's whole secondary/small-text tier (tooltips, tree find, menu
+// shortcuts, About dialog, …) moved to it from 11px/10px. Every OTHER
+// pixel value in those same rules is still caught below.
+// Rendered markdown (v0.4, user request 2026-09-25) is also exempt: it follows
+// GitHub's document spacing, not the workbench chrome. Only rules whose every
+// selector sits under .markdown-rendered are stripped, so the same values in
+// any other rule are still caught.
+const isMarkdownRule = (selectors) => selectors.split(',').every((s) => s.trim().startsWith('.markdown-rendered'));
+const styleSrcForForbiddenScan = styleSrc
+  .replace(/font-size: 12px;/g, '')
+  .replace(/([^{}]+)\{[^{}]*\}/g, (rule, selectors) => isMarkdownRule(selectors) ? '' : rule);
 for (const val of ['12px', '4px', '8px', '16px', '6px']) {
   const m = styleSrcForForbiddenScan.match(new RegExp(`\\b${val}\\b`, 'g'));
-  assert(!m || m.length === 0, `src/style.css contains zero occurrences of prohibited value "${val}" (FR-M5, D-29) beyond the D-17 statusbar exception`);
+  assert(!m || m.length === 0, `src/style.css contains zero occurrences of prohibited value "${val}" (FR-M5, D-29) beyond the D-17 statusbar and rendered-markdown exceptions`);
 }
 console.log('[PASS] src/style.css contains zero tab-explorer-templates typography, spacing, or radius values (FR-M5, D-29)');
 

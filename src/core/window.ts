@@ -25,6 +25,7 @@ export interface WindowControlsBridge {
    */
   onMaximizedChange?: (callback: (isMaximized: boolean) => void) => void;
   close: () => void;
+  zoom?: (direction: -1 | 0 | 1 | null) => Promise<number | null> | number | null;
   /**
    * Reads/writes the window's own bounds (user request, 2026-09-12).
    * Both hosts use these for the renderer's edge grips. The WebView2 child

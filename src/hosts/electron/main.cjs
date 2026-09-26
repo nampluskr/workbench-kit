@@ -31,6 +31,26 @@ ipcMain.on('window:close', (e) => {
   if (win) win.close();
 });
 
+const zoomSteps = [0.67, 0.75, 0.8, 0.9, 1, 1.1, 1.25, 1.5, 1.75, 2];
+function changeZoom(win, direction) {
+  if (direction === null) return win.webContents.getZoomFactor();
+  if (direction === 0) {
+    win.webContents.setZoomFactor(1);
+    return 1;
+  }
+  if (direction !== 1 && direction !== -1) return win.webContents.getZoomFactor();
+  const current = win.webContents.getZoomFactor();
+  const next = direction > 0
+    ? zoomSteps.find((step) => step > current + 0.001)
+    : zoomSteps.slice().reverse().find((step) => step < current - 0.001);
+  if (next !== undefined) win.webContents.setZoomFactor(next);
+  return win.webContents.getZoomFactor();
+}
+ipcMain.handle('window:zoom', (e, direction) => {
+  const win = BrowserWindow.fromWebContents(e.sender);
+  return win ? changeZoom(win, direction) : null;
+});
+
 // Renderer edge grips use screen-coordinate deltas in device-independent pixels.
 ipcMain.handle('window:get-bounds', (e) => {
   const win = BrowserWindow.fromWebContents(e.sender);
@@ -309,6 +329,16 @@ function createWindow() {
       contextIsolation: true,
       sandbox: true,
     },
+  });
+  win.webContents.on('before-input-event', (event, input) => {
+    if (!input.control || input.alt || input.meta || input.type !== 'keyDown') return;
+    let direction;
+    if (input.shift && input.code === 'Digit0') direction = 0;
+    else if (input.key === '+' || input.key === '=' || input.code === 'NumpadAdd') direction = 1;
+    else if (!input.shift && (input.key === '-' || input.code === 'Minus' || input.code === 'NumpadSubtract')) direction = -1;
+    if (direction === undefined) return;
+    event.preventDefault();
+    changeZoom(win, direction);
   });
 
   const rootDir = path.resolve(__dirname, '../../../');
