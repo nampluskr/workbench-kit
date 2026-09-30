@@ -133,7 +133,13 @@ const branchBuildScripts = scriptKeys.filter(k => k.startsWith('build:') || (k.i
 assert(branchBuildScripts.length === 0, `package.json contains no branch-specific build scripts (found: ${branchBuildScripts.join(', ')})`);
 assert(pkgJson.scripts.build === 'vite build', `package.json "build" is canonical "vite build" (found: "${pkgJson.scripts.build}")`);
 assert(pkgJson.scripts['start:electron'] && pkgJson.scripts['start:pywebview'], 'package.json has symmetric start:electron and start:pywebview scripts');
-assert(!pkgJson.main, 'package.json does not declare an asymmetric branch entrypoint in "main"');
+// electron-builder requires "main" to name the Electron host entry. It stays
+// allowed only as that exact file; the pywebview host is packaged by its own
+// PyInstaller spec, so the shared build itself still has no branch entrypoint.
+assert(
+  !pkgJson.main || pkgJson.main === 'src/hosts/electron/main.cjs',
+  `package.json "main" is absent or exactly the Electron host entry for electron-builder (found: "${pkgJson.main}")`
+);
 
 // ---------------------------------------------------------
 // 2. Build Execution & Golden Set Verification

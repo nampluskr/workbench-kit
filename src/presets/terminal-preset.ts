@@ -4,6 +4,7 @@ import { WebglAddon } from '@xterm/addon-webgl';
 import '@xterm/xterm/css/xterm.css';
 import type { ResourceKindRegistry } from '../registry/kind-registry';
 import { terminalHost } from '../providers/filesystem';
+import { copyToClipboard } from '../core/about';
 
 export const TERMINAL_KIND = 'terminal';
 
@@ -177,6 +178,42 @@ export function registerTerminalPreset(registry: ResourceKindRegistry): void {
     };
     element.addEventListener('click', focus);
 
+    // xterm sends Ctrl+C/Ctrl+V to the shell as ^C/^V and the host webviews
+    // show no context menu, so nothing copied or pasted (user report,
+    // 2026-09-30, both hosts). Ctrl+C copies only while text is selected, so
+    // an interrupt still reaches the shell; a right click copies a selection,
+    // else pastes (Windows Terminal behaviour).
+    const copySelection = () => {
+      const text = terminal.getSelection();
+      if (!text) return;
+      void copyToClipboard(text).then(() => { terminal.clearSelection(); focus(); });
+    };
+    const pasteClipboard = () => {
+      const nativePaste = () => { focus(); document.execCommand('paste'); };
+      if (!navigator.clipboard?.readText) { nativePaste(); return; }
+      navigator.clipboard.readText()
+        .then((text) => { if (!disposed && text) terminal.paste(text); focus(); })
+        .catch(nativePaste);
+    };
+    terminal.attachCustomKeyEventHandler((event) => {
+      if (event.type !== 'keydown' || !event.ctrlKey || event.altKey || event.metaKey) return true;
+      const key = event.key.toLowerCase();
+      if (key === 'c' && (event.shiftKey || terminal.hasSelection())) {
+        event.preventDefault();
+        copySelection();
+        return false;
+      }
+      // Returning false leaves the key to the browser, whose native paste
+      // event xterm already turns into (bracketed) terminal input.
+      return !(key === 'v' && !event.shiftKey);
+    });
+    const onContextMenu = (event: MouseEvent) => {
+      event.preventDefault();
+      if (terminal.hasSelection()) copySelection();
+      else pasteClipboard();
+    };
+    element.addEventListener('contextmenu', onContextMenu);
+
     requestAnimationFrame(() => {
       if (disposed) return;
       terminal.open(element);
@@ -206,6 +243,7 @@ export function registerTerminalPreset(registry: ResourceKindRegistry): void {
         disposed = true;
         session.views.delete(showData);
         element.removeEventListener('click', focus);
+        element.removeEventListener('contextmenu', onContextMenu);
         observer.disconnect();
         if (rafId != null) cancelAnimationFrame(rafId);
         input.dispose();

@@ -159,6 +159,47 @@ def install_app_navigation_guard(window):
     window.events.loaded += bind
 
 
+def install_clipboard_read_permission(window):
+    # WebView2 asks "allow this site to see text copied to the clipboard" on
+    # every navigator.clipboard.readText(), which is what a terminal paste
+    # (right click) calls. This window only ever shows the bundled app page
+    # (see the navigation guard above), so grant that one permission kind and
+    # leave every other request at its default.
+    state = {'bound': False}
+
+    def grant(sender, args):
+        try:
+            from Microsoft.Web.WebView2.Core import CoreWebView2PermissionKind, CoreWebView2PermissionState
+            if args.PermissionKind == CoreWebView2PermissionKind.ClipboardRead:
+                args.State = CoreWebView2PermissionState.Allow
+        except Exception as error:
+            sys.stderr.write(f'[pywebview] Clipboard permission handler failed: {error}\n')
+            sys.stderr.flush()
+
+    def bind():
+        if state['bound']:
+            return
+        state['bound'] = True
+        def attach():
+            core = control.CoreWebView2
+            if core is None:
+                raise RuntimeError('CoreWebView2 is unavailable')
+            core.PermissionRequested += grant
+
+        try:
+            control = getattr(getattr(window, 'native', None), 'webview', None)
+            if control is None:
+                raise RuntimeError('WebView2 control is unavailable')
+            # CoreWebView2 belongs to the UI thread; `loaded` fires on another.
+            from System import Action
+            control.Invoke(Action(attach))
+        except Exception as error:
+            sys.stderr.write(f'[pywebview] Clipboard permission setup failed: {error}\n')
+            sys.stderr.flush()
+
+    window.events.loaded += bind
+
+
 class WindowApi:
     def __init__(self):
         self._window = None
@@ -595,6 +636,7 @@ def main():
     window.events.shown += on_shown
 
     install_app_navigation_guard(window)
+    install_clipboard_read_permission(window)
 
     def on_closing():
         # events.closing runs synchronously on the calling (GUI) thread and
