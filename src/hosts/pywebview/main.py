@@ -389,6 +389,19 @@ class WindowApi:
             return False
         return webbrowser.open(value)
 
+    # File-list double-click/Enter: same contract as the Electron host's
+    # fs:open-path — an existing regular file named by an absolute path.
+    def open_path(self, target_path):
+        if (not isinstance(target_path, str) or '\0' in target_path or
+                not os.path.isabs(target_path)):
+            raise ValueError('Invalid path')
+        if not os.path.isfile(target_path):
+            raise ValueError('Not a file')
+        if not hasattr(os, 'startfile'):
+            raise RuntimeError('Opening files with the default app is only supported on Windows')
+        os.startfile(target_path)
+        return True
+
     def terminal_start(self, kind, cwd):
         if kind not in ('cmd', 'powershell'):
             raise RuntimeError('Unsupported shell')

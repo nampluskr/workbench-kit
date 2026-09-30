@@ -131,6 +131,19 @@ ipcMain.handle('app:open-external-url', async (event, value) => {
   return true;
 });
 
+// File-list double-click/Enter: hand a file to the OS default program, like
+// Explorer. Only an existing regular file named by an absolute path, and only
+// from the bundled app page.
+ipcMain.handle('fs:open-path', async (event, targetPath) => {
+  const caller = event.senderFrame?.url || '';
+  const distUrl = pathToFileURL(fs.realpathSync(path.resolve(__dirname, '../../../dist/index.html'))).href;
+  if (caller.split('#')[0] !== distUrl) throw new Error('Untrusted caller');
+  await fsOps.assertOpenableFile(targetPath);
+  const failure = await shell.openPath(targetPath);
+  if (failure) throw new Error(failure);
+  return true;
+});
+
 const terminals = new Map();
 let terminalCounter = 0;
 ipcMain.handle('terminal:start', async (e, kind, cwd) => {

@@ -79,4 +79,13 @@ async function readLegacyTextFile(filePath) {
   return new TextDecoder('euc-kr', { fatal: true }).decode(bytes);
 }
 
-module.exports = { createFile, createFolder, renamePath, deletePath, probeTextFile, readLegacyTextFile };
+// Guard for handing a path to the OS default program: an existing regular
+// file named by an absolute path, nothing else.
+async function assertOpenableFile(targetPath) {
+  if (typeof targetPath !== 'string' || !path.isAbsolute(targetPath) || targetPath.includes('\0')) {
+    throw new Error('Invalid path');
+  }
+  if (!(await fs.promises.stat(targetPath)).isFile()) throw new Error('Not a file');
+}
+
+module.exports = { assertOpenableFile, createFile, createFolder, renamePath, deletePath, probeTextFile, readLegacyTextFile };

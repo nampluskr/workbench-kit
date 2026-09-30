@@ -1,7 +1,8 @@
 // Regression coverage for the folder file-list view's current contract
 // (src/core/rowlist.ts + src/presets/folder-preset.ts): icons and
 // folder-first order (WK-113/WK-118), click = select only and a file row
-// never activates (WK-116), dblclick/Enter on a folder steps in and `..`
+// opens no tab (WK-116; it goes to the OS default program since 2026-09-30,
+// see verify-file-list-open-electron.cjs), dblclick/Enter on a folder steps in and `..`
 // steps back up (WK-116), no right-click menu (WK-115), Space marks
 // (WK-125), and the column layout (user request, 2026-09-23 — Name fills
 // 150-500px and is the only draggable column; Ext/Size/Date fixed; Size
@@ -52,6 +53,7 @@ ipcMain.handle('fs:write-text-file', async (_e, file, content) => {
   await fs.promises.writeFile(file, content, 'utf8');
   return true;
 });
+ipcMain.handle('fs:open-path', () => true);
 ipcMain.handle('terminal:start', () => 'unused');
 ipcMain.handle('terminal:read', () => ({ output: '', exited: true }));
 ipcMain.handle('terminal:write', () => {});
@@ -103,7 +105,7 @@ app.whenReady().then(async () => {
       const clickFocusesList = document.activeElement === listEl;
       const clickOpensNothing = app.editor.getActivePanel() === folderPanel;
 
-      // A file row's dblclick does nothing either.
+      // A file row's dblclick opens no tab and leaves the list in place (it goes to the OS default program — verify-file-list-open-electron.cjs).
       findRow('beta.txt').dispatchEvent(new MouseEvent('dblclick', { bubbles: true }));
       await wait(200);
       const fileDblclickInert = app.editor.getActivePanel() === folderPanel && labels().includes('beta.txt');

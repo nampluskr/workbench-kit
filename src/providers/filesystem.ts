@@ -25,6 +25,9 @@ export interface HostFileSystemBridge {
   read_local_image?: (sourcePath: string, relativePath: string) => Promise<{ mime: string; base64: string }>;
   openExternalUrl?: (url: string) => Promise<boolean>;
   open_external_url?: (url: string) => Promise<boolean>;
+  /** Opens a file with the OS-registered default program, as Explorer's double-click does. */
+  openPath?: (path: string) => Promise<boolean>;
+  open_path?: (path: string) => Promise<boolean>;
   openFolderDialog?: () => Promise<string | null>;
   openFileDialog?: () => Promise<string | null>;
   readDir?: (dirPath: string) => Promise<HostDirectoryEntry[]>;
@@ -143,6 +146,13 @@ export async function openExternalUrl(url: string): Promise<boolean> {
   if (host?.openExternalUrl) return host.openExternalUrl(url);
   if (host?.open_external_url) return host.open_external_url(url);
   return false;
+}
+
+export async function openPathWithDefaultApp(path: string): Promise<boolean> {
+  const host = getHostFsBridge();
+  if (host?.openPath) return host.openPath(path);
+  if (host?.open_path) return host.open_path(path);
+  throw new Error('Opening files with the default app is unavailable in this host');
 }
 
 export async function createFile(path: string): Promise<boolean> {

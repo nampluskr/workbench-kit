@@ -20,6 +20,7 @@ contextBridge.exposeInMainWorld('workbenchHost', {
   readLegacyTextFile: (filePath) => ipcRenderer.invoke('fs:read-legacy-text-file', filePath),
   readLocalImage: (sourcePath, relativePath) => ipcRenderer.invoke('fs:read-local-image', sourcePath, relativePath),
   openExternalUrl: (url) => ipcRenderer.invoke('app:open-external-url', url),
+  openPath: (targetPath) => ipcRenderer.invoke('fs:open-path', targetPath),
   terminalStart: (kind, cwd) => ipcRenderer.invoke('terminal:start', kind, cwd),
   terminalRead: (id) => ipcRenderer.invoke('terminal:read', id),
   terminalWrite: (id, data) => ipcRenderer.invoke('terminal:write', id, data),

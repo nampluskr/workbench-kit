@@ -1,6 +1,6 @@
 import type { ResourceKindRegistry } from '../registry/kind-registry';
 import type { AppEditorSurface, EditorOpenOptions } from '../core/editor';
-import { readDirectory, getDriveTotalBytes, type HostDirectoryEntry } from '../providers/filesystem';
+import { readDirectory, getDriveTotalBytes, openPathWithDefaultApp, type HostDirectoryEntry } from '../providers/filesystem';
 import { IconThemeManager } from '../core/icontheme';
 import { RowListController, RowListItem, RowListColumn, RowListSortDirection } from '../core/rowlist';
 import { extractExt, isFilterActive, matchesFile, onFilterChange, reportSeenExtensions } from '../providers/extension-filter';
@@ -13,6 +13,12 @@ export interface FolderPresetDeps {
 
 /** Sentinel id for the synthetic "go up" row — never a real filesystem path (those are always absolute). */
 const PARENT_ENTRY_ID = '..';
+
+/** Extensions the file list never hands to the OS: they run code rather than open a document. */
+const LAUNCH_BLOCKED_EXTENSIONS = new Set([
+  'exe', 'com', 'bat', 'cmd', 'ps1', 'vbs', 'vbe', 'js', 'jse', 'wsf', 'wsh',
+  'msi', 'msc', 'scr', 'pif', 'hta', 'reg', 'cpl', 'jar',
+]);
 
 /** A bare drive letter ("C:") normalized the way `readDirectory()` expects it, mirroring `foldertabs.ts`'s own `normalizePath()`. */
 function normalizeDriveRoot(path: string): string {
@@ -158,7 +164,8 @@ async function computeFolderSize(path: string): Promise<number> {
  * files/folders anywhere else. A click only selects; double-click/Enter on
  * a folder row steps INTO it (re-reading that directory into the same
  * panel); a synthetic `..` row (hidden at a drive root) steps back UP the
- * same way. A file row has no activation behaviour at all.
+ * same way. Double-click/Enter on a file row hands it to the OS default
+ * program (2026-09-30), except programs/scripts.
  *
  * Details-view columns (v0.3 WK-118, out-of-plan addition, 2026-09-23 —
  * user request): Name/Ext/Size/Date, Explorer-style clickable/sortable
@@ -359,8 +366,19 @@ export function registerFolderPreset(registry: ResourceKindRegistry, deps: Folde
         return;
       }
       const entry = entriesByPath.get(item.id);
-      if (entry?.isContainer) void load(entry.path);
-      // A file row activating does nothing — no execute/open left (WK-116).
+      if (!entry) return;
+      if (entry.isContainer) { void load(entry.path); return; }
+      // A file row hands the file to the OS default program, as Explorer's
+      // double-click does (user request, 2026-09-30). Programs and scripts
+      // are not launched from here.
+      if (LAUNCH_BLOCKED_EXTENSIONS.has(extractExt(entry.name).toLowerCase())) {
+        setStatus(`'${entry.name}' is a program or script and is not launched from the file list`);
+        return;
+      }
+      setStatus(null);
+      openPathWithDefaultApp(entry.path).catch((error) => {
+        if (!disposed) setStatus(`Unable to open '${entry.name}': ${String(error)}`);
+      });
     });
 
     rowList.onSortRequest((columnId, direction) => {
